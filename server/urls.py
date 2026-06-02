@@ -16,7 +16,14 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
+from rest_framework.routers import DefaultRouter
+from server.apps.remotech.views import ModuleCategoryViewSet
+
+router = DefaultRouter()
+
+router.register(r'module-category', ModuleCategoryViewSet, basename='module-category')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    router.urls
 ]
