@@ -37,6 +37,21 @@ argon2 = ["argon2-cffi (>=23.1.0)"]
 bcrypt = ["bcrypt (>=4.1.1)"]
 
 [[package]]
+name = "djangorestframework"
+version = "3.18.0"
+description = "Web APIs for Django, made easy."
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+files = [
+    {file = "djangorestframework-3.18.0-py3-none-any.whl", hash = "sha256:381fc44d3249c9565c5f723850855b734e99030eb30957a49f506d3fe11d7dcb"},
+    {file = "djangorestframework-3.18.0.tar.gz", hash = "sha256:2323a5111837e0b784dcb8323abc78ecc54fa2a5af7aff2677cf50cdd849477f"},
+]
+
+[package.dependencies]
+django = ">=5.2"
+
+[[package]]
 name = "psycopg2-binary"
 version = "2.9.12"
 description = "psycopg2 - Python-PostgreSQL Database Adapter"
@@ -157,4 +172,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12"
-content-hash = "96e8a05cf796ea254a79c07458550a6919b5bc57f9986372dfdb1013bf627ef0"
+content-hash = "250e9d78370eed902023f5e689b10c90e38a0ed7108c5fd2f062d13c34c8b1b3"

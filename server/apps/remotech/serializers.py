@@ -3,23 +3,22 @@ from rest_framework import serializers
 from server.apps.remotech.models import (
     Assignment,
     Course,
-    CourseEnrollment,
     CourseModule,
+    CourseOrder,
     Leaderboard,
-    ModuleCategory,
     Submission,
 )
-
-
-class ModuleCategorySerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ModuleCategory
-        fields = "_all_"
 
 
 class CourseSerializer(serializers.ModelSerializer):
     class Meta:
         model = Course
+        fields = "__all__"
+
+
+class CourseModuleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CourseModule
         fields = "__all__"
 
 

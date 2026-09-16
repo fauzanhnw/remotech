@@ -1,11 +1,12 @@
+from django.contrib.auth.models import User
 from django.db import models
+from django.db.models import Max
+from django.utils.text import slugify
+
 
 class CrudModel(models.Model):
-    created = models.DateTimeField(auto_now_add=True)
-    modified = models.DateTimeField(auto_now=True)
-    created_user = models.CharField(max_length=50, blank=True, default="")
-    modified_user = models.CharField(max_length=50, blank=True, default="")
-    objects = models.BaseManager.from_queryset(CrudModelQuerySet)()
+    created_at = models.DateTimeField(auto_now_add=True)
+    modified_at = models.DateTimeField(auto_now=True)
 
     def save(self, *args, **kwargs) -> None:
         """Save CRUD Model
@@ -20,76 +21,144 @@ class CrudModel(models.Model):
     class Meta:
         abstract = True
 
-class Status(CrudModel):
-    name = models.CharField(max_length=20)
-    sequence = models.BigIntegerField()
-    
-class ModuleCategory(CrudModel):
-    name = models.CharField(max_length=50)
-    
+
+# class Status(CrudModel):
+#     name = models.CharField(max_length=20)
+#     sequence = models.BigIntegerField()
+
+
+# class ModuleCategory(CrudModel):
+#     name = models.CharField(max_length=50)
+
+
 class Course(CrudModel):
+    # user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    slug = models.TextField()
     title = models.CharField(max_length=255)
     description = models.TextField()
     price = models.BigIntegerField()
     is_publish = models.BooleanField(default=False)
-    
-class CourseEnrollment(CrudModel):
+
+    def save(self, **kwargs):
+        self.slug = slugify(self.name)
+        if (
+            update_fields := kwargs.get("update_fields")
+        ) is not None and "name" in update_fields:
+            kwargs["update_fields"] = {"slug"}.union(update_fields)
+        super().save(**kwargs)
+
+
+class CourseEnrollment(models.Model):
     course = models.ForeignKey(Course, on_delete=models.CASCADE)
-    # user
-    
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    enrolled_at = models.DateTimeField(auto_now=True)
+
+
+class CourseOrder(models.Model):
+    class StatusChoices(models.TextChoices):
+        SETTLEMENT = "settlement", "Settlement"
+        PENDING = "pending", "Pending"
+        DENY = "deny", "Deny"
+        CANCEL = "cancel", "Cancel"
+        EXPIRE = "expire", "Expire"
+        FAILURE = "failure", "Failure"
+
+    course = models.ForeignKey(Course, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    order_no = models.CharField(max_length=100, unique=True)
+    transaction_status = models.CharField(
+        max_length=20,
+        choices=StatusChoices.choices,
+        default=StatusChoices.PENDING,
+        db_index=True,
+    )
+    gross_amount = models.DecimalField(max_digits=12, decimal_places=2)
+    payment_type = models.CharField(max_length=30)
+    midtrans_transaction_id = models.CharField(max_length=100)
+    created_at = models.DateTimeField(auto_now=True)
+    paid_at = models.DateTimeField(null=True)
+
+
 class Badge(models.Model):
     course = models.ForeignKey(Course, on_delete=models.CASCADE)
     name = models.CharField(max_length=100)
-    
+    description = models.TextField()
+
+
 class UserBagde(models.Model):
-    # user
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
     badge = models.ForeignKey(Badge, on_delete=models.CASCADE)
-    earned_on = models.DateTimeField(auto_now=True, auto_now_add=True)
-    
+    earned_at = models.DateTimeField(auto_now=True, auto_now_add=True)
+
+
 class CourseModule(CrudModel):
+    class Category(models.TextChoices):
+        TEXT = "text", "Text"
+        VIDEO = "video", "Video"
+        UPLOAD = "upload", "Upload"
+
     course = models.ForeignKey(Course, on_delete=models.CASCADE)
-    name = models.CharField(max_length=255)
-    module_category = models.ForeignKey(ModuleCategory, on_delete=models.CASCADE)
-    sequence = models.BigIntegerField()
-    point = models.IntegerField()
-    
+    title = models.CharField(max_length=255)
+    module_category = models.CharField(max_length=100, choices=Category.choices)
+    sequence = models.BigIntegerField(null=True, blank=True)
+    point = models.IntegerField(default=0)
+
+    def save(self, *args, **kwargs):
+        if self.sequence is None:
+            max_seq = CourseModule.objects.filter(course=self.course).aggregate(
+                max_sequence=Max("sequence")
+            )["max_sequence"]
+
+            self.sequence = (max_seq or 0) + 1
+
+        super().save(*args, **kwargs)
+
+
 class ModuleContent(CrudModel):
     module = models.ForeignKey(CourseModule, on_delete=models.CASCADE)
     content_text = models.TextField()
     content_url = models.URLField()
-    
+
+
 class Assignment(CrudModel):
     course_module = models.ForeignKey(CourseModule, on_delete=models.CASCADE)
     name = models.CharField(max_length=255)
     description = models.TextField()
 
+
 class Submission(CrudModel):
-    # user 
-    score = models.IntegerChoices
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
     assignment = models.ForeignKey(Assignment, on_delete=models.CASCADE)
     submission_url = models.URLField()
     submit_on = models.DateTimeField(auto_now=True, auto_now_add=True)
-    
+    score = models.IntegerChoices
+    reviewed_by = models.CharField(max_length=50, blank=True)
+
+
 class Leaderboard(models.Model):
     course = models.ForeignKey(Course, on_delete=models.CASCADE)
-    # user 
-    points = models.IntegerField()
-    
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    total_points = models.IntegerField(default=0)
+
+
+class LeaderboardDetail(models.Model):
+    leaderboard = models.ForeignKey(Leaderboard, on_delete=models.CASCADE)
+    description = models.CharField(max_length=255, blank=True)
+    point = models.IntegerField(default=0)
+
+
 class UserProgress(models.Model):
-    PROGRESS_STATUS = [
-        {"UNFINISH", "Unfinish"},
-        {"FINISH", "Finish"}
-    ]
+    class ProgressStatus(models.TextChoices):
+        UNFINISH = "unfinish", "Unfinish"
+        FINISH = "finish", "Finish"
+
     module = models.ForeignKey(CourseModule, on_delete=models.CASCADE)
-    # user 
-    complete_at = models.DateTimeField(auto_now=True, auto_now_add=True)
-    last_access_at = models.DateTimeField()
-    status = models.TextChoices(choices=PROGRESS_STATUS,)
-    
-class PaymentTransaction(CrudModel):
-    # user 
-    course = models.ForeignKey(CourseModule, on_delete=models.CASCADE)
-    amount = models.IntegerField()
-    transaction_no = models.CharField() # auto generate
-    status = models.TextChoices()
-    payment_type = models.TextChoices()
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    complete_at = models.DateTimeField()
+    # last_access_at = models.DateTimeField(auto_now=True, auto_now_add=True)
+    status = models.TextChoices(
+        max_length=50,
+        choices=ProgressStatus,
+        default=ProgressStatus.UNFINISH,
+    )
