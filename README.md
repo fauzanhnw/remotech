@@ -12,18 +12,19 @@ Dibangun menggunakan **Django**, **React**, dan **PostgreSQL**.
 - PostgreSQL
 - Poetry (untuk dependency management)
 
-## Instalasi Poetry
+## Instalasi Poetry (abaikan bila sudah terinstall)
+Jalankan di powershell:
 
 ```powershell
 python -m pip install poetry
 ```
 
-Pastikan direktori Scripts Python sudah masuk PATH:
+Atur agar venv berada di dalam project
 
 ```powershell
-$env:Path = [Environment]::GetEnvironmentVariable("Path", "User")
-poetry --version
+poetry config virtualenvs.in-project true
 ```
+[Panduan lengkap instalasi poetry ](https://python-poetry.org/docs/#installing-with-the-official-installer)
 
 ## Instalasi Project
 
