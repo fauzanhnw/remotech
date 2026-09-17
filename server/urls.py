@@ -14,16 +14,24 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
+
 from django.contrib import admin
 from django.urls import path
 from rest_framework.routers import DefaultRouter
-from server.apps.remotech.views import ModuleCategoryViewSet
+
+from server.apps.remotech.views import (
+    AssignmentViewSet,
+    CourseEnrollmentViewSet,
+    CourseOrderViewSet,
+    CourseViewSet,
+)
 
 router = DefaultRouter()
 
-router.register(r'module-category', ModuleCategoryViewSet, basename='module-category')
+router.register(r"course", CourseViewSet, basename="course")
+router.register(r"order", CourseOrderViewSet, basename="order")
+router.register(r"assignment", AssignmentViewSet, basename="assignment")
+router.register(r"enroll", CourseEnrollmentViewSet, basename="enroll")
 
-urlpatterns = [
-    path('admin/', admin.site.urls),
-    router.urls
-]
+# urlpatterns = [path("admin/", admin.site.urls), router.urls]
+urlpatterns = [path("admin/", admin.site.urls)] + router.urls

@@ -15,6 +15,9 @@ from server.apps.remotech.models import (
 )
 from server.apps.remotech.serializers import (
     AssignmentSerializer,
+    CourseEnrollmentSerializer,
+    CourseModuleSerializer,
+    CourseOrderSerializer,
     CourseSerializer,
     LeaderboardSerializer,
     SubmissionSerializer,
@@ -28,10 +31,17 @@ class CourseViewSet(viewsets.ModelViewSet):
 
 class CourseModuleViewSet(viewsets.ModelViewSet):
     queryset = CourseModule.objects.all()
+    serializer_class = CourseModuleSerializer
+
+
+class CourseOrderViewSet(viewsets.ModelViewSet):
+    queryset = CourseOrder.objects.all()
+    serializer_class = CourseOrderSerializer
 
 
 class CourseEnrollmentViewSet(viewsets.ModelViewSet):
     queryset = CourseEnrollment.objects.all()
+    serializer_class = CourseEnrollmentSerializer
 
 
 class AssignmentViewSet(viewsets.ModelViewSet):

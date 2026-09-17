@@ -8,31 +8,21 @@ class CrudModel(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     modified_at = models.DateTimeField(auto_now=True)
 
-    def save(self, *args, **kwargs) -> None:
-        """Save CRUD Model
-        Returns:
-            None
-        """
-        if not self.pk:
-            self.created_user = self.created_user or ""
-        self.modified_user = self.modified_user or ""
-        return super().save(*args, **kwargs)
+    # def save(self, *args, **kwargs) -> None:
+    #     """Save CRUD Model
+    #     Returns:
+    #         None
+    #     """
+    #     if not self.pk:
+    #         self.created_user = self.created_user or ""
+    #     self.modified_user = self.modified_user or ""
+    #     return super().save(*args, **kwargs)
 
     class Meta:
         abstract = True
 
 
-# class Status(CrudModel):
-#     name = models.CharField(max_length=20)
-#     sequence = models.BigIntegerField()
-
-
-# class ModuleCategory(CrudModel):
-#     name = models.CharField(max_length=50)
-
-
 class Course(CrudModel):
-    # user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     slug = models.TextField()
     title = models.CharField(max_length=255)
@@ -41,10 +31,10 @@ class Course(CrudModel):
     is_publish = models.BooleanField(default=False)
 
     def save(self, **kwargs):
-        self.slug = slugify(self.name)
+        self.slug = slugify(self.title)
         if (
             update_fields := kwargs.get("update_fields")
-        ) is not None and "name" in update_fields:
+        ) is not None and "title" in update_fields:
             kwargs["update_fields"] = {"slug"}.union(update_fields)
         super().save(**kwargs)
 
@@ -52,7 +42,7 @@ class Course(CrudModel):
 class CourseEnrollment(models.Model):
     course = models.ForeignKey(Course, on_delete=models.CASCADE)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    enrolled_at = models.DateTimeField(auto_now=True)
+    enrolled_at = models.DateTimeField(auto_now_add=True)
 
 
 class CourseOrder(models.Model):
@@ -76,7 +66,7 @@ class CourseOrder(models.Model):
     gross_amount = models.DecimalField(max_digits=12, decimal_places=2)
     payment_type = models.CharField(max_length=30)
     midtrans_transaction_id = models.CharField(max_length=100)
-    created_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
     paid_at = models.DateTimeField(null=True)
 
 
@@ -86,10 +76,10 @@ class Badge(models.Model):
     description = models.TextField()
 
 
-class UserBagde(models.Model):
+class UserBadge(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     badge = models.ForeignKey(Badge, on_delete=models.CASCADE)
-    earned_at = models.DateTimeField(auto_now=True, auto_now_add=True)
+    earned_at = models.DateTimeField(auto_now_add=True)
 
 
 class CourseModule(CrudModel):
@@ -117,8 +107,8 @@ class CourseModule(CrudModel):
 
 class ModuleContent(CrudModel):
     module = models.ForeignKey(CourseModule, on_delete=models.CASCADE)
-    content_text = models.TextField()
-    content_url = models.URLField()
+    content_text = models.TextField(blank=True)
+    content_url = models.URLField(blank=True)
 
 
 class Assignment(CrudModel):
@@ -131,8 +121,8 @@ class Submission(CrudModel):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     assignment = models.ForeignKey(Assignment, on_delete=models.CASCADE)
     submission_url = models.URLField()
-    submit_on = models.DateTimeField(auto_now=True, auto_now_add=True)
-    score = models.IntegerChoices
+    submit_on = models.DateTimeField(auto_now_add=True)
+    score = models.IntegerField()
     reviewed_by = models.CharField(max_length=50, blank=True)
 
 
@@ -155,10 +145,57 @@ class UserProgress(models.Model):
 
     module = models.ForeignKey(CourseModule, on_delete=models.CASCADE)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    complete_at = models.DateTimeField()
+    complete_at = models.DateTimeField(null=True)
     # last_access_at = models.DateTimeField(auto_now=True, auto_now_add=True)
-    status = models.TextChoices(
+    status = models.CharField(
         max_length=50,
-        choices=ProgressStatus,
+        choices=ProgressStatus.choices,
         default=ProgressStatus.UNFINISH,
     )
+
+
+class Question(CrudModel):
+    class QuestionType(models.TextChoices):
+        CHOICES = "choices", "Choices"
+        ESSAI = "essai", "Essai"
+        BOOLEAN = "boolean", "Boolean"
+
+    module = models.ForeignKey(CourseModule, on_delete=models.CASCADE)
+    question_text = models.TextField()
+    question_type = models.CharField(max_length=50, choices=QuestionType.choices)
+    explanation = models.TextField()
+    sequence = models.BigIntegerField(null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        if self.sequence is None:
+            max_seq = CourseModule.objects.filter(course=self.module.course).aggregate(
+                max_sequence=Max("sequence")
+            )["max_sequence"]
+
+            self.sequence = (max_seq or 0) + 1
+
+        super().save(*args, **kwargs)
+
+
+class QuestionOption(CrudModel):
+    question = models.ForeignKey(Question, on_delete=models.CASCADE)
+    option_text = models.TextField()
+    is_correct = models.BooleanField(default=False)
+    sequence = models.BigIntegerField(null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        if self.sequence is None:
+            max_seq = CourseModule.objects.filter(
+                course=self.question.module.course
+            ).aggregate(max_sequence=Max("sequence"))["max_sequence"]
+
+            self.sequence = (max_seq or 0) + 1
+
+        super().save(*args, **kwargs)
+
+
+class UserAnswer(models.Model):
+    submission = models.ForeignKey(Submission, on_delete=models.CASCADE)
+    question = models.ForeignKey(Question, on_delete=models.CASCADE)
+    question_option = models.ForeignKey(QuestionOption, on_delete=models.CASCADE)
+    answer_text = models.TextField()
