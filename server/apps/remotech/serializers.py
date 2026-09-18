@@ -2,13 +2,36 @@ from rest_framework import serializers
 
 from server.apps.remotech.models import (
     Assignment,
+    Badge,
     Course,
     CourseEnrollment,
     CourseModule,
     CourseOrder,
     Leaderboard,
     Submission,
+    User,
+    UserAnswer,
+    UserBadge,
+    UserProgress,
 )
+
+
+class BadgeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Badge
+        fields = "__all__"
+
+
+class UserBadgeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserBadge
+        fields = "__all__"
+
+
+class UserAnswerSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserAnswer
+        fields = "__all__"
 
 
 class CourseSerializer(serializers.ModelSerializer):

@@ -24,6 +24,7 @@ from server.apps.remotech.views import (
     CourseEnrollmentViewSet,
     CourseOrderViewSet,
     CourseViewSet,
+    LeaderboardViewSet,
 )
 
 router = DefaultRouter()
@@ -32,6 +33,7 @@ router.register(r"course", CourseViewSet, basename="course")
 router.register(r"order", CourseOrderViewSet, basename="order")
 router.register(r"assignment", AssignmentViewSet, basename="assignment")
 router.register(r"enroll", CourseEnrollmentViewSet, basename="enroll")
+router.register(r"leaderboard", LeaderboardViewSet, basename="leaderboard")
 
 # urlpatterns = [path("admin/", admin.site.urls), router.urls]
 urlpatterns = [path("admin/", admin.site.urls)] + router.urls
