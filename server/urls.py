@@ -24,7 +24,15 @@ from server.apps.remotech.views import (
     CourseEnrollmentViewSet,
     CourseOrderViewSet,
     CourseViewSet,
+    ForgotPasswordPageView,
+    ForgotPasswordResetViewSet,
+    ForgotPasswordViewSet,
     LeaderboardViewSet,
+    RegisterViewSet,
+    SetPasswordPageView,
+    SetPasswordViewSet,
+    TokenObtainPairViewSet,
+    TokenRefreshViewSet,
 )
 
 router = DefaultRouter()
@@ -35,5 +43,17 @@ router.register(r"assignment", AssignmentViewSet, basename="assignment")
 router.register(r"enroll", CourseEnrollmentViewSet, basename="enroll")
 router.register(r"leaderboard", LeaderboardViewSet, basename="leaderboard")
 
-# urlpatterns = [path("admin/", admin.site.urls), router.urls]
-urlpatterns = [path("admin/", admin.site.urls)] + router.urls
+auth_router = DefaultRouter()
+
+auth_router.register(r"register", RegisterViewSet, basename="register")
+auth_router.register(r"set-password", SetPasswordViewSet, basename="set-password")
+auth_router.register(r"forgot-password", ForgotPasswordViewSet, basename="forgot-password")
+auth_router.register(r"forgot-password/reset", ForgotPasswordResetViewSet, basename="forgot-password-reset")
+auth_router.register(r"token", TokenObtainPairViewSet, basename="token")
+auth_router.register(r"token/refresh", TokenRefreshViewSet, basename="token-refresh")
+
+urlpatterns = [
+    path("admin/", admin.site.urls),
+    path("set-password/", SetPasswordPageView.as_view({"get": "list"})),
+    path("reset-password/", ForgotPasswordPageView.as_view({"get": "list"})),
+] + router.urls + auth_router.urls

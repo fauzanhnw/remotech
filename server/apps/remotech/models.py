@@ -1,6 +1,7 @@
 from django.contrib.auth.models import User
 from django.db import models
 from django.db.models import Max
+from django.utils import timezone
 from django.utils.text import slugify
 
 
@@ -199,3 +200,13 @@ class UserAnswer(models.Model):
     question = models.ForeignKey(Question, on_delete=models.CASCADE)
     question_option = models.ForeignKey(QuestionOption, on_delete=models.CASCADE)
     answer_text = models.TextField()
+
+
+class SetPasswordToken(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    token = models.CharField(max_length=255, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_used = models.BooleanField(default=False)
+
+    def is_expired(self):
+        return timezone.now() - self.created_at > timezone.timedelta(hours=24)

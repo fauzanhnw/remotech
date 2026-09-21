@@ -13,6 +13,8 @@ psycopg2-binary = ">=2.9.10,<3.0.0"
 python-decouple = ">=3.8,<4.0"
 djangorestframework = "^3.18.0"
 django-filter = "^24.2"
+drf-standardized-errors = "^0.16.0"
+djangorestframework-simplejwt = "^5.5.1"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

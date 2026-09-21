@@ -6,7 +6,12 @@ from django_filters.rest_framework import (
 )
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+)
 
 from server.apps.remotech.models import (
     Assignment,
@@ -27,11 +32,24 @@ from server.apps.remotech.serializers import (
     CourseModuleSerializer,
     CourseOrderSerializer,
     CourseSerializer,
+    ForgotPasswordSerializer,
     LeaderboardSerializer,
+    RegisterSerializer,
+    SetPasswordSerializer,
     SubmissionSerializer,
     UserAnswerSerializer,
     UserBadgeSerializer,
 )
+from server.apps.remotech.services.auth import (
+    forgot_password,
+    register_user,
+    reset_password,
+    set_password,
+)
+
+
+class UserViewSet(viewsets.ViewSet):
+    pass
 
 
 class BadgeViewSet(viewsets.ModelViewSet):
@@ -92,3 +110,85 @@ class UserAnswerViewSet(viewsets.ModelViewSet):
     queryset = UserAnswer.objects.all()
     serializer_class = UserAnswerSerializer
     filter_backends = DjangoFilterBackend
+
+
+class RegisterViewSet(viewsets.ViewSet):
+    permission_classes = [AllowAny]
+
+    def create(self, request):
+        serializer = RegisterSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        register_user(**serializer.validated_data)
+        return Response(
+            {"message": "Registration successful. Please check your email to set your password."},
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class SetPasswordViewSet(viewsets.ViewSet):
+    permission_classes = [AllowAny]
+
+    def create(self, request):
+        serializer = SetPasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        set_password(**serializer.validated_data)
+        return Response(
+            {"message": "Password set successfully. You can now login."},
+            status=status.HTTP_200_OK,
+        )
+
+
+class SetPasswordPageView(viewsets.ViewSet):
+    permission_classes = [AllowAny]
+
+    def list(self, request):
+        return render(request, "set_password.html")
+
+
+class TokenObtainPairViewSet(viewsets.ViewSet):
+    permission_classes = [AllowAny]
+
+    def create(self, request):
+        view = TokenObtainPairView.as_view()
+        return view(request._request)
+
+
+class TokenRefreshViewSet(viewsets.ViewSet):
+    permission_classes = [AllowAny]
+
+    def create(self, request):
+        view = TokenRefreshView.as_view()
+        return view(request._request)
+
+
+class ForgotPasswordViewSet(viewsets.ViewSet):
+    permission_classes = [AllowAny]
+
+    def create(self, request):
+        serializer = ForgotPasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        forgot_password(**serializer.validated_data)
+        return Response(
+            {"message": "If your email is registered, you will receive a password reset link."},
+            status=status.HTTP_200_OK,
+        )
+
+
+class ForgotPasswordResetViewSet(viewsets.ViewSet):
+    permission_classes = [AllowAny]
+
+    def create(self, request):
+        serializer = SetPasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        reset_password(**serializer.validated_data)
+        return Response(
+            {"message": "Password reset successfully. You can now login."},
+            status=status.HTTP_200_OK,
+        )
+
+
+class ForgotPasswordPageView(viewsets.ViewSet):
+    permission_classes = [AllowAny]
+
+    def list(self, request):
+        return render(request, "reset_password.html")
