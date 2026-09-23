@@ -30,7 +30,8 @@ SECRET_KEY = "django-insecure-+-0c2#r4i!p$h@1=eq$pnzyc)oh+ji78xn9-o@4+dct$0x@q4&
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ["*"]
+ALLOWED_HOSTS = ["*"]  # ONLY FOR DEVELOPMENT
+# ALLOWED_HOSTS = ["remotech.web.id"] # FOR PRODUCTION
 
 
 # Application definition
@@ -62,6 +63,9 @@ MIDDLEWARE = [
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
     ],
     "DEFAULT_FILTER_BACKENDS": ["django_filters.rest_framework.DjangoFilterBackend"],
     "EXCEPTION_HANDLER": "drf_standardized_errors.handler.exception_handler",
@@ -153,5 +157,5 @@ EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="")
 EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")
 DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="noreply@remotech.web.id")
 
-# Frontend
-FRONTEND_URL = config("FRONTEND_URL", default="http://localhost:3000")
+# Base URL
+BASE_URL = config("BASE_URL", default="http://localhost:8000")

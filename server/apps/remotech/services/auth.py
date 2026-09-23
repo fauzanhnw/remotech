@@ -55,7 +55,7 @@ def set_password(token, password):
 
 
 def send_set_password_email(user, token):
-    set_password_url = f"{settings.FRONTEND_URL}/set-password/?token={token}"
+    set_password_url = f"{settings.BASE_URL}/set-password/?token={token}"
 
     subject = "Set Your Password - Remotech"
     message = render_to_string(
@@ -108,7 +108,7 @@ def reset_password(token, password):
 
 
 def send_forgot_password_email(user, token):
-    reset_password_url = f"{settings.FRONTEND_URL}/reset-password/?token={token}"
+    reset_password_url = f"{settings.BASE_URL}/reset-password/?token={token}"
 
     subject = "Reset Your Password - Remotech"
     message = render_to_string(

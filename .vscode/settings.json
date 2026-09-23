@@ -6,5 +6,7 @@
             "source.organizeImports": "always"
         }
     },
-    "python-envs.defaultEnvManager": "ms-python.python:system"
+    "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe",
+    "python-envs.defaultEnvManager": "ms-python.python:poetry",
+    "python-envs.defaultPackageManager": "ms-python.python:poetry"
 }

@@ -6,7 +6,7 @@ from django_filters.rest_framework import (
 )
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
@@ -67,7 +67,12 @@ class UserBadgeViewSet(viewsets.ModelViewSet):
 class CourseViewSet(viewsets.ModelViewSet):
     queryset = Course.objects.all()
     serializer_class = CourseSerializer
-    filter_backends = DjangoFilterBackend
+    # filter_backends = DjangoFilterBackend
+
+    def get_permissions(self):
+        if self.action in ("list", "retrieve"):
+            return [AllowAny()]
+        return [IsAuthenticated()]
 
 
 class CourseModuleViewSet(viewsets.ModelViewSet):
@@ -120,7 +125,9 @@ class RegisterViewSet(viewsets.ViewSet):
         serializer.is_valid(raise_exception=True)
         register_user(**serializer.validated_data)
         return Response(
-            {"message": "Registration successful. Please check your email to set your password."},
+            {
+                "message": "Registration successful. Please check your email to set your password."
+            },
             status=status.HTTP_201_CREATED,
         )
 
@@ -169,7 +176,9 @@ class ForgotPasswordViewSet(viewsets.ViewSet):
         serializer.is_valid(raise_exception=True)
         forgot_password(**serializer.validated_data)
         return Response(
-            {"message": "If your email is registered, you will receive a password reset link."},
+            {
+                "message": "If your email is registered, you will receive a password reset link."
+            },
             status=status.HTTP_200_OK,
         )
 

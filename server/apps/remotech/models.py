@@ -27,8 +27,9 @@ class Course(CrudModel):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     slug = models.TextField()
     title = models.CharField(max_length=255)
-    description = models.TextField()
-    price = models.BigIntegerField()
+    description = models.TextField(blank=True)
+    thumbnail_url = models.TextField(blank=True)
+    price = models.BigIntegerField(default=0)
     is_publish = models.BooleanField(default=False)
 
     def save(self, **kwargs):
