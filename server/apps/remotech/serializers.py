@@ -15,6 +15,7 @@ from server.apps.remotech.models import (
     UserBadge,
     UserProgress,
 )
+from server.apps.remotech.services.course import convert_to_webp
 
 
 class BadgeSerializer(serializers.ModelSerializer):
@@ -39,6 +40,12 @@ class CourseSerializer(serializers.ModelSerializer):
     class Meta:
         model = Course
         fields = "__all__"
+        read_only_fields = ["user", "slug"]
+
+    def validate_thumbnail(self, value):
+        if not value:
+            return value
+        return convert_to_webp(value)
 
 
 class CourseModuleSerializer(serializers.ModelSerializer):

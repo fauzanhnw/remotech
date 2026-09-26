@@ -6,6 +6,7 @@ from django_filters.rest_framework import (
 )
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import (
@@ -13,6 +14,7 @@ from rest_framework_simplejwt.views import (
     TokenRefreshView,
 )
 
+from server.apps.remotech.mixins import AssignUserMixin
 from server.apps.remotech.models import (
     Assignment,
     Badge,
@@ -64,9 +66,10 @@ class UserBadgeViewSet(viewsets.ModelViewSet):
     filter_backends = DjangoFilterBackend
 
 
-class CourseViewSet(viewsets.ModelViewSet):
+class CourseViewSet(AssignUserMixin, viewsets.ModelViewSet):
     queryset = Course.objects.all()
     serializer_class = CourseSerializer
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
     # filter_backends = DjangoFilterBackend
 
     def get_permissions(self):

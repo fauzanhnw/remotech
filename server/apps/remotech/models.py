@@ -1,4 +1,5 @@
 from django.contrib.auth.models import User
+from django.core.files.storage import default_storage
 from django.db import models
 from django.db.models import Max
 from django.utils import timezone
@@ -28,7 +29,9 @@ class Course(CrudModel):
     slug = models.TextField()
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
-    thumbnail_url = models.TextField(blank=True)
+    thumbnail = models.ImageField(
+        upload_to="courses/thumbnails/", blank=True, null=True
+    )
     price = models.BigIntegerField(default=0)
     is_publish = models.BooleanField(default=False)
 
@@ -38,7 +41,26 @@ class Course(CrudModel):
             update_fields := kwargs.get("update_fields")
         ) is not None and "title" in update_fields:
             kwargs["update_fields"] = {"slug"}.union(update_fields)
+
+        old_thumbnail = None
+        if self.pk:
+            old_thumbnail = (
+                type(self)
+                .objects.filter(pk=self.pk)
+                .values_list("thumbnail", flat=True)
+                .first()
+            )
+
         super().save(**kwargs)
+
+        new_thumbnail = self.thumbnail.name or ""
+        if old_thumbnail and old_thumbnail != new_thumbnail:
+            self.delete_thumbnail(old_thumbnail)
+
+    @staticmethod
+    def delete_thumbnail(name):
+        if name and default_storage.exists(name):
+            default_storage.delete(name)
 
 
 class CourseEnrollment(models.Model):
@@ -89,6 +111,7 @@ class CourseModule(CrudModel):
         TEXT = "text", "Text"
         VIDEO = "video", "Video"
         UPLOAD = "upload", "Upload"
+        QUIZ = "quiz", "Quiz"
 
     course = models.ForeignKey(Course, on_delete=models.CASCADE)
     title = models.CharField(max_length=255)
