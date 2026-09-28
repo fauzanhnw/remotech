@@ -1,20 +1,19 @@
-from django.contrib.auth.models import User
+from uuid import uuid4
+
+from django.conf import settings
+from django.core.files.storage import default_storage
 from django.shortcuts import render
-from django_filters.rest_framework import (
-    DjangoFilterBackend,
-    OrderingFilter,
-)
 from rest_framework import status, viewsets
-from rest_framework.decorators import action
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
 )
 
-from server.apps.remotech.mixins import AssignUserMixin
+from server.apps.remotech.mixins import AssignUserMixin, CourseOwnerMixin
 from server.apps.remotech.models import (
     Assignment,
     Badge,
@@ -23,6 +22,7 @@ from server.apps.remotech.models import (
     CourseModule,
     CourseOrder,
     Leaderboard,
+    ModuleContent,
     Submission,
     UserAnswer,
     UserBadge,
@@ -34,8 +34,11 @@ from server.apps.remotech.serializers import (
     CourseModuleSerializer,
     CourseOrderSerializer,
     CourseSerializer,
+    DocumentUploadSerializer,
     ForgotPasswordSerializer,
+    ImageUploadSerializer,
     LeaderboardSerializer,
+    ModuleContentSerializer,
     RegisterSerializer,
     SetPasswordSerializer,
     SubmissionSerializer,
@@ -48,6 +51,14 @@ from server.apps.remotech.services.auth import (
     reset_password,
     set_password,
 )
+from server.apps.remotech.services.richtext import extract_media_urls
+
+
+def media_url(storage_name):
+    path = f"{settings.MEDIA_URL}{storage_name}"
+    if not path.startswith("/"):
+        path = f"/{path}"
+    return f"{settings.BASE_URL.rstrip('/')}{path}"
 
 
 class UserViewSet(viewsets.ViewSet):
@@ -55,22 +66,19 @@ class UserViewSet(viewsets.ViewSet):
 
 
 class BadgeViewSet(viewsets.ModelViewSet):
-    queryset = Badge.objects.all()
+    queryset = Badge.objects.order_by("id")
     serializer_class = BadgeSerializer
-    filter_backends = DjangoFilterBackend
 
 
 class UserBadgeViewSet(viewsets.ModelViewSet):
-    queryset = UserBadge.objects.all()
+    queryset = UserBadge.objects.order_by("id")
     serializer_class = UserBadgeSerializer
-    filter_backends = DjangoFilterBackend
 
 
 class CourseViewSet(AssignUserMixin, viewsets.ModelViewSet):
-    queryset = Course.objects.all()
+    queryset = Course.objects.order_by("id")
     serializer_class = CourseSerializer
     parser_classes = [MultiPartParser, FormParser, JSONParser]
-    # filter_backends = DjangoFilterBackend
 
     def get_permissions(self):
         if self.action in ("list", "retrieve"):
@@ -78,46 +86,126 @@ class CourseViewSet(AssignUserMixin, viewsets.ModelViewSet):
         return [IsAuthenticated()]
 
 
-class CourseModuleViewSet(viewsets.ModelViewSet):
-    queryset = CourseModule.objects.all()
+class CourseModuleViewSet(CourseOwnerMixin, viewsets.ModelViewSet):
+    queryset = CourseModule.objects.select_related("course").order_by("id")
     serializer_class = CourseModuleSerializer
-    filter_backends = DjangoFilterBackend
+
+    def get_permissions(self):
+        if self.action in ("list", "retrieve"):
+            return [AllowAny()]
+        return [IsAuthenticated()]
+
+    def get_course(self, instance=None, validated_data=None):
+        if validated_data is not None and "course" in validated_data:
+            return validated_data["course"]
+        return instance.course if instance is not None else None
+
+
+class ModuleContentViewSet(CourseOwnerMixin, viewsets.ModelViewSet):
+    queryset = ModuleContent.objects.select_related(
+        "module", "module__course"
+    ).order_by("id")
+    serializer_class = ModuleContentSerializer
+    filterset_fields = ["module"]
+
+    def get_permissions(self):
+        if self.action in ("list", "retrieve"):
+            return [AllowAny()]
+        return [IsAuthenticated()]
+
+    def get_course(self, instance=None, validated_data=None):
+        if validated_data is not None and "module" in validated_data:
+            return validated_data["module"].course
+        return instance.module.course if instance is not None else None
+
+    def perform_update(self, serializer):
+        old_urls = extract_media_urls(serializer.instance.content_text)
+        super().perform_update(serializer)
+        self.cleanup_media(
+            old_urls - extract_media_urls(serializer.instance.content_text)
+        )
+
+    def perform_destroy(self, instance):
+        old_urls = extract_media_urls(instance.content_text)
+        super().perform_destroy(instance)
+        self.cleanup_media(old_urls)
+
+    @staticmethod
+    def cleanup_media(candidate_urls):
+        if not candidate_urls:
+            return
+
+        referenced = set()
+        for content_text in ModuleContent.objects.values_list(
+            "content_text", flat=True
+        ):
+            referenced |= extract_media_urls(content_text)
+
+        media_prefix = settings.MEDIA_URL.lstrip("/")
+        for url in candidate_urls - referenced:
+            name = url.lstrip("/")
+            if not name.startswith(media_prefix):
+                continue
+            name = name[len(media_prefix) :]
+            if default_storage.exists(name):
+                default_storage.delete(name)
 
 
 class CourseOrderViewSet(viewsets.ModelViewSet):
-    queryset = CourseOrder.objects.all()
+    queryset = CourseOrder.objects.order_by("id")
     serializer_class = CourseOrderSerializer
-    filter_backends = DjangoFilterBackend
 
 
 class CourseEnrollmentViewSet(viewsets.ModelViewSet):
-    queryset = CourseEnrollment.objects.all()
+    queryset = CourseEnrollment.objects.order_by("id")
     serializer_class = CourseEnrollmentSerializer
-    filter_backends = DjangoFilterBackend
 
 
 class AssignmentViewSet(viewsets.ModelViewSet):
-    queryset = Assignment.objects.all()
+    queryset = Assignment.objects.order_by("id")
     serializer_class = AssignmentSerializer
-    filter_backends = DjangoFilterBackend
 
 
 class LeaderboardViewSet(viewsets.ModelViewSet):
-    queryset = Leaderboard.objects.all()
+    queryset = Leaderboard.objects.order_by("id")
     serializer_class = LeaderboardSerializer
-    filter_backends = DjangoFilterBackend
 
 
 class SubmissionViewSet(viewsets.ModelViewSet):
-    queryset = Submission.objects.all()
+    queryset = Submission.objects.order_by("id")
     serializer_class = SubmissionSerializer
-    filter_backends = DjangoFilterBackend
 
 
 class UserAnswerViewSet(viewsets.ModelViewSet):
-    queryset = UserAnswer.objects.all()
+    queryset = UserAnswer.objects.order_by("id")
     serializer_class = UserAnswerSerializer
-    filter_backends = DjangoFilterBackend
+
+
+class ImageUploadView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        serializer = ImageUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        image = serializer.validated_data["image"]
+        name = default_storage.save(f"course-content/images/{uuid4().hex}.webp", image)
+        return Response({"url": media_url(name)}, status=status.HTTP_201_CREATED)
+
+
+class DocumentUploadView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        serializer = DocumentUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        document = serializer.validated_data["file"]
+        extension = serializer.validated_data["extension"]
+        name = default_storage.save(
+            f"course-content/documents/{uuid4().hex}.{extension}", document
+        )
+        return Response({"url": media_url(name)}, status=status.HTTP_201_CREATED)
 
 
 class RegisterViewSet(viewsets.ViewSet):

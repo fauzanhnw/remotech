@@ -1,8 +1,8 @@
 import io
 from pathlib import Path
 
-from django.core.files.uploadedfile import InMemoryUploadedFile
 from django.core.exceptions import ValidationError
+from django.core.files.uploadedfile import InMemoryUploadedFile
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 MAX_IMAGE_SIZE = 10 * 1024 * 1024  # 10 MB
@@ -10,20 +10,20 @@ MAX_WIDTH = 1600
 WEBP_QUALITY = 80
 
 
-def convert_to_webp(uploaded_file):
+def convert_to_webp(uploaded_file, label="Image"):
     """Validate an uploaded image and convert it to WebP.
 
     Returns an InMemoryUploadedFile named `<original>.webp` so that the
     conversion applies transparently on create, update and partial update.
     """
     if uploaded_file.size > MAX_IMAGE_SIZE:
-        raise ValidationError("Thumbnail must be 10 MB or smaller.")
+        raise ValidationError(f"{label} must be 10 MB or smaller.")
 
     try:
         image = Image.open(uploaded_file)
         image.load()
     except (UnidentifiedImageError, OSError):
-        raise ValidationError("Thumbnail must be a valid image file.")
+        raise ValidationError(f"{label} must be a valid image file.")
 
     image = ImageOps.exif_transpose(image)
     if image.mode not in ("RGB", "RGBA"):

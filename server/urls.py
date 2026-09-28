@@ -24,12 +24,16 @@ from rest_framework.routers import DefaultRouter
 from server.apps.remotech.views import (
     AssignmentViewSet,
     CourseEnrollmentViewSet,
+    CourseModuleViewSet,
     CourseOrderViewSet,
     CourseViewSet,
+    DocumentUploadView,
     ForgotPasswordPageView,
     ForgotPasswordResetViewSet,
     ForgotPasswordViewSet,
+    ImageUploadView,
     LeaderboardViewSet,
+    ModuleContentViewSet,
     RegisterViewSet,
     SetPasswordPageView,
     SetPasswordViewSet,
@@ -40,6 +44,8 @@ from server.apps.remotech.views import (
 router = DefaultRouter()
 
 router.register(r"course", CourseViewSet, basename="course")
+router.register(r"module", CourseModuleViewSet, basename="module")
+router.register(r"module-content", ModuleContentViewSet, basename="module-content")
 router.register(r"order", CourseOrderViewSet, basename="order")
 router.register(r"assignment", AssignmentViewSet, basename="assignment")
 router.register(r"enroll", CourseEnrollmentViewSet, basename="enroll")
@@ -49,15 +55,27 @@ auth_router = DefaultRouter()
 
 auth_router.register(r"register", RegisterViewSet, basename="register")
 auth_router.register(r"set-password", SetPasswordViewSet, basename="set-password")
-auth_router.register(r"forgot-password", ForgotPasswordViewSet, basename="forgot-password")
-auth_router.register(r"forgot-password/reset", ForgotPasswordResetViewSet, basename="forgot-password-reset")
+auth_router.register(
+    r"forgot-password", ForgotPasswordViewSet, basename="forgot-password"
+)
+auth_router.register(
+    r"forgot-password/reset",
+    ForgotPasswordResetViewSet,
+    basename="forgot-password-reset",
+)
 auth_router.register(r"token", TokenObtainPairViewSet, basename="token")
 auth_router.register(r"token/refresh", TokenRefreshViewSet, basename="token-refresh")
 
-urlpatterns = [
-    path("admin/", admin.site.urls),
-    path("set-password/", SetPasswordPageView.as_view({"get": "list"})),
-    path("reset-password/", ForgotPasswordPageView.as_view({"get": "list"})),
-] + router.urls + auth_router.urls
+urlpatterns = (
+    [
+        path("admin/", admin.site.urls),
+        path("set-password/", SetPasswordPageView.as_view({"get": "list"})),
+        path("reset-password/", ForgotPasswordPageView.as_view({"get": "list"})),
+        path("upload/image/", ImageUploadView.as_view()),
+        path("upload/document/", DocumentUploadView.as_view()),
+    ]
+    + router.urls
+    + auth_router.urls
+)
 
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

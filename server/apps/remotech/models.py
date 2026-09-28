@@ -115,7 +115,9 @@ class CourseModule(CrudModel):
 
     course = models.ForeignKey(Course, on_delete=models.CASCADE)
     title = models.CharField(max_length=255)
-    module_category = models.CharField(max_length=100, choices=Category.choices)
+    module_category = models.CharField(
+        max_length=100, choices=Category.choices, default=Category.TEXT
+    )
     sequence = models.BigIntegerField(null=True, blank=True)
     point = models.IntegerField(default=0)
 

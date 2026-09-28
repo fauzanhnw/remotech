@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from rest_framework import serializers
 
 from server.apps.remotech.models import (
@@ -8,14 +10,32 @@ from server.apps.remotech.models import (
     CourseModule,
     CourseOrder,
     Leaderboard,
-    SetPasswordToken,
+    ModuleContent,
     Submission,
     User,
     UserAnswer,
     UserBadge,
-    UserProgress,
 )
 from server.apps.remotech.services.course import convert_to_webp
+from server.apps.remotech.services.module_content import validate_module_content
+from server.apps.remotech.services.richtext import (
+    absolutize_media_url,
+    absolutize_media_urls,
+)
+
+MAX_DOCUMENT_SIZE = 20 * 1024 * 1024
+DOCUMENT_EXTENSIONS = {
+    "pdf",
+    "doc",
+    "docx",
+    "xls",
+    "xlsx",
+    "ppt",
+    "pptx",
+    "txt",
+    "csv",
+    "zip",
+}
 
 
 class BadgeSerializer(serializers.ModelSerializer):
@@ -47,11 +67,60 @@ class CourseSerializer(serializers.ModelSerializer):
             return value
         return convert_to_webp(value)
 
+    def to_representation(self, instance):
+        result = super().to_representation(instance)
+        thumbnail = result.get("thumbnail")
+        if thumbnail:
+            result["thumbnail"] = absolutize_media_url(thumbnail)
+        return result
+
 
 class CourseModuleSerializer(serializers.ModelSerializer):
     class Meta:
         model = CourseModule
         fields = "__all__"
+
+
+class ModuleContentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ModuleContent
+        fields = "__all__"
+
+    def validate(self, attrs):
+        return validate_module_content(attrs, instance=self.instance)
+
+    def to_representation(self, instance):
+        result = super().to_representation(instance)
+        result["content_text"] = absolutize_media_urls(result.get("content_text") or "")
+        return result
+
+
+class ImageUploadSerializer(serializers.Serializer):
+    image = serializers.ImageField()
+
+    def validate_image(self, value):
+        return convert_to_webp(value, label="Image")
+
+
+class DocumentUploadSerializer(serializers.Serializer):
+    file = serializers.FileField()
+
+    def validate_file(self, value):
+        if value.size > MAX_DOCUMENT_SIZE:
+            raise serializers.ValidationError("Document must be 20 MB or smaller.")
+
+        extension = Path(value.name).suffix.lower().lstrip(".")
+        if extension not in DOCUMENT_EXTENSIONS:
+            allowed = ", ".join(sorted(DOCUMENT_EXTENSIONS))
+            raise serializers.ValidationError(
+                f"Unsupported document type. Allowed types: {allowed}."
+            )
+
+        return value
+
+    def validate(self, attrs):
+        attrs["extension"] = Path(attrs["file"].name).suffix.lower().lstrip(".")
+        return attrs
 
 
 class CourseOrderSerializer(serializers.ModelSerializer):
