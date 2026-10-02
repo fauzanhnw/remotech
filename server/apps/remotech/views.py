@@ -4,6 +4,7 @@ from django.conf import settings
 from django.core.files.storage import default_storage
 from django.shortcuts import render
 from rest_framework import status, viewsets
+from rest_framework.decorators import action
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -35,6 +36,7 @@ from server.apps.remotech.serializers import (
     CourseOrderSerializer,
     CourseSerializer,
     DocumentUploadSerializer,
+    EnrollCourseSerializer,
     ForgotPasswordSerializer,
     ImageUploadSerializer,
     LeaderboardSerializer,
@@ -50,6 +52,11 @@ from server.apps.remotech.services.auth import (
     register_user,
     reset_password,
     set_password,
+)
+from server.apps.remotech.services.payment import (
+    check_payment_status,
+    enroll_course,
+    handle_notification,
 )
 from server.apps.remotech.services.richtext import extract_media_urls
 
@@ -153,15 +160,72 @@ class ModuleContentViewSet(CourseOwnerMixin, viewsets.ModelViewSet):
 
 
 class CourseOrderViewSet(viewsets.ModelViewSet):
-    queryset = CourseOrder.objects.order_by("id")
+    queryset = CourseOrder.objects.select_related("course").order_by("id")
     serializer_class = CourseOrderSerializer
     filterset_fields = ["course", "user", "transaction_status"]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+        if user.is_superuser:
+            return queryset
+        return queryset.filter(user=user)
+
+    def get_permissions(self):
+        return [IsAuthenticated()]
+
+    def create(self, request, *args, **kwargs):
+        self.http_method_not_allowed(request, *args, **kwargs)
+
+    def update(self, request, *args, **kwargs):
+        self.http_method_not_allowed(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        self.http_method_not_allowed(request, *args, **kwargs)
+
+    @action(methods=["post"], detail=False)
+    def enroll(self, request):
+        serializer = EnrollCourseSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        order, enrolled = enroll_course(
+            request.user, serializer.validated_data["course"]
+        )
+        return Response(
+            {
+                "order": CourseOrderSerializer(order).data,
+                "enrolled": enrolled,
+                "snap_token": order.snap_token,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @action(methods=["post"], detail=True, url_path="check-payment")
+    def check_payment(self, request, pk=None):
+        order = self.get_object()
+        order = check_payment_status(order)
+        return Response(CourseOrderSerializer(order).data)
 
 
 class CourseEnrollmentViewSet(viewsets.ModelViewSet):
     queryset = CourseEnrollment.objects.order_by("id")
     serializer_class = CourseEnrollmentSerializer
     filterset_fields = ["course", "user"]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+        if user.is_superuser:
+            return queryset
+        return queryset.filter(user=user)
+
+    def create(self, request, *args, **kwargs):
+        self.http_method_not_allowed(request, *args, **kwargs)
+
+    def update(self, request, *args, **kwargs):
+        self.http_method_not_allowed(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        self.http_method_not_allowed(request, *args, **kwargs)
 
 
 class AssignmentViewSet(viewsets.ModelViewSet):
@@ -296,3 +360,14 @@ class ForgotPasswordPageView(viewsets.ViewSet):
 
     def list(self, request):
         return render(request, "reset_password.html")
+
+
+class MidtransNotificationView(APIView):
+    """Midtrans payment notification webhook (configured in Midtrans dashboard)."""
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        order = handle_notification(request.data)
+        return Response(CourseOrderSerializer(order).data, status=status.HTTP_200_OK)

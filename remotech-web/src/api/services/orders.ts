@@ -1,34 +1,41 @@
-import { deleteJson, getJson, patchJson, postJson } from './shared'
+import { getJson, postJson } from './shared'
 import type { Paginated } from '@/types/api'
-import type { CourseOrder, CourseOrderCreate } from '@/types/order'
+import type { CourseOrder, EnrollCoursePayload, EnrollCourseResponse } from '@/types/order'
 import type { OrderListParams } from '@/types/params'
 
 export type { OrderListParams } from '@/types/params'
 
-/** GET /order/ — wajib login, filter `?course=`, `?user=`, `?transaction_status=`. */
+/** GET /order/ — wajib login, hanya order milik sendiri. Filter `?course=`, `?user=`, `?transaction_status=`. */
 export function listOrders(params?: OrderListParams): Promise<Paginated<CourseOrder>> {
   return getJson<Paginated<CourseOrder>>('/order/', { params })
 }
 
-/** GET /order/{id}/ */
+/** GET /order/{id}/ — hanya order milik sendiri (404 bila milik user lain). */
 export function getOrder(id: number): Promise<CourseOrder> {
   return getJson<CourseOrder>(`/order/${id}/`)
 }
 
-/** POST /order/ — wajib isi `user` (backend tidak auto-inject). */
-export function createOrder(payload: CourseOrderCreate): Promise<CourseOrder> {
-  return postJson<CourseOrder, CourseOrderCreate>('/order/', payload)
+/**
+ * POST /order/enroll/ — enroll/beli course.
+ *
+ * - Course gratis: `enrolled: true` + order langsung `settlement`, tanpa Snap.
+ * - Course berbayar: `enrolled: false` + order `pending` + `snap_token` —
+ *   buka popup Snap (`payWithSnap`), lalu konfirmasi dengan `checkPayment`.
+ * - Course hanya bisa dibeli sekali; order `pending` lama dipakai ulang,
+ *   order gagal (deny/cancel/expire/failure) menghasilkan order baru.
+ * - Error umum: 400 (sudah dibeli / belum publish), 502 (gateway bermasalah).
+ */
+export function enrollCourse(course: number): Promise<EnrollCourseResponse> {
+  return postJson<EnrollCourseResponse, EnrollCoursePayload>('/order/enroll/', {
+    course,
+  })
 }
 
-/** PATCH /order/{id}/ */
-export function updateOrder(
-  id: number,
-  payload: Partial<CourseOrderCreate>,
-): Promise<CourseOrder> {
-  return patchJson<CourseOrder, Partial<CourseOrderCreate>>(`/order/${id}/`, payload)
-}
-
-/** DELETE /order/{id}/ */
-export function deleteOrder(id: number): Promise<void> {
-  return deleteJson(`/order/${id}/`)
+/**
+ * POST /order/{id}/check-payment/ — tanya status terbaru ke Midtrans dan
+ * sinkronkan order (otomatis membuat enrollment bila sudah sukses).
+ * Pelengkap webhook; dipanggil setelah popup Snap ditutup / tombol "cek ulang".
+ */
+export function checkPayment(id: number): Promise<CourseOrder> {
+  return postJson<CourseOrder>(`/order/${id}/check-payment/`)
 }

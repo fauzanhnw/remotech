@@ -28,9 +28,13 @@ import type {
   CourseModule,
   CourseModuleCreate,
 } from './course'
-import type { CourseEnrollment, CourseEnrollmentCreate } from './enrollment'
+import type { CourseEnrollment } from './enrollment'
 import type { Leaderboard, LeaderboardCreate } from './leaderboard'
-import type { CourseOrder, CourseOrderCreate } from './order'
+import type {
+  CourseOrder,
+  EnrollCoursePayload,
+  EnrollCourseResponse,
+} from './order'
 import type {
   AssignmentListParams,
   CourseListParams,
@@ -84,10 +88,9 @@ export interface ApiEndpoints {
 
   // Order
   'GET /order/': { params?: OrderListParams; response: Paginated<CourseOrder> }
-  'POST /order/': { body: CourseOrderCreate; response: CourseOrder }
   'GET /order/{id}/': { response: CourseOrder }
-  'PATCH /order/{id}/': { body: Partial<CourseOrderCreate>; response: CourseOrder }
-  'DELETE /order/{id}/': { response: void }
+  'POST /order/enroll/': { body: EnrollCoursePayload; response: EnrollCourseResponse }
+  'POST /order/{id}/check-payment/': { response: CourseOrder }
 
   // Assignment
   'GET /assignment/': {
@@ -99,18 +102,12 @@ export interface ApiEndpoints {
   'PATCH /assignment/{id}/': { body: Partial<AssignmentCreate>; response: Assignment }
   'DELETE /assignment/{id}/': { response: void }
 
-  // Enrollment
+  // Enrollment (read-only; dibuat backend lewat alur order)
   'GET /enroll/': {
     params?: EnrollmentListParams
     response: Paginated<CourseEnrollment>
   }
-  'POST /enroll/': { body: CourseEnrollmentCreate; response: CourseEnrollment }
   'GET /enroll/{id}/': { response: CourseEnrollment }
-  'PATCH /enroll/{id}/': {
-    body: Partial<CourseEnrollmentCreate>
-    response: CourseEnrollment
-  }
-  'DELETE /enroll/{id}/': { response: void }
 
   // Leaderboard
   'GET /leaderboard/': {

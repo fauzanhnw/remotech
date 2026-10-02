@@ -173,3 +173,13 @@ DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="noreply@remotech.web.
 
 # Base URL
 BASE_URL = config("BASE_URL", default="http://localhost:8000")
+
+# Midtrans
+MIDTRANS_SERVER_KEY = config("MIDTRANS_SERVER_KEY", default="")
+MIDTRANS_CLIENT_KEY = config("MIDTRANS_CLIENT_KEY", default="")
+MIDTRANS_IS_PRODUCTION = config("MIDTRANS_IS_PRODUCTION", default=False, cast=bool)
+MIDTRANS_API_BASE = (
+    "https://api.midtrans.com"
+    if MIDTRANS_IS_PRODUCTION
+    else "https://api.sandbox.midtrans.com"
+)

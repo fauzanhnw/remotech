@@ -127,12 +127,27 @@ class CourseOrderSerializer(serializers.ModelSerializer):
     class Meta:
         model = CourseOrder
         fields = "__all__"
+        read_only_fields = [
+            "user",
+            "order_no",
+            "transaction_status",
+            "gross_amount",
+            "payment_type",
+            "midtrans_transaction_id",
+            "snap_token",
+            "created_at",
+            "paid_at",
+        ]
 
 
 class CourseEnrollmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = CourseEnrollment
         fields = "__all__"
+
+
+class EnrollCourseSerializer(serializers.Serializer):
+    course = serializers.PrimaryKeyRelatedField(queryset=Course.objects.all())
 
 
 class AssignmentSerializer(serializers.ModelSerializer):

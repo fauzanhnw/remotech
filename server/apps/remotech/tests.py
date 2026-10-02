@@ -1,7 +1,11 @@
+import hashlib
 import io
 import os
 import tempfile
+from decimal import Decimal
+from unittest.mock import patch
 
+import requests
 from django.conf import settings
 from django.contrib.auth.models import Group, User
 from django.core.files.storage import default_storage
@@ -765,13 +769,13 @@ class ListFilterTests(APITestCase):
 
     def test_enrollment_filter_by_user_and_course(self):
         CourseEnrollment.objects.create(course=self.course_a, user=self.owner)
-        CourseEnrollment.objects.create(course=self.course_b, user=self.other)
+        CourseEnrollment.objects.create(course=self.course_b, user=self.owner)
 
-        by_user = self.client.get(f"/enroll/?user={self.other.id}").json()
+        by_user = self.client.get(f"/enroll/?user={self.owner.id}").json()
         by_course = self.client.get(f"/enroll/?course={self.course_a.id}").json()
 
-        self.assertEqual(by_user["count"], 1)
-        self.assertEqual(by_user["results"][0]["user"], self.other.id)
+        self.assertEqual(by_user["count"], 2)
+        self.assertEqual(by_user["results"][0]["user"], self.owner.id)
         self.assertEqual(by_course["count"], 1)
         self.assertEqual(by_course["results"][0]["course"], self.course_a.id)
 
@@ -786,7 +790,7 @@ class ListFilterTests(APITestCase):
         )
         CourseOrder.objects.create(
             course=self.course_b,
-            user=self.other,
+            user=self.owner,
             order_no="ORD-2",
             gross_amount="200000.00",
             payment_type="qris",
@@ -894,3 +898,497 @@ class SubmissionRouteTests(APITestCase):
         self.assertEqual(by_assignment["results"][0]["assignment"], self.assignment_a.id)
         self.assertEqual(by_user["count"], 1)
         self.assertEqual(by_user["results"][0]["user"], self.other.id)
+
+
+MIDTRANS_TEST_KEY = "test-server-key"
+
+
+def make_notification(order, transaction_status="settlement", **overrides):
+    payload = {
+        "order_id": order.order_no,
+        "status_code": "200",
+        "gross_amount": str(order.gross_amount),
+        "transaction_status": transaction_status,
+        "transaction_id": "tx-123",
+        "payment_type": "qris",
+    }
+    payload.update(overrides)
+    payload["signature_key"] = hashlib.sha512(
+        f"{payload['order_id']}{payload['status_code']}"
+        f"{payload['gross_amount']}{MIDTRANS_TEST_KEY}".encode()
+    ).hexdigest()
+    return payload
+
+
+def configure_snap_response(mock_post, token="snap-token-1"):
+    mock_post.return_value.status_code = 201
+    mock_post.return_value.json.return_value = {"token": token}
+
+
+@override_settings(MIDTRANS_SERVER_KEY=MIDTRANS_TEST_KEY)
+class EnrollCourseTests(APITestCase):
+    def setUp(self):
+        self.owner = User.objects.create_user(username="owner", password="secret123")
+        self.buyer = User.objects.create_user(
+            username="buyer", password="secret123", email="buyer@example.com"
+        )
+        self.free_course = Course.objects.create(
+            user=self.owner, title="Free Course", price=0, is_publish=True
+        )
+        self.paid_course = Course.objects.create(
+            user=self.owner, title="Paid Course", price=150000, is_publish=True
+        )
+        self.draft_course = Course.objects.create(
+            user=self.owner, title="Draft Course", price=1000, is_publish=False
+        )
+        self.client.force_authenticate(user=self.buyer)
+
+    def test_free_course_enrolls_immediately(self):
+        with patch(
+            "server.apps.remotech.services.payment.requests.post"
+        ) as mock_post:
+            response = self.client.post(
+                "/order/enroll/", {"course": self.free_course.id}
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertTrue(data["enrolled"])
+        self.assertEqual(data["order"]["transaction_status"], "settlement")
+        self.assertEqual(data["order"]["gross_amount"], "0.00")
+        self.assertEqual(data["order"]["payment_type"], "free")
+        self.assertIsNotNone(data["order"]["paid_at"])
+        mock_post.assert_not_called()
+        self.assertTrue(
+            CourseEnrollment.objects.filter(
+                user=self.buyer, course=self.free_course
+            ).exists()
+        )
+
+    def test_free_course_second_attempt_is_rejected(self):
+        self.client.post("/order/enroll/", {"course": self.free_course.id})
+
+        response = self.client.post("/order/enroll/", {"course": self.free_course.id})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            CourseEnrollment.objects.filter(
+                user=self.buyer, course=self.free_course
+            ).count(),
+            1,
+        )
+
+    def test_paid_course_creates_pending_order_with_snap_token(self):
+        with patch(
+            "server.apps.remotech.services.payment.requests.post"
+        ) as mock_post:
+            configure_snap_response(mock_post)
+            response = self.client.post(
+                "/order/enroll/", {"course": self.paid_course.id}
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertFalse(data["enrolled"])
+        self.assertEqual(data["order"]["transaction_status"], "pending")
+        self.assertEqual(data["order"]["gross_amount"], "150000.00")
+        self.assertEqual(data["snap_token"], "snap-token-1")
+        mock_post.assert_called_once()
+        auth = mock_post.call_args.kwargs["auth"]
+        self.assertEqual(auth, (MIDTRANS_TEST_KEY, ""))
+        self.assertFalse(
+            CourseEnrollment.objects.filter(
+                user=self.buyer, course=self.paid_course
+            ).exists()
+        )
+
+    def test_paid_course_reuses_pending_order_and_snap_token(self):
+        with patch(
+            "server.apps.remotech.services.payment.requests.post"
+        ) as mock_post:
+            configure_snap_response(mock_post)
+            first = self.client.post(
+                "/order/enroll/", {"course": self.paid_course.id}
+            ).json()
+            second = self.client.post(
+                "/order/enroll/", {"course": self.paid_course.id}
+            ).json()
+
+        self.assertEqual(first["order"]["id"], second["order"]["id"])
+        self.assertEqual(second["snap_token"], "snap-token-1")
+        mock_post.assert_called_once()
+        self.assertEqual(CourseOrder.objects.filter(user=self.buyer).count(), 1)
+
+    def test_retry_after_failed_payment_creates_new_order(self):
+        CourseOrder.objects.create(
+            user=self.buyer,
+            course=self.paid_course,
+            order_no="ORD-FAILED",
+            gross_amount="150000.00",
+            transaction_status="deny",
+        )
+
+        with patch(
+            "server.apps.remotech.services.payment.requests.post"
+        ) as mock_post:
+            configure_snap_response(mock_post)
+            response = self.client.post(
+                "/order/enroll/", {"course": self.paid_course.id}
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertNotEqual(data["order"]["order_no"], "ORD-FAILED")
+        self.assertEqual(data["order"]["transaction_status"], "pending")
+        mock_post.assert_called_once()
+
+    def test_settled_order_without_enrollment_is_rejected(self):
+        CourseOrder.objects.create(
+            user=self.buyer,
+            course=self.paid_course,
+            order_no="ORD-SETTLED",
+            gross_amount="150000.00",
+            transaction_status="settlement",
+        )
+
+        response = self.client.post("/order/enroll/", {"course": self.paid_course.id})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertTrue(
+            CourseEnrollment.objects.filter(
+                user=self.buyer, course=self.paid_course
+            ).exists()
+        )
+
+    def test_unpublished_course_is_rejected(self):
+        response = self.client.post("/order/enroll/", {"course": self.draft_course.id})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(CourseOrder.objects.filter(user=self.buyer).exists())
+
+    def test_gateway_failure_keeps_pending_order_for_retry(self):
+        # 5xx responses re-raise in tests unless disabled.
+        self.client.raise_request_exception = False
+        with patch(
+            "server.apps.remotech.services.payment.requests.post"
+        ) as mock_post:
+            mock_post.side_effect = requests.ConnectionError("boom")
+            failed = self.client.post(
+                "/order/enroll/", {"course": self.paid_course.id}
+            )
+
+        self.assertEqual(failed.status_code, status.HTTP_502_BAD_GATEWAY)
+        order = CourseOrder.objects.get(user=self.buyer, course=self.paid_course)
+        self.assertEqual(order.transaction_status, "pending")
+        self.assertEqual(order.snap_token, "")
+
+        with patch(
+            "server.apps.remotech.services.payment.requests.post"
+        ) as mock_post:
+            configure_snap_response(mock_post)
+            retried = self.client.post(
+                "/order/enroll/", {"course": self.paid_course.id}
+            )
+
+        self.assertEqual(retried.status_code, status.HTTP_200_OK)
+        self.assertEqual(retried.json()["order"]["id"], order.id)
+
+    def test_enroll_requires_authentication(self):
+        self.client.force_authenticate(user=None)
+
+        response = self.client.post("/order/enroll/", {"course": self.free_course.id})
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+@override_settings(MIDTRANS_SERVER_KEY=MIDTRANS_TEST_KEY)
+class PaymentWebhookTests(APITestCase):
+    def setUp(self):
+        self.owner = User.objects.create_user(username="owner", password="secret123")
+        self.buyer = User.objects.create_user(username="buyer", password="secret123")
+        self.course = Course.objects.create(
+            user=self.owner, title="Paid Course", price=150000, is_publish=True
+        )
+        self.order = CourseOrder.objects.create(
+            user=self.buyer,
+            course=self.course,
+            order_no="ORD-WEBHOOK",
+            gross_amount="150000.00",
+        )
+
+    def post_notification(self, payload):
+        return self.client.post("/payment/notification/", payload, format="json")
+
+    def test_invalid_signature_returns_403(self):
+        payload = make_notification(self.order)
+        payload["signature_key"] = "invalid-signature"
+
+        response = self.post_notification(payload)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.transaction_status, "pending")
+        self.assertFalse(CourseEnrollment.objects.filter(user=self.buyer).exists())
+
+    def test_settlement_creates_enrollment(self):
+        response = self.post_notification(make_notification(self.order))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.transaction_status, "settlement")
+        self.assertEqual(self.order.payment_type, "qris")
+        self.assertEqual(self.order.midtrans_transaction_id, "tx-123")
+        self.assertIsNotNone(self.order.paid_at)
+        self.assertTrue(
+            CourseEnrollment.objects.filter(
+                user=self.buyer, course=self.course
+            ).exists()
+        )
+
+    def test_settlement_notification_is_idempotent(self):
+        self.post_notification(make_notification(self.order))
+        response = self.post_notification(make_notification(self.order))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            CourseEnrollment.objects.filter(
+                user=self.buyer, course=self.course
+            ).count(),
+            1,
+        )
+
+    def test_status_downgrade_is_ignored(self):
+        self.post_notification(make_notification(self.order))
+        response = self.post_notification(
+            make_notification(self.order, transaction_status="pending")
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.transaction_status, "settlement")
+        self.assertTrue(
+            CourseEnrollment.objects.filter(
+                user=self.buyer, course=self.course
+            ).exists()
+        )
+
+    def test_gross_amount_mismatch_returns_400(self):
+        payload = make_notification(self.order, gross_amount="999999.00")
+
+        response = self.post_notification(payload)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.transaction_status, "pending")
+
+    def test_unknown_order_returns_400(self):
+        payload = make_notification(self.order, order_id="ORD-UNKNOWN")
+
+        response = self.post_notification(payload)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_pending_notification_keeps_order_pending(self):
+        response = self.post_notification(
+            make_notification(self.order, transaction_status="pending")
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.transaction_status, "pending")
+        self.assertIsNone(self.order.paid_at)
+        self.assertFalse(CourseEnrollment.objects.filter(user=self.buyer).exists())
+
+    def test_unknown_capture_status_is_rejected(self):
+        # QRIS never sends `capture`; unknown statuses must not touch the order.
+        response = self.post_notification(
+            make_notification(self.order, transaction_status="capture")
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.transaction_status, "pending")
+        self.assertIsNone(self.order.paid_at)
+        self.assertFalse(CourseEnrollment.objects.filter(user=self.buyer).exists())
+
+
+@override_settings(MIDTRANS_SERVER_KEY=MIDTRANS_TEST_KEY)
+class CheckPaymentTests(APITestCase):
+    def setUp(self):
+        self.owner = User.objects.create_user(username="owner", password="secret123")
+        self.buyer = User.objects.create_user(username="buyer", password="secret123")
+        self.other = User.objects.create_user(username="other", password="secret123")
+        self.course = Course.objects.create(
+            user=self.owner, title="Paid Course", price=150000, is_publish=True
+        )
+        self.order = CourseOrder.objects.create(
+            user=self.buyer,
+            course=self.course,
+            order_no="ORD-CHECK",
+            gross_amount="150000.00",
+        )
+        self.client.force_authenticate(user=self.buyer)
+
+    def test_settlement_from_gateway_creates_enrollment(self):
+        with patch(
+            "server.apps.remotech.services.payment.requests.get"
+        ) as mock_get:
+            mock_get.return_value.status_code = 200
+            mock_get.return_value.json.return_value = {
+                "order_id": self.order.order_no,
+                "transaction_status": "settlement",
+                "payment_type": "qris",
+                "transaction_id": "tx-9",
+            }
+            response = self.client.post(f"/order/{self.order.id}/check-payment/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()["transaction_status"], "settlement")
+        mock_get.assert_called_once()
+        self.assertEqual(mock_get.call_args.kwargs["auth"], (MIDTRANS_TEST_KEY, ""))
+        self.assertTrue(
+            CourseEnrollment.objects.filter(
+                user=self.buyer, course=self.course
+            ).exists()
+        )
+
+    def test_pending_from_gateway_does_not_enroll(self):
+        with patch(
+            "server.apps.remotech.services.payment.requests.get"
+        ) as mock_get:
+            mock_get.return_value.status_code = 200
+            mock_get.return_value.json.return_value = {
+                "order_id": self.order.order_no,
+                "transaction_status": "pending",
+            }
+            response = self.client.post(f"/order/{self.order.id}/check-payment/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()["transaction_status"], "pending")
+        self.assertFalse(CourseEnrollment.objects.filter(user=self.buyer).exists())
+
+    def test_settled_order_skips_gateway_call(self):
+        self.order.transaction_status = "settlement"
+        self.order.save(update_fields=["transaction_status"])
+
+        with patch(
+            "server.apps.remotech.services.payment.requests.get"
+        ) as mock_get:
+            response = self.client.post(f"/order/{self.order.id}/check-payment/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        mock_get.assert_not_called()
+
+    def test_free_order_skips_gateway_call(self):
+        order = CourseOrder.objects.create(
+            user=self.buyer,
+            course=self.course,
+            order_no="ORD-FREE",
+            gross_amount="0.00",
+        )
+
+        with patch(
+            "server.apps.remotech.services.payment.requests.get"
+        ) as mock_get:
+            response = self.client.post(f"/order/{order.id}/check-payment/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        mock_get.assert_not_called()
+
+    def test_other_user_order_returns_404(self):
+        self.client.force_authenticate(user=self.other)
+
+        response = self.client.post(f"/order/{self.order.id}/check-payment/")
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_gateway_error_returns_502(self):
+        self.client.raise_request_exception = False
+        with patch(
+            "server.apps.remotech.services.payment.requests.get"
+        ) as mock_get:
+            mock_get.side_effect = requests.ConnectionError("boom")
+            response = self.client.post(f"/order/{self.order.id}/check-payment/")
+
+        self.assertEqual(response.status_code, status.HTTP_502_BAD_GATEWAY)
+
+
+class OrderEnrollmentAccessTests(APITestCase):
+    def setUp(self):
+        self.owner = User.objects.create_user(username="owner", password="secret123")
+        self.buyer = User.objects.create_user(username="buyer", password="secret123")
+        self.other = User.objects.create_user(username="other", password="secret123")
+        self.course = Course.objects.create(
+            user=self.owner, title="Paid Course", price=150000, is_publish=True
+        )
+        self.order = CourseOrder.objects.create(
+            user=self.other,
+            course=self.course,
+            order_no="ORD-OTHER",
+            gross_amount="150000.00",
+            payment_type="gopay",
+            midtrans_transaction_id="tx-1",
+        )
+        self.enrollment = CourseEnrollment.objects.create(
+            user=self.other, course=self.course
+        )
+        self.client.force_authenticate(user=self.buyer)
+
+    def test_order_create_is_not_allowed(self):
+        response = self.client.post("/order/", {})
+
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def test_order_update_is_not_allowed(self):
+        patch_response = self.client.patch(
+            f"/order/{self.order.id}/", {"transaction_status": "settlement"}
+        )
+        delete_response = self.client.delete(f"/order/{self.order.id}/")
+
+        self.assertEqual(
+            patch_response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED
+        )
+        self.assertEqual(
+            delete_response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED
+        )
+
+    def test_enrollment_write_is_not_allowed(self):
+        create_response = self.client.post(
+            "/enroll/", {"course": self.course.id, "user": self.buyer.id}
+        )
+        patch_response = self.client.patch(f"/enroll/{self.enrollment.id}/", {})
+        delete_response = self.client.delete(f"/enroll/{self.enrollment.id}/")
+
+        self.assertEqual(
+            create_response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED
+        )
+        self.assertEqual(
+            patch_response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED
+        )
+        self.assertEqual(
+            delete_response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED
+        )
+
+    def test_order_list_only_shows_own_orders(self):
+        response = self.client.get("/order/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()["count"], 0)
+
+    def test_other_user_order_detail_returns_404(self):
+        response = self.client.get(f"/order/{self.order.id}/")
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_enrollment_list_only_shows_own_enrollments(self):
+        response = self.client.get("/enroll/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()["count"], 0)
+
+    def test_order_list_requires_authentication(self):
+        self.client.force_authenticate(user=None)
+
+        response = self.client.get("/order/")
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)

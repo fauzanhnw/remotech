@@ -33,6 +33,7 @@ from server.apps.remotech.views import (
     ForgotPasswordViewSet,
     ImageUploadView,
     LeaderboardViewSet,
+    MidtransNotificationView,
     ModuleContentViewSet,
     RegisterViewSet,
     SetPasswordViewSet,
@@ -73,6 +74,7 @@ urlpatterns = (
         path("reset-password/", ForgotPasswordPageView.as_view({"get": "list"})),
         path("upload/image/", ImageUploadView.as_view()),
         path("upload/document/", DocumentUploadView.as_view()),
+        path("payment/notification/", MidtransNotificationView.as_view()),
     ]
     + router.urls
     + auth_router.urls
