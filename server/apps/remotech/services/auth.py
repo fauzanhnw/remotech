@@ -1,12 +1,14 @@
 import secrets
 
 from django.conf import settings
-from django.contrib.auth.models import User
+from django.contrib.auth.models import Group, User
 from django.core.mail import send_mail
 from django.template.loader import render_to_string
 from rest_framework.exceptions import ValidationError
 
 from server.apps.remotech.models import SetPasswordToken
+
+PARTICIPANT_GROUP = "participant"
 
 
 def register_user(email, full_name):
@@ -22,6 +24,9 @@ def register_user(email, full_name):
     )
     user.set_unusable_password()
     user.save()
+
+    participant_group, _ = Group.objects.get_or_create(name=PARTICIPANT_GROUP)
+    user.groups.add(participant_group)
 
     token = secrets.token_urlsafe(64)
     SetPasswordToken.objects.create(user=user, token=token)

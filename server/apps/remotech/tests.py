@@ -3,16 +3,17 @@ import os
 import tempfile
 
 from django.conf import settings
-from django.contrib.auth.models import User
+from django.contrib.auth.models import Group, User
 from django.core.files.storage import default_storage
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import SimpleTestCase, override_settings
+from django.test import SimpleTestCase, TestCase, override_settings
 from PIL import Image
 from rest_framework import status
 from rest_framework.request import Request
 from rest_framework.test import APIRequestFactory, APITestCase
 
 from server.apps.remotech.models import Course, CourseModule, ModuleContent
+from server.apps.remotech.services.auth import PARTICIPANT_GROUP, register_user
 from server.apps.remotech.services.richtext import (
     extract_media_urls,
     sanitize_richtext,
@@ -646,3 +647,30 @@ class CorsAPITests(APITestCase):
             response["Access-Control-Allow-Origin"], "https://remotech.web.id"
         )
         self.assertIn("POST", response["Access-Control-Allow-Methods"])
+
+
+class RegisterUserGroupTests(TestCase):
+    def test_new_user_is_added_to_participant_group(self):
+        user = register_user("alice@example.com", "Alice Doe")
+
+        self.assertTrue(Group.objects.filter(name=PARTICIPANT_GROUP).exists())
+        self.assertEqual(
+            list(user.groups.values_list("name", flat=True)), [PARTICIPANT_GROUP]
+        )
+
+    def test_creates_participant_group_when_missing(self):
+        self.assertFalse(Group.objects.filter(name=PARTICIPANT_GROUP).exists())
+
+        user = register_user("bob@example.com", "Bob")
+
+        self.assertEqual(user.groups.get().name, PARTICIPANT_GROUP)
+
+    def test_existing_participant_group_is_reused(self):
+        group = Group.objects.create(name=PARTICIPANT_GROUP)
+
+        user = register_user("carol@example.com", "Carol Smith")
+
+        self.assertEqual(Group.objects.filter(name=PARTICIPANT_GROUP).count(), 1)
+        self.assertEqual(user.groups.get(), group)
+        self.assertEqual(user.first_name, "Carol")
+        self.assertEqual(user.last_name, "Smith")
