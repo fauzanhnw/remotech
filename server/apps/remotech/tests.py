@@ -12,7 +12,17 @@ from rest_framework import status
 from rest_framework.request import Request
 from rest_framework.test import APIRequestFactory, APITestCase
 
-from server.apps.remotech.models import Course, CourseModule, ModuleContent
+from server.apps.remotech.models import (
+    Assignment,
+    Course,
+    CourseEnrollment,
+    CourseModule,
+    CourseOrder,
+    Leaderboard,
+    ModuleContent,
+    SetPasswordToken,
+    Submission,
+)
 from server.apps.remotech.services.auth import PARTICIPANT_GROUP, register_user
 from server.apps.remotech.services.richtext import (
     extract_media_urls,
@@ -674,3 +684,213 @@ class RegisterUserGroupTests(TestCase):
         self.assertEqual(user.groups.get(), group)
         self.assertEqual(user.first_name, "Carol")
         self.assertEqual(user.last_name, "Smith")
+
+
+class SetPasswordRouteTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="dave@example.com", email="dave@example.com"
+        )
+        self.user.set_unusable_password()
+        self.user.save()
+        self.token = SetPasswordToken.objects.create(
+            user=self.user, token="valid-token-value"
+        )
+
+    def test_get_renders_set_password_page(self):
+        response = self.client.get("/set-password/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("text/html", response["Content-Type"])
+
+    def test_post_sets_password(self):
+        response = self.client.post(
+            "/set-password/",
+            {
+                "token": self.token.token,
+                "password": "newsecret123",
+                "password_confirm": "newsecret123",
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password("newsecret123"))
+
+    def test_post_with_invalid_token_returns_validation_error(self):
+        response = self.client.post(
+            "/set-password/",
+            {
+                "token": "nope",
+                "password": "newsecret123",
+                "password_confirm": "newsecret123",
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.json()["errors"][0]["attr"], "token")
+
+    def test_forgot_password_reset_sets_password(self):
+        response = self.client.post(
+            "/forgot-password/reset/",
+            {
+                "token": self.token.token,
+                "password": "resetsecret123",
+                "password_confirm": "resetsecret123",
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password("resetsecret123"))
+
+
+class ListFilterTests(APITestCase):
+    def setUp(self):
+        self.owner = User.objects.create_user(username="owner", password="secret123")
+        self.other = User.objects.create_user(username="other", password="secret123")
+        self.course_a = Course.objects.create(user=self.owner, title="Course A")
+        self.course_b = Course.objects.create(user=self.owner, title="Course B")
+        self.module_a = CourseModule.objects.create(course=self.course_a, title="MA")
+        self.module_b = CourseModule.objects.create(course=self.course_b, title="MB")
+        self.client.force_authenticate(user=self.owner)
+
+    def test_module_filter_by_course(self):
+        response = self.client.get(f"/module/?course={self.course_a.id}")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertEqual(data["count"], 1)
+        self.assertEqual(data["results"][0]["id"], self.module_a.id)
+
+    def test_enrollment_filter_by_user_and_course(self):
+        CourseEnrollment.objects.create(course=self.course_a, user=self.owner)
+        CourseEnrollment.objects.create(course=self.course_b, user=self.other)
+
+        by_user = self.client.get(f"/enroll/?user={self.other.id}").json()
+        by_course = self.client.get(f"/enroll/?course={self.course_a.id}").json()
+
+        self.assertEqual(by_user["count"], 1)
+        self.assertEqual(by_user["results"][0]["user"], self.other.id)
+        self.assertEqual(by_course["count"], 1)
+        self.assertEqual(by_course["results"][0]["course"], self.course_a.id)
+
+    def test_order_filter_by_course_and_status(self):
+        CourseOrder.objects.create(
+            course=self.course_a,
+            user=self.owner,
+            order_no="ORD-1",
+            gross_amount="100000.00",
+            payment_type="gopay",
+            midtrans_transaction_id="tx-1",
+        )
+        CourseOrder.objects.create(
+            course=self.course_b,
+            user=self.other,
+            order_no="ORD-2",
+            gross_amount="200000.00",
+            payment_type="qris",
+            midtrans_transaction_id="tx-2",
+            transaction_status="settlement",
+        )
+
+        by_course = self.client.get(f"/order/?course={self.course_b.id}").json()
+        by_status = self.client.get("/order/?transaction_status=settlement").json()
+
+        self.assertEqual(by_course["count"], 1)
+        self.assertEqual(by_course["results"][0]["order_no"], "ORD-2")
+        self.assertEqual(by_status["count"], 1)
+        self.assertEqual(by_status["results"][0]["order_no"], "ORD-2")
+
+    def test_assignment_filter_by_course_module(self):
+        Assignment.objects.create(
+            course_module=self.module_a, name="A1", description="do it"
+        )
+        Assignment.objects.create(
+            course_module=self.module_b, name="A2", description="do it too"
+        )
+
+        response = self.client.get(f"/assignment/?course_module={self.module_a.id}")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertEqual(data["count"], 1)
+        self.assertEqual(data["results"][0]["name"], "A1")
+
+    def test_leaderboard_filter_by_course_and_user(self):
+        Leaderboard.objects.create(course=self.course_a, user=self.owner, total_points=10)
+        Leaderboard.objects.create(course=self.course_b, user=self.other, total_points=20)
+
+        by_course = self.client.get(f"/leaderboard/?course={self.course_a.id}").json()
+        by_user = self.client.get(f"/leaderboard/?user={self.other.id}").json()
+
+        self.assertEqual(by_course["count"], 1)
+        self.assertEqual(by_course["results"][0]["user"], self.owner.id)
+        self.assertEqual(by_user["count"], 1)
+        self.assertEqual(by_user["results"][0]["total_points"], 20)
+
+
+class SubmissionRouteTests(APITestCase):
+    def setUp(self):
+        self.owner = User.objects.create_user(username="owner", password="secret123")
+        self.other = User.objects.create_user(username="other", password="secret123")
+        self.course = Course.objects.create(user=self.owner, title="Course Sub")
+        self.module = CourseModule.objects.create(course=self.course, title="M1")
+        self.assignment_a = Assignment.objects.create(
+            course_module=self.module, name="A1", description="desc"
+        )
+        self.assignment_b = Assignment.objects.create(
+            course_module=self.module, name="A2", description="desc"
+        )
+        self.client.force_authenticate(user=self.owner)
+
+    def test_list_requires_authentication(self):
+        self.client.force_authenticate(user=None)
+
+        response = self.client.get("/submission/")
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_submission_route_is_registered(self):
+        response = self.client.get("/submission/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()["count"], 0)
+
+    def test_create_submission(self):
+        response = self.client.post(
+            "/submission/",
+            {
+                "user": self.owner.id,
+                "assignment": self.assignment_a.id,
+                "submission_url": "https://example.com/task.pdf",
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        data = response.json()
+        self.assertEqual(data["submission_url"], "https://example.com/task.pdf")
+        self.assertEqual(data["score"], 0)
+        self.assertEqual(data["user"], self.owner.id)
+
+    def test_filter_by_assignment_and_user(self):
+        Submission.objects.create(
+            user=self.owner,
+            assignment=self.assignment_a,
+            submission_url="https://example.com/a.pdf",
+        )
+        Submission.objects.create(
+            user=self.other,
+            assignment=self.assignment_b,
+            submission_url="https://example.com/b.pdf",
+        )
+
+        by_assignment = self.client.get(
+            f"/submission/?assignment={self.assignment_a.id}"
+        ).json()
+        by_user = self.client.get(f"/submission/?user={self.other.id}").json()
+
+        self.assertEqual(by_assignment["count"], 1)
+        self.assertEqual(by_assignment["results"][0]["assignment"], self.assignment_a.id)
+        self.assertEqual(by_user["count"], 1)
+        self.assertEqual(by_user["results"][0]["user"], self.other.id)

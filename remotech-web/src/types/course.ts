@@ -1,0 +1,53 @@
+/**
+ * Course dan isinya yang berhubungan langsung: course → course module.
+ * (ModuleContent & Assignment yang merupakan turunan module ada di content.ts)
+ */
+
+import type { IsoDateTime } from './common'
+
+export type ModuleCategory = 'text' | 'video' | 'upload' | 'quiz'
+
+/** GET /course/{id}/ — `user` & `slug` read-only, thumbnail URL absolut. */
+export interface Course {
+  id: number
+  user: number
+  slug: string
+  title: string
+  description: string
+  thumbnail: string | null
+  price: number
+  is_publish: boolean
+  created_at: IsoDateTime
+  modified_at: IsoDateTime
+}
+
+/** POST /course/ — `user` & `slug` di-auto-assign backend. */
+export interface CourseCreate {
+  title: string
+  description?: string
+  /** Kirim sebagai multipart/form-data (file image, otomatis dikonversi webp). */
+  thumbnail?: File
+  price?: number
+  is_publish?: boolean
+}
+
+/** GET /module/{id}/ */
+export interface CourseModule {
+  id: number
+  course: number
+  title: string
+  module_category: ModuleCategory
+  sequence: number | null
+  point: number
+  created_at: IsoDateTime
+  modified_at: IsoDateTime
+}
+
+/** POST /module/ — `sequence` di-auto-assign, wajib pemilik course (403). */
+export interface CourseModuleCreate {
+  course: number
+  title: string
+  module_category?: ModuleCategory
+  sequence?: number | null
+  point?: number
+}

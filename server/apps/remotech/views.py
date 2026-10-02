@@ -89,6 +89,7 @@ class CourseViewSet(AssignUserMixin, viewsets.ModelViewSet):
 class CourseModuleViewSet(CourseOwnerMixin, viewsets.ModelViewSet):
     queryset = CourseModule.objects.select_related("course").order_by("id")
     serializer_class = CourseModuleSerializer
+    filterset_fields = ["course"]
 
     def get_permissions(self):
         if self.action in ("list", "retrieve"):
@@ -154,26 +155,31 @@ class ModuleContentViewSet(CourseOwnerMixin, viewsets.ModelViewSet):
 class CourseOrderViewSet(viewsets.ModelViewSet):
     queryset = CourseOrder.objects.order_by("id")
     serializer_class = CourseOrderSerializer
+    filterset_fields = ["course", "user", "transaction_status"]
 
 
 class CourseEnrollmentViewSet(viewsets.ModelViewSet):
     queryset = CourseEnrollment.objects.order_by("id")
     serializer_class = CourseEnrollmentSerializer
+    filterset_fields = ["course", "user"]
 
 
 class AssignmentViewSet(viewsets.ModelViewSet):
     queryset = Assignment.objects.order_by("id")
     serializer_class = AssignmentSerializer
+    filterset_fields = ["course_module"]
 
 
 class LeaderboardViewSet(viewsets.ModelViewSet):
     queryset = Leaderboard.objects.order_by("id")
     serializer_class = LeaderboardSerializer
+    filterset_fields = ["course", "user"]
 
 
 class SubmissionViewSet(viewsets.ModelViewSet):
     queryset = Submission.objects.order_by("id")
     serializer_class = SubmissionSerializer
+    filterset_fields = ["assignment", "user"]
 
 
 class UserAnswerViewSet(viewsets.ModelViewSet):
@@ -226,21 +232,18 @@ class RegisterViewSet(viewsets.ViewSet):
 class SetPasswordViewSet(viewsets.ViewSet):
     permission_classes = [AllowAny]
 
+    def list(self, request):
+        return render(request, "set_password.html")
+
     def create(self, request):
         serializer = SetPasswordSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        set_password(**serializer.validated_data)
+        data = serializer.validated_data
+        set_password(token=data["token"], password=data["password"])
         return Response(
             {"message": "Password set successfully. You can now login."},
             status=status.HTTP_200_OK,
         )
-
-
-class SetPasswordPageView(viewsets.ViewSet):
-    permission_classes = [AllowAny]
-
-    def list(self, request):
-        return render(request, "set_password.html")
 
 
 class TokenObtainPairViewSet(viewsets.ViewSet):
@@ -280,7 +283,8 @@ class ForgotPasswordResetViewSet(viewsets.ViewSet):
     def create(self, request):
         serializer = SetPasswordSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        reset_password(**serializer.validated_data)
+        data = serializer.validated_data
+        reset_password(token=data["token"], password=data["password"])
         return Response(
             {"message": "Password reset successfully. You can now login."},
             status=status.HTTP_200_OK,

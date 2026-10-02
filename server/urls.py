@@ -35,8 +35,8 @@ from server.apps.remotech.views import (
     LeaderboardViewSet,
     ModuleContentViewSet,
     RegisterViewSet,
-    SetPasswordPageView,
     SetPasswordViewSet,
+    SubmissionViewSet,
     TokenObtainPairViewSet,
     TokenRefreshViewSet,
 )
@@ -50,6 +50,7 @@ router.register(r"order", CourseOrderViewSet, basename="order")
 router.register(r"assignment", AssignmentViewSet, basename="assignment")
 router.register(r"enroll", CourseEnrollmentViewSet, basename="enroll")
 router.register(r"leaderboard", LeaderboardViewSet, basename="leaderboard")
+router.register(r"submission", SubmissionViewSet, basename="submission")
 
 auth_router = DefaultRouter()
 
@@ -69,7 +70,6 @@ auth_router.register(r"token/refresh", TokenRefreshViewSet, basename="token-refr
 urlpatterns = (
     [
         path("admin/", admin.site.urls),
-        path("set-password/", SetPasswordPageView.as_view({"get": "list"})),
         path("reset-password/", ForgotPasswordPageView.as_view({"get": "list"})),
         path("upload/image/", ImageUploadView.as_view()),
         path("upload/document/", DocumentUploadView.as_view()),
