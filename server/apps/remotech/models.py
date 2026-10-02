@@ -62,6 +62,9 @@ class Course(CrudModel):
         if name and default_storage.exists(name):
             default_storage.delete(name)
 
+    def __str__(self):
+        return self.title
+
 
 class CourseEnrollment(models.Model):
     course = models.ForeignKey(Course, on_delete=models.CASCADE)
@@ -99,6 +102,9 @@ class Badge(models.Model):
     name = models.CharField(max_length=100)
     description = models.TextField()
 
+    def __str__(self):
+        return self.name
+
 
 class UserBadge(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
@@ -131,17 +137,26 @@ class CourseModule(CrudModel):
 
         super().save(*args, **kwargs)
 
+    def __str__(self):
+        return f"{self.title} ({self.course})"
+
 
 class ModuleContent(CrudModel):
     module = models.ForeignKey(CourseModule, on_delete=models.CASCADE)
     content_text = models.TextField(blank=True)
     content_url = models.URLField(blank=True)
 
+    def __str__(self):
+        return self.content_text[:50] or self.content_url or str(self.module)
+
 
 class Assignment(CrudModel):
     course_module = models.ForeignKey(CourseModule, on_delete=models.CASCADE)
     name = models.CharField(max_length=255)
     description = models.TextField()
+
+    def __str__(self):
+        return self.name
 
 
 class Submission(CrudModel):
@@ -203,6 +218,9 @@ class Question(CrudModel):
 
         super().save(*args, **kwargs)
 
+    def __str__(self):
+        return self.question_text[:50]
+
 
 class QuestionOption(CrudModel):
     question = models.ForeignKey(Question, on_delete=models.CASCADE)
@@ -219,6 +237,9 @@ class QuestionOption(CrudModel):
             self.sequence = (max_seq or 0) + 1
 
         super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.option_text[:50]
 
 
 class UserAnswer(models.Model):

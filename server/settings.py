@@ -31,7 +31,7 @@ SECRET_KEY = "django-insecure-+-0c2#r4i!p$h@1=eq$pnzyc)oh+ji78xn9-o@4+dct$0x@q4&
 DEBUG = True
 
 ALLOWED_HOSTS = ["*"]  # ONLY FOR DEVELOPMENT
-# ALLOWED_HOSTS = ["remotech.web.id"] # FOR PRODUCTION
+# ALLOWED_HOSTS = ["api.remotech.web.id"] # FOR PRODUCTION
 
 
 # Application definition
