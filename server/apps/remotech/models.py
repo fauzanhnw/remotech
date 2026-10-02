@@ -125,7 +125,7 @@ class CourseModule(CrudModel):
         max_length=100, choices=Category.choices, default=Category.TEXT
     )
     sequence = models.BigIntegerField(null=True, blank=True)
-    point = models.IntegerField(default=0)
+    point = models.IntegerField(default=100)
 
     def save(self, *args, **kwargs):
         if self.sequence is None:
@@ -164,7 +164,7 @@ class Submission(CrudModel):
     assignment = models.ForeignKey(Assignment, on_delete=models.CASCADE)
     submission_url = models.URLField()
     submit_on = models.DateTimeField(auto_now_add=True)
-    score = models.IntegerField()
+    score = models.IntegerField(default=0)
     reviewed_by = models.CharField(max_length=50, blank=True)
 
 
