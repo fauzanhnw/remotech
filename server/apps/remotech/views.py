@@ -35,6 +35,7 @@ from server.apps.remotech.serializers import (
     CourseModuleSerializer,
     CourseOrderSerializer,
     CourseSerializer,
+    CurrentUserSerializer,
     DocumentUploadSerializer,
     EnrollCourseSerializer,
     ForgotPasswordSerializer,
@@ -69,7 +70,11 @@ def media_url(storage_name):
 
 
 class UserViewSet(viewsets.ViewSet):
-    pass
+    permission_classes = [IsAuthenticated]
+
+    @action(detail=False, methods=["get"])
+    def me(self, request):
+        return Response(CurrentUserSerializer(request.user).data)
 
 
 class BadgeViewSet(viewsets.ModelViewSet):

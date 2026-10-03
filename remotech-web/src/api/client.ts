@@ -70,7 +70,7 @@ async function refreshAccessToken(): Promise<string> {
       status: 401,
       type: 'client_error',
       errors: [
-        { code: 'not_authenticated', detail: 'Sesi berakhir. Silakan login kembali.', attr: null },
+        { code: 'not_authenticated', detail: 'Session expired. Please log in again.', attr: null },
       ],
     })
   }
@@ -103,8 +103,8 @@ function sessionExpiredToast(hadSession: boolean): void {
         {
           code: 'not_authenticated',
           detail: hadSession
-            ? 'Sesi berakhir. Silakan login kembali.'
-            : 'Silakan login terlebih dahulu.',
+            ? 'Session expired. Please log in again.'
+            : 'Please log in first.',
           attr: null,
         },
       ],

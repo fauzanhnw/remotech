@@ -193,3 +193,15 @@ class SetPasswordSerializer(serializers.Serializer):
 
 class ForgotPasswordSerializer(serializers.Serializer):
     email = serializers.EmailField()
+
+
+class CurrentUserSerializer(serializers.ModelSerializer):
+    full_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = ["id", "email", "first_name", "last_name", "full_name"]
+        read_only_fields = fields
+
+    def get_full_name(self, obj):
+        return obj.get_full_name() or obj.username

@@ -20,7 +20,7 @@ export class ApiError extends Error {
   readonly errors: ApiErrorItem[]
 
   constructor({ status, type, errors }: ApiErrorInit) {
-    super(errors[0]?.detail ?? 'Terjadi kesalahan yang tidak diketahui.')
+    super(errors[0]?.detail ?? 'An unknown error occurred.')
     this.name = 'ApiError'
     this.status = status
     this.type = type
@@ -59,7 +59,7 @@ export function getFieldErrors(error: unknown): Record<string, string> {
 
 /** Pesan pertama yang human-readable, cocok untuk toast. */
 export function getFirstMessage(error: unknown): string {
-  return toApiError(error).errors[0]?.detail ?? 'Terjadi kesalahan yang tidak diketahui.'
+  return toApiError(error).errors[0]?.detail ?? 'An unknown error occurred.'
 }
 
 function isApiErrorResponse(data: unknown): data is ApiErrorResponse {
@@ -138,8 +138,8 @@ export function toApiError(error: unknown): ApiError {
         {
           code: timedOut ? 'timeout' : 'network_error',
           detail: timedOut
-            ? 'Permintaan melebihi batas waktu. Coba lagi.'
-            : 'Tidak dapat terhubung ke server. Periksa koneksi Anda.',
+            ? 'The request timed out. Please try again.'
+            : 'Could not connect to the server. Please check your connection.',
           attr: null,
         },
       ],
@@ -152,7 +152,7 @@ export function toApiError(error: unknown): ApiError {
     errors: [
       {
         code: 'unknown_error',
-        detail: 'Terjadi kesalahan yang tidak diketahui.',
+        detail: 'An unknown error occurred.',
         attr: null,
       },
     ],

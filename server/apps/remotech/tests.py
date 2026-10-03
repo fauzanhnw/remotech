@@ -1392,3 +1392,48 @@ class OrderEnrollmentAccessTests(APITestCase):
         response = self.client.get("/order/")
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class CurrentUserAPITests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="budi@example.com",
+            email="budi@example.com",
+            first_name="Budi",
+            last_name="Santoso",
+        )
+
+    def test_me_returns_current_user_profile(self):
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.get("/user/me/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.json(),
+            {
+                "id": self.user.id,
+                "email": "budi@example.com",
+                "first_name": "Budi",
+                "last_name": "Santoso",
+                "full_name": "Budi Santoso",
+            },
+        )
+
+    def test_me_falls_back_to_username_when_name_is_empty(self):
+        self.user.first_name = ""
+        self.user.last_name = ""
+        self.user.save(update_fields=["first_name", "last_name"])
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.get("/user/me/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()["full_name"], "budi@example.com")
+
+    def test_me_requires_authentication(self):
+        self.client.force_authenticate(user=None)
+
+        response = self.client.get("/user/me/")
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)

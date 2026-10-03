@@ -97,7 +97,7 @@ export async function payWithSnap(token: string): Promise<SnapResult> {
 
   const snap = window.snap
   if (!snap) {
-    throw new Error('Snap Midtrans tidak tersedia.')
+    throw new Error('Midtrans Snap is not available.')
   }
 
   return new Promise<SnapResult>((resolve) => {

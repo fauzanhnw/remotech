@@ -40,6 +40,7 @@ from server.apps.remotech.views import (
     SubmissionViewSet,
     TokenObtainPairViewSet,
     TokenRefreshViewSet,
+    UserViewSet,
 )
 
 router = DefaultRouter()
@@ -52,6 +53,7 @@ router.register(r"assignment", AssignmentViewSet, basename="assignment")
 router.register(r"enroll", CourseEnrollmentViewSet, basename="enroll")
 router.register(r"leaderboard", LeaderboardViewSet, basename="leaderboard")
 router.register(r"submission", SubmissionViewSet, basename="submission")
+router.register(r"user", UserViewSet, basename="user")
 
 auth_router = DefaultRouter()
 

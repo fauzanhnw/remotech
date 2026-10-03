@@ -47,6 +47,7 @@ import type {
 } from './params'
 import type { Submission, SubmissionCreate } from './submission'
 import type { UploadResponse } from './upload'
+import type { CurrentUser } from './user'
 
 export interface ApiEndpoints {
   'GET /': { response: Record<string, string> }
@@ -132,6 +133,9 @@ export interface ApiEndpoints {
   // Upload
   'POST /upload/image/': { body: FormData; response: UploadResponse }
   'POST /upload/document/': { body: FormData; response: UploadResponse }
+
+  // User
+  'GET /user/me/': { response: CurrentUser }
 }
 
 /** Tipe response dari sebuah endpoint. */
