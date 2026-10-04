@@ -5,6 +5,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { getFieldErrors, getFirstMessage } from '@/api'
 import { useAuth } from '@/auth/AuthContext'
 import { AuthCard } from '@/components/auth/AuthCard'
+import { usePageTitle } from '@/hooks/usePageTitle'
 
 interface LoginValues {
   /** Backend menerima email lewat field `username`. */
@@ -18,6 +19,8 @@ export function LoginPage() {
   const [form] = Form.useForm<LoginValues>()
   const [showPassword, setShowPassword] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+
+  usePageTitle('Login')
 
   const handleSubmit = async (values: LoginValues) => {
     setSubmitting(true)

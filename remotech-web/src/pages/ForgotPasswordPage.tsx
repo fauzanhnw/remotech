@@ -8,6 +8,7 @@ import {
   getFirstMessage,
 } from '@/api'
 import { AuthCard } from '@/components/auth/AuthCard'
+import { usePageTitle } from '@/hooks/usePageTitle'
 
 interface ForgotPasswordValues {
   email: string
@@ -18,6 +19,8 @@ export function ForgotPasswordPage() {
   const [form] = Form.useForm<ForgotPasswordValues>()
   const [submitting, setSubmitting] = useState(false)
   const [done, setDone] = useState(false)
+
+  usePageTitle('Forgot Password')
 
   const handleSubmit = async (values: ForgotPasswordValues) => {
     setSubmitting(true)

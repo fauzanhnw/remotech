@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 
 import { getFieldErrors, getFirstMessage, register as registerUser } from '@/api'
 import { AuthCard } from '@/components/auth/AuthCard'
+import { usePageTitle } from '@/hooks/usePageTitle'
 
 interface RegisterValues {
   full_name: string
@@ -18,6 +19,8 @@ export function RegisterPage() {
   const [form] = Form.useForm<RegisterValues>()
   const [submitting, setSubmitting] = useState(false)
   const [done, setDone] = useState(false)
+
+  usePageTitle('Register')
 
   const handleSubmit = async (values: RegisterValues) => {
     setSubmitting(true)
