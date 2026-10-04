@@ -24,3 +24,19 @@ body {
   border-radius: 0;
   box-shadow: none;
 }
+
+/* Tombol auth tamu — hover/focus jadi solid.
+   Ditulis tanpa layer + !important agar tidak kalah dari style antd. */
+.auth-btn-dark:hover,
+.auth-btn-dark:focus-visible {
+  color: #fff !important;
+  background-color: #08060d !important;
+  border-color: #08060d !important;
+}
+
+.auth-btn-primary:hover,
+.auth-btn-primary:focus-visible {
+  color: #fff !important;
+  background-color: #1677ff !important;
+  border-color: #1677ff !important;
+}

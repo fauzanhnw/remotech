@@ -9,6 +9,7 @@ export interface NavItem {
 /** Menu tengah navbar — hanya Kursus dulu. */
 export const primaryNavItems: NavItem[] = [
   { key: 'courses', label: 'Courses', to: '/courses' },
+  // { key: 'faq', label: 'FAQ', to: '/courses' },
 ]
 
 /** Menu akun di dropdown "Hi,{user}" dan drawer mobile. */

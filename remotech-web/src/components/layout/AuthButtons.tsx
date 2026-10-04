@@ -9,12 +9,12 @@ export function AuthButtons() {
     <Space size={8}>
       <Button
         onClick={() => navigate('/register')}
-        className="!font-medium !text-gray-900"
+        className="auth-btn-dark font-medium"
         style={{ borderColor: '#08060d' }}
       >
         Register
       </Button>
-      <Button type="primary" ghost onClick={() => navigate('/login')}>
+      <Button type="primary" ghost className="auth-btn-primary" onClick={() => navigate('/login')}>
         Login
       </Button>
     </Space>
