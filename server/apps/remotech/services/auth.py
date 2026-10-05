@@ -9,6 +9,7 @@ from rest_framework.exceptions import ValidationError
 from server.apps.remotech.models import SetPasswordToken
 
 PARTICIPANT_GROUP = "participant"
+MENTOR_GROUP = "mentor"
 
 
 def register_user(email, full_name):

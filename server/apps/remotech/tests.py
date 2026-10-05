@@ -27,7 +27,11 @@ from server.apps.remotech.models import (
     SetPasswordToken,
     Submission,
 )
-from server.apps.remotech.services.auth import PARTICIPANT_GROUP, register_user
+from server.apps.remotech.services.auth import (
+    MENTOR_GROUP,
+    PARTICIPANT_GROUP,
+    register_user,
+)
 from server.apps.remotech.services.richtext import (
     extract_media_urls,
     sanitize_richtext,
@@ -1417,8 +1421,19 @@ class CurrentUserAPITests(APITestCase):
                 "first_name": "Budi",
                 "last_name": "Santoso",
                 "full_name": "Budi Santoso",
+                "is_mentor": False,
             },
         )
+
+    def test_me_returns_true_is_mentor_for_mentor_group(self):
+        mentor_group, _ = Group.objects.get_or_create(name=MENTOR_GROUP)
+        self.user.groups.add(mentor_group)
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.get("/user/me/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.json()["is_mentor"])
 
     def test_me_falls_back_to_username_when_name_is_empty(self):
         self.user.first_name = ""

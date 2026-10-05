@@ -16,6 +16,7 @@ from server.apps.remotech.models import (
     UserAnswer,
     UserBadge,
 )
+from server.apps.remotech.services.auth import MENTOR_GROUP
 from server.apps.remotech.services.course import convert_to_webp
 from server.apps.remotech.services.module_content import validate_module_content
 from server.apps.remotech.services.richtext import (
@@ -197,11 +198,15 @@ class ForgotPasswordSerializer(serializers.Serializer):
 
 class CurrentUserSerializer(serializers.ModelSerializer):
     full_name = serializers.SerializerMethodField()
+    is_mentor = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ["id", "email", "first_name", "last_name", "full_name"]
+        fields = ["id", "email", "first_name", "last_name", "full_name", "is_mentor"]
         read_only_fields = fields
 
     def get_full_name(self, obj):
         return obj.get_full_name() or obj.username
+
+    def get_is_mentor(self, obj):
+        return obj.groups.filter(name=MENTOR_GROUP).exists()
