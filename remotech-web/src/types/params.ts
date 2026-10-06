@@ -3,8 +3,10 @@
 import type { PaginationParams } from './api'
 import type { OrderStatus } from './order'
 
-/** GET /course/ — backend tidak punya filter (hanya pagination). */
-export type CourseListParams = PaginationParams
+/** GET /course/ — filter `?is_open=`. */
+export interface CourseListParams extends PaginationParams {
+  is_open?: boolean
+}
 
 /** GET /module/ — filter `?course=`. */
 export interface ModuleListParams extends PaginationParams {

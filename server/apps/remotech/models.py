@@ -34,6 +34,7 @@ class Course(CrudModel):
     )
     price = models.BigIntegerField(default=0)
     is_publish = models.BooleanField(default=False)
+    is_open = models.BooleanField(default=True)
 
     def save(self, **kwargs):
         self.slug = slugify(self.title)

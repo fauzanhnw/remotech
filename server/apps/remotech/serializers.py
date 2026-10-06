@@ -1,6 +1,8 @@
 from pathlib import Path
 
 from rest_framework import serializers
+from rest_framework.fields import empty
+from rest_framework.utils.html import is_html_input
 
 from server.apps.remotech.models import (
     Assignment,
@@ -57,7 +59,25 @@ class UserAnswerSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
+class MissingAsEmptyBooleanField(serializers.BooleanField):
+    """Boolean field that treats a key absent from form input as unset.
+
+    DRF's BooleanField returns False for absent keys in HTML-form data
+    (multipart/urlencoded QueryDict), which would silently override the
+    model default on create and reset booleans on update. Treating the
+    missing key as `empty` keeps form input consistent with JSON input.
+    """
+
+    def get_value(self, dictionary):
+        if is_html_input(dictionary) and self.field_name not in dictionary:
+            return empty
+        return super().get_value(dictionary)
+
+
 class CourseSerializer(serializers.ModelSerializer):
+    is_publish = MissingAsEmptyBooleanField(required=False)
+    is_open = MissingAsEmptyBooleanField(required=False)
+
     class Meta:
         model = Course
         fields = "__all__"
@@ -202,7 +222,7 @@ class CurrentUserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["email", "first_name", "last_name", "full_name", "is_mentor"]
+        fields = ["id", "email", "first_name", "last_name", "full_name", "is_mentor"]
         read_only_fields = fields
 
     def get_full_name(self, obj):

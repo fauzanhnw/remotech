@@ -945,6 +945,9 @@ class EnrollCourseTests(APITestCase):
         self.draft_course = Course.objects.create(
             user=self.owner, title="Draft Course", price=1000, is_publish=False
         )
+        self.closed_course = Course.objects.create(
+            user=self.owner, title="Closed Course", price=0, is_publish=True, is_open=False
+        )
         self.client.force_authenticate(user=self.buyer)
 
     def test_free_course_enrolls_immediately(self):
@@ -1069,6 +1072,20 @@ class EnrollCourseTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(CourseOrder.objects.filter(user=self.buyer).exists())
+
+    def test_closed_course_is_rejected(self):
+        response = self.client.post("/order/enroll/", {"course": self.closed_course.id})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(
+            CourseOrder.objects.filter(user=self.buyer, course=self.closed_course).exists()
+        )
+        self.assertFalse(
+            CourseEnrollment.objects.filter(
+                user=self.buyer, course=self.closed_course
+            ).exists()
+        )
+
 
     def test_gateway_failure_keeps_pending_order_for_retry(self):
         # 5xx responses re-raise in tests unless disabled.
@@ -1452,3 +1469,63 @@ class CurrentUserAPITests(APITestCase):
         response = self.client.get("/user/me/")
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class CourseIsOpenTests(APITestCase):
+    def setUp(self):
+        self.owner = User.objects.create_user(username="owner", password="secret123")
+        self.open_course = Course.objects.create(
+            user=self.owner, title="Open Course", price=0, is_publish=True, is_open=True
+        )
+        self.closed_course = Course.objects.create(
+            user=self.owner, title="Closed Course", price=0, is_publish=True, is_open=False
+        )
+
+    def test_course_created_without_is_open_defaults_to_true(self):
+        self.client.force_authenticate(user=self.owner)
+
+        response = self.client.post("/course/", {"title": "New Course"})
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertIs(response.json()["is_open"], True)
+
+    def test_course_created_with_is_open_false(self):
+        self.client.force_authenticate(user=self.owner)
+
+        response = self.client.post(
+            "/course/", {"title": "Closed On Create", "is_open": False}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertIs(response.json()["is_open"], False)
+
+    def test_form_update_does_not_reset_booleans(self):
+        self.client.force_authenticate(user=self.owner)
+
+        response = self.client.patch(
+            f"/course/{self.open_course.id}/", {"title": "Renamed Open Course"}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIs(response.json()["is_publish"], True)
+        self.assertIs(response.json()["is_open"], True)
+
+    def test_course_detail_returns_is_open(self):
+        response = self.client.get(f"/course/{self.closed_course.id}/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIs(response.json()["is_open"], False)
+
+    def test_filter_by_is_open_false(self):
+        response = self.client.get("/course/", {"is_open": "false"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = response.json()["results"]
+        self.assertEqual([course["id"] for course in results], [self.closed_course.id])
+
+    def test_filter_by_is_open_true(self):
+        response = self.client.get("/course/", {"is_open": "true"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = response.json()["results"]
+        self.assertEqual([course["id"] for course in results], [self.open_course.id])

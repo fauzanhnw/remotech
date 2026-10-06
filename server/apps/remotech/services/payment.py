@@ -33,6 +33,9 @@ def enroll_course(user, course):
     if not course.is_publish:
         raise ValidationError({"course": "Course is not published."})
 
+    if not course.is_open:
+        raise ValidationError({"course": "Course is closed for enrollment."})
+
     if CourseEnrollment.objects.filter(user=user, course=course).exists():
         raise ValidationError(
             {"course": "You have already enrolled in this course."}

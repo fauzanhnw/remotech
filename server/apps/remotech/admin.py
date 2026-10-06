@@ -41,8 +41,8 @@ class QuestionOptionInline(admin.TabularInline):
 
 @admin.register(Course)
 class CourseAdmin(admin.ModelAdmin):
-    list_display = ("title", "user", "price", "is_publish", "created_at")
-    list_filter = ("is_publish",)
+    list_display = ("title", "user", "price", "is_publish", "is_open", "created_at")
+    list_filter = ("is_publish", "is_open")
     search_fields = ("title", "description")
     ordering = ("-created_at",)
 

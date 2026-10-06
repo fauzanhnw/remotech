@@ -91,6 +91,7 @@ class CourseViewSet(AssignUserMixin, viewsets.ModelViewSet):
     queryset = Course.objects.order_by("id")
     serializer_class = CourseSerializer
     parser_classes = [MultiPartParser, FormParser, JSONParser]
+    filterset_fields = ["is_open"]
 
     def get_permissions(self):
         if self.action in ("list", "retrieve"):

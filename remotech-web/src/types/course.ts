@@ -17,6 +17,8 @@ export interface Course {
   thumbnail: string | null
   price: number
   is_publish: boolean
+  /** false = course ditutup, pembelian baru tidak diterima. */
+  is_open: boolean
   created_at: IsoDateTime
   modified_at: IsoDateTime
 }
@@ -29,6 +31,8 @@ export interface CourseCreate {
   thumbnail?: File
   price?: number
   is_publish?: boolean
+  /** Opsional — bila tidak dikirim, backend default `true` (buka). */
+  is_open?: boolean
 }
 
 /** GET /module/{id}/ */
