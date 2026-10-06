@@ -1,6 +1,6 @@
 import { Button, Checkbox, Form, Input, message } from 'antd'
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 
 import { getFieldErrors, getFirstMessage } from '@/api'
 import { useAuth } from '@/auth/AuthContext'
@@ -16,6 +16,7 @@ interface LoginValues {
 export function LoginPage() {
   const { login } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [form] = Form.useForm<LoginValues>()
   const [showPassword, setShowPassword] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -26,7 +27,9 @@ export function LoginPage() {
     setSubmitting(true)
     try {
       await login(values.username, values.password)
-      navigate('/my-courses', { replace: true })
+      // Kembali ke halaman asal (mis. course detail) bila ada, selain itu ke my-courses.
+      const from = (location.state as { from?: string } | null)?.from
+      navigate(from ?? '/my-courses', { replace: true })
     } catch (error) {
       const fieldErrors = Object.entries(getFieldErrors(error))
       if (fieldErrors.length > 0) {

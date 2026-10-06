@@ -77,11 +77,17 @@ class MissingAsEmptyBooleanField(serializers.BooleanField):
 class CourseSerializer(serializers.ModelSerializer):
     is_publish = MissingAsEmptyBooleanField(required=False)
     is_open = MissingAsEmptyBooleanField(required=False)
+    user_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Course
         fields = "__all__"
         read_only_fields = ["user", "slug"]
+
+    def get_user_name(self, obj):
+        if obj.user_id is None:
+            return ""
+        return obj.user.get_full_name() or obj.user.username
 
     def validate_thumbnail(self, value):
         if not value:

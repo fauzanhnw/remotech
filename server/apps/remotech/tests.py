@@ -1529,3 +1529,136 @@ class CourseIsOpenTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         results = response.json()["results"]
         self.assertEqual([course["id"] for course in results], [self.open_course.id])
+
+
+class CourseCatalogTests(APITestCase):
+    def setUp(self):
+        self.owner = User.objects.create_user(
+            username="uploader", password="secret123", first_name="Budi", last_name="Santoso"
+        )
+        self.free = Course.objects.create(
+            user=self.owner, title="Gratis Course", price=0, is_publish=True
+        )
+        self.cheap = Course.objects.create(
+            user=self.owner, title="Murah Meriah", price=10000, is_publish=True
+        )
+        self.expensive = Course.objects.create(
+            user=self.owner, title="Mahal Course", price=900000, is_publish=True
+        )
+        self.draft = Course.objects.create(
+            user=self.owner, title="Draft Course", price=0, is_publish=False
+        )
+
+    def test_user_name_is_returned(self):
+        response = self.client.get(f"/course/{self.cheap.id}/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()["user_name"], "Budi Santoso")
+
+    def test_user_name_falls_back_to_username(self):
+        anonymous = User.objects.create_user(username="solo@example.com")
+        course = Course.objects.create(user=anonymous, title="Solo Course")
+
+        response = self.client.get(f"/course/{course.id}/")
+
+        self.assertEqual(response.json()["user_name"], "solo@example.com")
+
+    def test_filter_by_is_publish(self):
+        response = self.client.get("/course/", {"is_publish": "false"})
+
+        results = response.json()["results"]
+        self.assertEqual([course["id"] for course in results], [self.draft.id])
+
+    def test_search_by_title(self):
+        response = self.client.get("/course/", {"search": "Mahal"})
+
+        results = response.json()["results"]
+        self.assertEqual([course["id"] for course in results], [self.expensive.id])
+
+    def test_search_by_description(self):
+        Course.objects.create(
+            user=self.owner, title="Lain Judul", description="kopinya mahal", is_publish=True
+        )
+
+        response = self.client.get("/course/", {"search": "kopinya"})
+
+        self.assertEqual(len(response.json()["results"]), 1)
+
+    def test_ordering_by_price_ascending(self):
+        response = self.client.get(
+            "/course/", {"is_publish": "true", "ordering": "price"}
+        )
+
+        results = response.json()["results"]
+        self.assertEqual(
+            [course["id"] for course in results],
+            [self.free.id, self.cheap.id, self.expensive.id],
+        )
+
+    def test_default_ordering_is_newest_first(self):
+        response = self.client.get("/course/", {"is_publish": "true"})
+
+        results = response.json()["results"]
+        self.assertEqual(
+            [course["id"] for course in results],
+            [self.expensive.id, self.cheap.id, self.free.id],
+        )
+
+    def test_price_free_filter(self):
+        response = self.client.get(
+            "/course/", {"is_publish": "true", "price__lte": "0", "ordering": "price"}
+        )
+
+        results = response.json()["results"]
+        self.assertEqual([course["id"] for course in results], [self.free.id])
+
+    def test_price_paid_filter(self):
+        response = self.client.get(
+            "/course/", {"is_publish": "true", "price__gt": "0", "ordering": "price"}
+        )
+
+        results = response.json()["results"]
+        self.assertEqual(
+            [course["id"] for course in results], [self.cheap.id, self.expensive.id]
+        )
+
+
+class CourseModuleDescriptionTests(APITestCase):
+    def setUp(self):
+        self.owner = User.objects.create_user(username="owner", password="secret123")
+        self.course = Course.objects.create(
+            user=self.owner, title="Course", price=0, is_publish=True
+        )
+
+    def test_module_returns_description(self):
+        module = CourseModule.objects.create(
+            course=self.course,
+            title="Modul Deskripsi",
+            description="Isi deskripsi module.",
+        )
+
+        response = self.client.get("/module/", {"course": self.course.id})
+
+        results = response.json()["results"]
+        self.assertEqual(results[0]["id"], module.id)
+        self.assertEqual(results[0]["description"], "Isi deskripsi module.")
+
+    def test_module_description_defaults_to_empty(self):
+        module = CourseModule.objects.create(course=self.course, title="Tanpa Deskripsi")
+
+        response = self.client.get(f"/module/{module.id}/")
+
+        self.assertEqual(response.json()["description"], "")
+
+    def test_module_list_is_ordered_by_sequence(self):
+        second = CourseModule.objects.create(
+            course=self.course, title="Kedua", sequence=2
+        )
+        first = CourseModule.objects.create(course=self.course, title="Pertama", sequence=1)
+
+        response = self.client.get("/module/", {"course": self.course.id})
+
+        results = response.json()["results"]
+        self.assertEqual(
+            [module["id"] for module in results], [first.id, second.id]
+        )

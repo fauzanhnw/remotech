@@ -11,6 +11,8 @@ export type ModuleCategory = 'text' | 'video' | 'upload' | 'quiz'
 export interface Course {
   id: number
   user: number
+  /** Nama uploader: `get_full_name()` fallback ke username. */
+  user_name: string
   slug: string
   title: string
   description: string
@@ -40,6 +42,8 @@ export interface CourseModule {
   id: number
   course: number
   title: string
+  /** Deskripsi singkat module (kosong bila tidak diisi mentor). */
+  description: string
   module_category: ModuleCategory
   sequence: number | null
   point: number
@@ -51,6 +55,7 @@ export interface CourseModule {
 export interface CourseModuleCreate {
   course: number
   title: string
+  description?: string
   module_category?: ModuleCategory
   sequence?: number | null
   point?: number

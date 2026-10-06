@@ -4,6 +4,7 @@ import { RequireAuth } from '@/components/RequireAuth'
 import { RequireMentor } from '@/components/RequireMentor'
 import { AppShell } from '@/components/layout/AppShell'
 import { CoursesPage } from '@/pages/CoursesPage'
+import { CourseDetailPage } from '@/pages/CourseDetailPage'
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage'
 import { HomePage } from '@/pages/HomePage'
 import { LoginPage } from '@/pages/LoginPage'
@@ -22,6 +23,7 @@ export function AppRoutes() {
       <Route element={<AppShell />}>
         <Route index element={<HomePage />} />
         <Route path="courses" element={<CoursesPage />} />
+        <Route path="courses/:id" element={<CourseDetailPage />} />
 
         <Route element={<RequireAuth />}>
           <Route path="my-courses" element={<MyCoursesPage />} />

@@ -130,6 +130,7 @@ class CourseModule(CrudModel):
 
     course = models.ForeignKey(Course, on_delete=models.CASCADE)
     title = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
     module_category = models.CharField(
         max_length=100, choices=Category.choices, default=Category.TEXT
     )

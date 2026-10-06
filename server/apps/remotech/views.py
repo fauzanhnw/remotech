@@ -3,8 +3,10 @@ from uuid import uuid4
 from django.conf import settings
 from django.core.files.storage import default_storage
 from django.shortcuts import render
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
+from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -91,7 +93,15 @@ class CourseViewSet(AssignUserMixin, viewsets.ModelViewSet):
     queryset = Course.objects.order_by("id")
     serializer_class = CourseSerializer
     parser_classes = [MultiPartParser, FormParser, JSONParser]
-    filterset_fields = ["is_open"]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = {
+        "is_open": ["exact"],
+        "is_publish": ["exact"],
+        "price": ["lte", "gt"],
+    }
+    search_fields = ["title", "description"]
+    ordering_fields = ["created_at", "price", "title"]
+    ordering = "-created_at"
 
     def get_permissions(self):
         if self.action in ("list", "retrieve"):
@@ -100,7 +110,9 @@ class CourseViewSet(AssignUserMixin, viewsets.ModelViewSet):
 
 
 class CourseModuleViewSet(CourseOwnerMixin, viewsets.ModelViewSet):
-    queryset = CourseModule.objects.select_related("course").order_by("id")
+    queryset = (
+        CourseModule.objects.select_related("course").order_by("course", "sequence")
+    )
     serializer_class = CourseModuleSerializer
     filterset_fields = ["course"]
 
