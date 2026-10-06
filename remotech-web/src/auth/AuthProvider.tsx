@@ -21,6 +21,8 @@ interface AuthProviderProps {
 export function AuthProvider({ children }: AuthProviderProps) {
   const [hasSession, setHasSession] = useState(() => tokenStorage.hasSession())
   const [user, setUser] = useState<CurrentUser | null>(null)
+  // Tanpa sesi tidak ada profil yang ditunggu, jadi dianggap sudah selesai.
+  const [profileLoaded, setProfileLoaded] = useState(() => !tokenStorage.hasSession())
 
   const refreshUser = useCallback(async () => {
     try {
@@ -28,6 +30,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } catch {
       // Profil gagal dimuat tidak menghapus sesi; biarkan UI pakai fallback.
       setUser(null)
+    } finally {
+      setProfileLoaded(true)
     }
   }, [])
 
@@ -43,6 +47,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       .catch(() => {
         // Profil gagal dimuat tidak menghapus sesi; biarkan UI pakai fallback.
         if (!cancelled) setUser(null)
+      })
+      .finally(() => {
+        if (!cancelled) setProfileLoaded(true)
       })
     return () => {
       cancelled = true
@@ -79,6 +86,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     async (username: string, password: string) => {
       await authLogin({ username, password })
       setHasSession(true)
+      setProfileLoaded(false)
       await refreshUser()
     },
     [refreshUser],
@@ -91,8 +99,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [])
 
   const value = useMemo<AuthValue>(
-    () => ({ user, isAuthenticated: hasSession, login, logout, refreshUser }),
-    [user, hasSession, login, logout, refreshUser],
+    () => ({ user, isAuthenticated: hasSession, profileLoaded, login, logout, refreshUser }),
+    [user, hasSession, profileLoaded, login, logout, refreshUser],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

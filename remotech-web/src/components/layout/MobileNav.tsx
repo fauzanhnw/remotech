@@ -3,7 +3,7 @@ import { Button } from 'antd'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 
 import { useAuth } from '@/auth/AuthContext'
-import { accountNavItems, primaryNavItems } from './navItems'
+import { accountNavItems, getPrimaryNavItems } from './navItems'
 
 interface MobileNavProps {
   open: boolean
@@ -16,7 +16,8 @@ export function MobileNav({ open, onClose }: MobileNavProps) {
   const navigate = useNavigate()
   const { isAuthenticated, user, logout } = useAuth()
 
-  const allItems = isAuthenticated ? [...primaryNavItems, ...accountNavItems] : primaryNavItems
+  const navItems = getPrimaryNavItems(isAuthenticated, user?.is_mentor ?? false)
+  const allItems = isAuthenticated ? [...navItems, ...accountNavItems] : navItems
   const selected = allItems.find((item) => location.pathname.startsWith(item.to))?.key
 
   if (!open) return null

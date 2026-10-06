@@ -4,13 +4,23 @@ export interface NavItem {
   key: string
   label: string
   to: string
+  /** Hanya tampil bila user sudah login dan berrole mentor. */
+  requiresMentor?: boolean
 }
 
-/** Menu tengah navbar — hanya Kursus dulu. */
+/** Menu tengah navbar — Kursus, plus Mentor untuk user mentor. */
 export const primaryNavItems: NavItem[] = [
   { key: 'courses', label: 'Courses', to: '/courses' },
-  // { key: 'faq', label: 'FAQ', to: '/courses' },
+  { key: 'mentor', label: 'Mentor', to: '/mentor', requiresMentor: true },
 ]
+
+/**
+ * Filter menu utama sesuai status login & role.
+ * Item `requiresMentor` hanya lolos bila login sekaligus mentor.
+ */
+export function getPrimaryNavItems(isAuthenticated: boolean, isMentor: boolean): NavItem[] {
+  return primaryNavItems.filter((item) => !item.requiresMentor || (isAuthenticated && isMentor))
+}
 
 /** Menu akun di dropdown "Hi,{user}" dan drawer mobile. */
 export const accountNavItems: NavItem[] = [

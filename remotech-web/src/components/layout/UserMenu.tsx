@@ -27,7 +27,7 @@ export function UserMenu() {
   const navigate = useNavigate()
   const { user, logout } = useAuth()
 
-  const firstName = user?.first_name || user?.full_name.split(' ')[0] || 'Pengguna'
+  const firstName = user?.first_name || user?.full_name.split(' ')[0] || 'User'
 
   const items: MenuProps['items'] = [
     ...accountNavItems.map((item) => ({
@@ -56,14 +56,14 @@ export function UserMenu() {
       dropdownRender={(menu) => (
         <div className="min-w-56 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
           <div className="border-b border-gray-100 px-4 py-3">
-            <p className="truncate font-medium text-gray-900">{user?.full_name ?? firstName}</p>
+            <div className="truncate font-medium text-gray-900">{user?.full_name ?? firstName}</div>
             <p className="truncate text-xs text-gray-500">{user?.email ?? '—'}</p>
           </div>
           {menu}
         </div>
       )}
     >
-      <Button type="primary" icon={<DownOutlined />} iconPosition="end">
+      <Button variant='filled' color='primary' icon={<DownOutlined />} iconPosition="end">
         Hi, {firstName}
       </Button>
     </Dropdown>

@@ -8,15 +8,16 @@ import { useAuth } from '@/auth/AuthContext'
 import { AuthButtons } from './AuthButtons'
 import { MobileNav } from './MobileNav'
 import { UserMenu } from './UserMenu'
-import { primaryNavItems } from './navItems'
+import { getPrimaryNavItems } from './navItems'
 
 /** Navbar tiga bagian: logo (kiri), menu halaman (tengah), aksi auth (kanan). */
 export function Navbar() {
   const location = useLocation()
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, user } = useAuth()
   const [menuOpen, setMenuOpen] = useState(false)
 
-  const selected = primaryNavItems.find((item) => location.pathname.startsWith(item.to))?.key
+  const navItems = getPrimaryNavItems(isAuthenticated, user?.is_mentor ?? false)
+  const selected = navItems.find((item) => location.pathname.startsWith(item.to))?.key
 
   return (
     <header className="sticky top-0 z-40 border-b border-gray-200 bg-white/90 backdrop-blur shadow-md">
@@ -31,7 +32,7 @@ export function Navbar() {
             className="border-none bg-transparent justify-end"
             style={{ boxShadow: 'none', borderBottom: 0 }}
             selectedKeys={selected ? [selected] : []}
-            items={primaryNavItems.map((item) => ({
+            items={navItems.map((item) => ({
               key: item.key,
               label: (
                 <Link to={item.to} className="font-bold no-underline">

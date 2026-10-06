@@ -1,5 +1,20 @@
-import { PlaceholderPage } from '@/components/PlaceholderPage'
+import { usePageTitle } from '@/hooks/usePageTitle'
+import { CtaSection } from './home/CtaSection'
+import { FaqSection } from './home/FaqSection'
+import { FeaturesSection } from './home/FeaturesSection'
+import { HeroSection } from './home/HeroSection'
+import { StatsSection } from './home/StatsSection'
 
 export function HomePage() {
-  return <PlaceholderPage title="Home" description="Home content is coming soon." />
+  usePageTitle('Home')
+
+  return (
+    <>
+      <HeroSection />
+      <StatsSection />
+      <FeaturesSection />
+      <FaqSection />
+      <CtaSection />
+    </>
+  )
 }

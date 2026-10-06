@@ -7,6 +7,8 @@ export interface AuthValue {
   user: CurrentUser | null
   /** True bila ada sesi token (belum tentu profil sudah terisi). */
   isAuthenticated: boolean
+  /** True bila profil dari GET /user/me/ sudah selesai dimuat (sukses maupun gagal). */
+  profileLoaded: boolean
   /** Login dengan email + password, lalu muat profil. Tolak bila login gagal. */
   login: (username: string, password: string) => Promise<void>
   /** Buang token di sisi client lalu reset state. */
