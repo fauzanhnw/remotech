@@ -1,8 +1,8 @@
-import { Alert, Button, Form, Input, message } from 'antd'
+import { Alert, Button, Form, Input } from 'antd'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
-import { getFieldErrors, getFirstMessage, register as registerUser } from '@/api'
+import { getFieldErrors, notifyError, register as registerUser } from '@/api'
 import { AuthCard } from '@/components/auth/AuthCard'
 import { usePageTitle } from '@/hooks/usePageTitle'
 
@@ -37,7 +37,7 @@ export function RegisterPage() {
           })),
         )
       } else {
-        message.error(getFirstMessage(error))
+        notifyError(error)
       }
     } finally {
       setSubmitting(false)

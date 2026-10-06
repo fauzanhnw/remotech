@@ -1,8 +1,20 @@
-import { ConfigProvider } from 'antd'
+import { App as AntApp, ConfigProvider } from 'antd'
+import { useEffect } from 'react'
 import { BrowserRouter } from 'react-router-dom'
 
+import { registerNotificationApi } from '@/api'
 import { AuthProvider } from '@/auth/AuthProvider'
+import { ScrollToTop } from '@/components/ScrollToTop'
 import { AppRoutes } from '@/routes'
+
+/** Pasang instance notification antd `<App>` agar `notify.*` berfungsi di luar komponen. */
+function ToastBridge() {
+  const { notification } = AntApp.useApp()
+  useEffect(() => {
+    registerNotificationApi(notification)
+  }, [notification])
+  return null
+}
 
 export default function App() {
   return (
@@ -13,11 +25,15 @@ export default function App() {
         components: { Menu: { activeBarHeight: 0 } },
       }}
     >
-      <AuthProvider>
-        <BrowserRouter>
-          <AppRoutes />
-        </BrowserRouter>
-      </AuthProvider>
+      <AntApp notification={{ placement: 'bottomRight' }}>
+        <AuthProvider>
+          <BrowserRouter>
+            <ScrollToTop />
+            <AppRoutes />
+          </BrowserRouter>
+        </AuthProvider>
+        <ToastBridge />
+      </AntApp>
     </ConfigProvider>
   )
 }

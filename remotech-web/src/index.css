@@ -1,5 +1,7 @@
 @import "tailwindcss/theme.css" layer(theme);
-@import "tailwindcss/utilities.css" layer(utilities);
+/* Utilities sengaja TANPA layer: harus mengalahkan global reset antd yang
+   di-inject runtime (a { color: #1677ff }) — unlayered > layered. */
+@import "tailwindcss/utilities.css";
 
 :root {
   color-scheme: light;

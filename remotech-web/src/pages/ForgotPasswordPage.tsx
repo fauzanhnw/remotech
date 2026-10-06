@@ -1,12 +1,8 @@
-import { Alert, Button, Form, Input, message } from 'antd'
+import { Alert, Button, Form, Input } from 'antd'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
-import {
-  forgotPassword,
-  getFieldErrors,
-  getFirstMessage,
-} from '@/api'
+import { forgotPassword, getFieldErrors, notifyError } from '@/api'
 import { AuthCard } from '@/components/auth/AuthCard'
 import { usePageTitle } from '@/hooks/usePageTitle'
 
@@ -37,7 +33,7 @@ export function ForgotPasswordPage() {
           })),
         )
       } else {
-        message.error(getFirstMessage(error))
+        notifyError(error)
       }
     } finally {
       setSubmitting(false)

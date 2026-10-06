@@ -1,8 +1,8 @@
-import { Button, Checkbox, Form, Input, message } from 'antd'
+import { Button, Checkbox, Form, Input } from 'antd'
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 
-import { getFieldErrors, getFirstMessage } from '@/api'
+import { getFieldErrors, notifyError } from '@/api'
 import { useAuth } from '@/auth/AuthContext'
 import { AuthCard } from '@/components/auth/AuthCard'
 import { usePageTitle } from '@/hooks/usePageTitle'
@@ -40,7 +40,7 @@ export function LoginPage() {
           })),
         )
       } else {
-        message.error(getFirstMessage(error))
+        notifyError(error)
       }
     } finally {
       setSubmitting(false)

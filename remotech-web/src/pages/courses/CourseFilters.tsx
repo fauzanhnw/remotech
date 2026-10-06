@@ -39,10 +39,10 @@ export function CourseFilters({
       <Input
         allowClear
         prefix={<SearchOutlined className="text-gray-400" />}
-        placeholder="Cari course..."
+        placeholder="Search course..."
         value={search}
         onChange={(event) => onSearchChange(event.target.value)}
-        className="w-full md:w-80"
+        className="w-full"
       />
 
       <Dropdown

@@ -7,6 +7,13 @@ export {
   isApiError,
   toApiError,
 } from './errors'
-export { notifyApiError, notifyInfo, notifySuccess } from './notify'
+export {
+  notifyApiError,
+  notifyError,
+  notifyInfo,
+  notifySuccess,
+  notifyWarning,
+  registerNotificationApi,
+} from './notify'
 export { tokenStorage } from './tokenStorage'
 export * from './services'

@@ -1,5 +1,5 @@
 import { PictureOutlined } from '@ant-design/icons'
-import { Button, Empty, message, Skeleton, Tag } from 'antd'
+import { Button, Empty, Skeleton, Tag } from 'antd'
 import { useCallback, useEffect, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 
@@ -7,10 +7,12 @@ import {
   checkPayment,
   enrollCourse,
   getCourse,
-  getFirstMessage,
   isApiError,
   listEnrollments,
   listModules,
+  notifyError,
+  notifySuccess,
+  notifyWarning,
   payWithSnap,
 } from '@/api'
 import { useAuth } from '@/auth/AuthContext'
@@ -113,7 +115,7 @@ export function CourseDetailPage() {
 
       if (result.enrolled) {
         void refreshEnrollment()
-        message.success('Berhasil enroll. Selamat belajar!')
+        notifySuccess('Berhasil enroll. Selamat belajar!')
         return
       }
 
@@ -123,23 +125,17 @@ export function CourseDetailPage() {
 
         if (order.transaction_status === 'settlement') {
           void refreshEnrollment()
-          message.success('Pembayaran berhasil! Course sudah masuk ke daftar belajarmu.')
+          notifySuccess('Pembayaran berhasil! Course sudah masuk ke daftar belajarmu.')
         } else if (snapResult.status === 'error') {
-          message.error('Pembayaran gagal. Silakan coba lagi.')
+          notifyError('Pembayaran gagal. Silakan coba lagi.')
         } else {
-          message.warning(
+          notifyWarning(
             `Pembayaran masih berstatus "${order.transaction_status}". Silakan periksa kembali nanti.`,
           )
         }
       }
     } catch (error) {
-      message.error(
-        isApiError(error)
-          ? getFirstMessage(error)
-          : error instanceof Error
-            ? error.message
-            : 'Terjadi kesalahan. Silakan coba lagi.',
-      )
+      notifyError(error)
     } finally {
       setActing(false)
     }
@@ -186,7 +182,7 @@ export function CourseDetailPage() {
     <>
       {/* Section 1: thumbnail, judul, uploader, harga, aksi */}
       <section className="border-b border-gray-200 bg-gray-50">
-        <div className="mx-auto grid max-w-6xl items-center gap-8 px-4 py-10 lg:grid-cols-2">
+        <div className="mx-auto grid max-w-6xl items-center gap-8 px-4 py-10 md:grid-cols-2">
           <div className="aspect-video overflow-hidden rounded-xl border border-gray-200 bg-white">
             {course.thumbnail ? (
               <img
@@ -205,7 +201,7 @@ export function CourseDetailPage() {
             <Tag color={course.is_open ? 'green' : 'red'}>
               {course.is_open ? 'Pendaftaran Dibuka' : 'Pendaftaran Ditutup'}
             </Tag>
-            <h1 className="mt-3 text-3xl font-bold text-[#08060d] md:text-4xl">
+            <h1 className="mt-3 text-3xl font-bold text-[#08060d] md:text-3xl lg:text-4xl">
               {course.title}
             </h1>
             <p className="mt-2 text-gray-600">oleh {course.user_name}</p>
@@ -216,7 +212,7 @@ export function CourseDetailPage() {
             <Button
               type="primary"
               size="large"
-              className="mt-6 min-w-48 font-medium"
+              className="mt-3 min-w-48 font-medium"
               loading={acting}
               disabled={isClosed}
               onClick={handlePrimaryClick}

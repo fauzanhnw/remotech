@@ -1,15 +1,17 @@
 import { Button } from 'antd'
 import { useNavigate } from 'react-router-dom'
 
+import { useAuth } from '@/auth/AuthContext'
 import { hero } from './data'
 import { HeroIllustration } from './HeroIllustration'
 
 /** Section pembuka: judul, subjudul, CTA "Start Now", dan ilustrasi. */
 export function HeroSection() {
   const navigate = useNavigate()
+  const { isAuthenticated } = useAuth()
 
   return (
-    <section id="hero" className="mx-auto max-w-7xl px-4 py-14 md:py-10">
+    <section id="hero" className="mx-auto max-w-7xl px-5 py-14 md:py-10 md:px-10">
       <div className="grid items-center gap-10 lg:grid-cols-2">
         <div className="max-w-xl">
           <p className="text-xs font-semibold tracking-[0.2em] text-[#1677ff]">{hero.eyebrow}</p>
@@ -23,7 +25,7 @@ export function HeroSection() {
             ghost
             size="large"
             className="auth-btn-primary mt-8 font-medium"
-            onClick={() => navigate('/register')}
+            onClick={() => navigate(isAuthenticated ? '/courses' : '/register')}
           >
             {hero.ctaLabel}
           </Button>

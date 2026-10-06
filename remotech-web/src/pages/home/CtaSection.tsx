@@ -1,11 +1,13 @@
 import { Button } from 'antd'
 import { useNavigate } from 'react-router-dom'
 
+import { useAuth } from '@/auth/AuthContext'
 import { cta } from './data'
 
 /** Panel penutup gelap dengan CTA pendaftaran. */
 export function CtaSection() {
   const navigate = useNavigate()
+  const { isAuthenticated } = useAuth()
 
   return (
     <section id="cta" className="bg-[#08060d]">
@@ -17,7 +19,7 @@ export function CtaSection() {
             type="primary"
             size="large"
             className="font-medium"
-            onClick={() => navigate('/register')}
+            onClick={() => navigate(isAuthenticated ? '/courses' : '/register')}
           >
             {cta.primaryLabel}
           </Button>
