@@ -7,13 +7,15 @@ import { formatRupiah } from '@/utils/format'
 
 interface CourseCardProps {
   course: Course
+  /** Tujuan link kartu — default `/courses/{id}` (katalog publik). */
+  to?: string
 }
 
 /** Kartu katalog: thumbnail, judul, uploader, tag ketersediaan, harga. */
-export function CourseCard({ course }: CourseCardProps) {
+export function CourseCard({ course, to }: CourseCardProps) {
   return (
     <Link
-      to={`/courses/${course.id}`}
+      to={to ?? `/courses/${course.id}`}
       className="group flex flex-col overflow-hidden rounded-xl border border-gray-200 bg-white no-underline shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
     >
       <div className="aspect-video overflow-hidden bg-gray-100">

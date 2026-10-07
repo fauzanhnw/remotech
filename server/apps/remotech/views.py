@@ -112,6 +112,28 @@ class CourseViewSet(AssignUserMixin, viewsets.ModelViewSet):
             return [AllowAny()]
         return [IsAuthenticated()]
 
+    @action(detail=False, methods=["get"])
+    def my(self, request):
+        """Daftar course milik request.user — untuk dashboard mentor."""
+        queryset = self.filter_queryset(Course.objects.filter(user=request.user))
+        page = self.paginate_queryset(queryset)
+        serializer = self.get_serializer(page, many=True)
+        return self.get_paginated_response(serializer.data)
+
+    def perform_update(self, serializer):
+        if serializer.instance.user_id != self.request.user.pk:
+            self.permission_denied(
+                self.request, message="You do not own this course."
+            )
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if instance.user_id != self.request.user.pk:
+            self.permission_denied(
+                self.request, message="You do not own this course."
+            )
+        instance.delete()
+
 
 class CourseModuleViewSet(CourseOwnerMixin, viewsets.ModelViewSet):
     queryset = (
@@ -134,7 +156,7 @@ class CourseModuleViewSet(CourseOwnerMixin, viewsets.ModelViewSet):
 class ModuleContentViewSet(CourseOwnerMixin, viewsets.ModelViewSet):
     queryset = ModuleContent.objects.select_related(
         "module", "module__course"
-    ).order_by("id")
+    ).order_by("module", "sequence", "id")
     serializer_class = ModuleContentSerializer
     filterset_fields = ["module"]
 

@@ -21,7 +21,7 @@ class PaymentGatewayError(APIException):
 
 
 def generate_order_no():
-    return f"ORD-{uuid.uuid4().hex[:20].upper()}"
+    return f"RC-{uuid.uuid4().hex[:20].upper()}"
 
 
 def enroll_course(user, course):
@@ -37,9 +37,7 @@ def enroll_course(user, course):
         raise ValidationError({"course": "Course is closed for enrollment."})
 
     if CourseEnrollment.objects.filter(user=user, course=course).exists():
-        raise ValidationError(
-            {"course": "You have already enrolled in this course."}
-        )
+        raise ValidationError({"course": "You have already enrolled in this course."})
 
     already_paid_order = None
 
@@ -217,9 +215,7 @@ def apply_payment_result(order, data):
 
         if new_status == CourseOrder.StatusChoices.SETTLEMENT:
             order.paid_at = timezone.now()
-            CourseEnrollment.objects.get_or_create(
-                user=order.user, course=order.course
-            )
+            CourseEnrollment.objects.get_or_create(user=order.user, course=order.course)
 
         order.save(
             update_fields=[

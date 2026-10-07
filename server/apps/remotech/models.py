@@ -155,6 +155,17 @@ class ModuleContent(CrudModel):
     module = models.ForeignKey(CourseModule, on_delete=models.CASCADE)
     content_text = models.TextField(blank=True)
     content_url = models.URLField(blank=True)
+    sequence = models.BigIntegerField(null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        if self.sequence is None:
+            max_seq = ModuleContent.objects.filter(module=self.module).aggregate(
+                max_sequence=Max("sequence")
+            )["max_sequence"]
+
+            self.sequence = (max_seq or 0) + 1
+
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.content_text[:50] or self.content_url or str(self.module)

@@ -10,6 +10,8 @@ export interface ModuleContent {
   module: number
   content_text: string
   content_url: string
+  /** Urutan tampil dalam module (di-auto-assign backend). */
+  sequence: number | null
   created_at: IsoDateTime
   modified_at: IsoDateTime
 }
@@ -17,11 +19,13 @@ export interface ModuleContent {
 /**
  * POST /module-content/ — validasi bergantung kategori module:
  * `content_text` wajib untuk "text", `content_url` wajib untuk "video"/"upload".
+ * `sequence` di-auto-assign bila tidak dikirim.
  */
 export interface ModuleContentCreate {
   module: number
   content_text?: string
   content_url?: string
+  sequence?: number | null
 }
 
 /** GET /assignment/{id}/ */

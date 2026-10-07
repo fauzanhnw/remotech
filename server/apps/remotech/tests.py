@@ -1633,6 +1633,62 @@ class CourseCatalogTests(APITestCase):
         )
 
 
+class CourseMyTests(APITestCase):
+    def setUp(self):
+        self.mentor = User.objects.create_user(
+            username="mentor", password="secret123", first_name="Mentor"
+        )
+        self.other = User.objects.create_user(
+            username="other", password="secret123", first_name="Other"
+        )
+        self.own_draft = Course.objects.create(
+            user=self.mentor, title="My Draft", is_publish=False
+        )
+        self.own_published = Course.objects.create(
+            user=self.mentor, title="My Published", is_publish=True
+        )
+        self.foreign = Course.objects.create(
+            user=self.other, title="Not Mine", is_publish=True
+        )
+
+    def test_requires_authentication(self):
+        self.client.force_authenticate(user=None)
+
+        response = self.client.get("/course/my/")
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_returns_only_own_courses_including_drafts(self):
+        self.client.force_authenticate(user=self.mentor)
+
+        response = self.client.get("/course/my/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = response.json()["results"]
+        self.assertEqual(
+            [course["id"] for course in results],
+            [self.own_published.id, self.own_draft.id],
+        )
+
+    def test_other_users_courses_are_excluded(self):
+        self.client.force_authenticate(user=self.other)
+
+        response = self.client.get("/course/my/")
+
+        results = response.json()["results"]
+        self.assertEqual([course["id"] for course in results], [self.foreign.id])
+
+    def test_supports_search_and_pagination_envelope(self):
+        self.client.force_authenticate(user=self.mentor)
+
+        response = self.client.get("/course/my/", {"search": "Draft"})
+
+        data = response.json()
+        self.assertIn("count", data)
+        self.assertIn("results", data)
+        self.assertEqual([course["id"] for course in data["results"]], [self.own_draft.id])
+
+
 class CourseModuleDescriptionTests(APITestCase):
     def setUp(self):
         self.owner = User.objects.create_user(username="owner", password="secret123")
@@ -1672,3 +1728,119 @@ class CourseModuleDescriptionTests(APITestCase):
         self.assertEqual(
             [module["id"] for module in results], [first.id, second.id]
         )
+
+
+class CourseOwnershipTests(APITestCase):
+    def setUp(self):
+        self.owner = User.objects.create_user(username="owner", password="secret123")
+        self.other = User.objects.create_user(username="other", password="secret123")
+        self.course = Course.objects.create(user=self.owner, title="Original", price=0)
+
+    def test_non_owner_cannot_update_course(self):
+        self.client.force_authenticate(user=self.other)
+
+        response = self.client.patch(
+            f"/course/{self.course.id}/", {"title": "Hacked"}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.course.refresh_from_db()
+        self.assertEqual(self.course.title, "Original")
+
+    def test_non_owner_cannot_delete_course(self):
+        self.client.force_authenticate(user=self.other)
+
+        response = self.client.delete(f"/course/{self.course.id}/")
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(Course.objects.filter(pk=self.course.pk).exists())
+
+    def test_owner_can_update_course(self):
+        self.client.force_authenticate(user=self.owner)
+
+        response = self.client.patch(
+            f"/course/{self.course.id}/", {"title": "Updated"}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.course.refresh_from_db()
+        self.assertEqual(self.course.title, "Updated")
+
+    def test_owner_can_delete_course(self):
+        self.client.force_authenticate(user=self.owner)
+
+        response = self.client.delete(f"/course/{self.course.id}/")
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(Course.objects.filter(pk=self.course.pk).exists())
+
+
+class ModuleContentSequenceTests(APITestCase):
+    def setUp(self):
+        self.owner = User.objects.create_user(username="owner", password="secret123")
+        self.course = Course.objects.create(user=self.owner, title="Course")
+        self.module = CourseModule.objects.create(
+            course=self.course, title="M1", module_category=CourseModule.Category.TEXT
+        )
+        self.other_module = CourseModule.objects.create(
+            course=self.course, title="M2", module_category=CourseModule.Category.TEXT
+        )
+
+    def test_sequence_auto_assigned_per_module(self):
+        first = ModuleContent.objects.create(module=self.module, content_text="<p>1</p>")
+        second = ModuleContent.objects.create(module=self.module, content_text="<p>2</p>")
+        other = ModuleContent.objects.create(
+            module=self.other_module, content_text="<p>other</p>"
+        )
+
+        self.assertEqual(first.sequence, 1)
+        self.assertEqual(second.sequence, 2)
+        self.assertEqual(other.sequence, 1)
+
+    def test_list_is_ordered_by_sequence(self):
+        late = ModuleContent.objects.create(
+            module=self.module, content_text="<p>b</p>", sequence=2
+        )
+        early = ModuleContent.objects.create(
+            module=self.module, content_text="<p>a</p>", sequence=1
+        )
+        last = ModuleContent.objects.create(
+            module=self.module, content_text="<p>c</p>", sequence=3
+        )
+
+        response = self.client.get(f"/module-content/?module={self.module.id}")
+
+        results = response.json()["results"]
+        self.assertEqual(
+            [item["id"] for item in results], [early.id, late.id, last.id]
+        )
+
+    def test_create_assigns_sequence(self):
+        self.client.force_authenticate(user=self.owner)
+
+        response = self.client.post(
+            "/module-content/",
+            {"module": self.module.id, "content_text": "<p>x</p>"},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.json()["sequence"], 1)
+
+    def test_owner_can_reorder_content_by_patching_sequence(self):
+        self.client.force_authenticate(user=self.owner)
+        first = ModuleContent.objects.create(module=self.module, content_text="<p>1</p>")
+        second = ModuleContent.objects.create(module=self.module, content_text="<p>2</p>")
+
+        first_response = self.client.patch(
+            f"/module-content/{first.id}/", {"sequence": 2}, format="json"
+        )
+        second_response = self.client.patch(
+            f"/module-content/{second.id}/", {"sequence": 1}, format="json"
+        )
+
+        self.assertEqual(first_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(second_response.status_code, status.HTTP_200_OK)
+        first.refresh_from_db()
+        second.refresh_from_db()
+        self.assertEqual(first.sequence, 2)
+        self.assertEqual(second.sequence, 1)

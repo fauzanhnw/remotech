@@ -1,5 +1,6 @@
-import { Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes } from 'react-router-dom'
 
+import { PlaceholderPage } from '@/components/PlaceholderPage'
 import { RequireAuth } from '@/components/RequireAuth'
 import { RequireMentor } from '@/components/RequireMentor'
 import { AppShell } from '@/components/layout/AppShell'
@@ -8,6 +9,8 @@ import { CourseDetailPage } from '@/pages/CourseDetailPage'
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage'
 import { HomePage } from '@/pages/HomePage'
 import { LoginPage } from '@/pages/LoginPage'
+import { MentorCoursesPage } from '@/pages/mentor/MentorCoursesPage'
+import { MentorCourseDetailPage } from '@/pages/mentor/MentorCourseDetailPage'
 import { MentorPage } from '@/pages/MentorPage'
 import { MyAssignmentsPage } from '@/pages/MyAssignmentsPage'
 import { MyCoursesPage } from '@/pages/MyCoursesPage'
@@ -33,7 +36,20 @@ export function AppRoutes() {
           <Route path="profile" element={<ProfilePage />} />
 
           <Route element={<RequireMentor />}>
-            <Route path="mentor" element={<MentorPage />} />
+            <Route path="mentor" element={<MentorPage />}>
+              <Route index element={<Navigate to="courses" replace />} />
+              <Route path="courses" element={<MentorCoursesPage />} />
+              <Route path="courses/:id" element={<MentorCourseDetailPage />} />
+              <Route
+                path="assignments"
+                element={
+                  <PlaceholderPage
+                    title="Assignments"
+                    description="Kelola assignment course-mu — segera hadir."
+                  />
+                }
+              />
+            </Route>
           </Route>
         </Route>
 

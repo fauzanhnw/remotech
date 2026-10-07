@@ -1,3 +1,5 @@
+import type { AxiosRequestConfig } from 'axios'
+
 import { deleteJson, getJson, patchJson, postJson } from './shared'
 import type { Paginated } from '@/types/api'
 import type { ModuleContent, ModuleContentCreate } from '@/types/content'
@@ -20,18 +22,25 @@ export function getModuleContent(id: number): Promise<ModuleContent> {
 /** POST /module-content/ — wajib pemilik course. */
 export function createModuleContent(
   payload: ModuleContentCreate,
+  config?: AxiosRequestConfig,
 ): Promise<ModuleContent> {
-  return postJson<ModuleContent, ModuleContentCreate>('/module-content/', payload)
+  return postJson<ModuleContent, ModuleContentCreate>(
+    '/module-content/',
+    payload,
+    config,
+  )
 }
 
 /** PATCH /module-content/{id}/ — wajib pemilik course. */
 export function updateModuleContent(
   id: number,
   payload: Partial<ModuleContentCreate>,
+  config?: AxiosRequestConfig,
 ): Promise<ModuleContent> {
   return patchJson<ModuleContent, Partial<ModuleContentCreate>>(
     `/module-content/${id}/`,
     payload,
+    config,
   )
 }
 

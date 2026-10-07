@@ -37,6 +37,14 @@ export interface CourseCreate {
   is_open?: boolean
 }
 
+/**
+ * PATCH /course/{id}/ — serupa `CourseCreate` dengan `thumbnail` opsional:
+ * `File` mengganti gambar, `''` menghapus thumbnail, tidak dikirim = tetap.
+ */
+export interface CourseUpdate extends Omit<Partial<CourseCreate>, 'thumbnail'> {
+  thumbnail?: File | ''
+}
+
 /** GET /module/{id}/ */
 export interface CourseModule {
   id: number
