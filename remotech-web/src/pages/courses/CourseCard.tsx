@@ -1,5 +1,5 @@
 import { PictureOutlined } from '@ant-design/icons'
-import { Tag } from 'antd'
+import { Progress, Tag } from 'antd'
 import { Link } from 'react-router-dom'
 
 import type { Course } from '@/types/course'
@@ -9,10 +9,15 @@ interface CourseCardProps {
   course: Course
   /** Tujuan link kartu — default `/courses/{id}` (katalog publik). */
   to?: string
+  /**
+   * Progres belajar 0-100 (kartu enrolled). Bila diisi, harga disembunyikan
+   * dan diganti bar + label persen.
+   */
+  progress?: number
 }
 
 /** Kartu katalog: thumbnail, judul, uploader, tag ketersediaan, harga. */
-export function CourseCard({ course, to }: CourseCardProps) {
+export function CourseCard({ course, to, progress }: CourseCardProps) {
   return (
     <Link
       to={to ?? `/courses/${course.id}`}
@@ -41,12 +46,21 @@ export function CourseCard({ course, to }: CourseCardProps) {
           <Tag color={course.is_open ? 'green' : 'red'} className="mr-0">
             {course.is_open ? 'Open' : 'Closed'}
           </Tag>
-          <span
-            className={`font-semibold ${course.price <= 0 ? 'text-emerald-600' : 'text-[#08060d]'}`}
-          >
-            {formatRupiah(course.price)}
-          </span>
+          {progress === undefined && (
+            <span
+              className={`font-semibold ${course.price <= 0 ? 'text-emerald-600' : 'text-[#08060d]'}`}
+            >
+              {formatRupiah(course.price)}
+            </span>
+          )}
         </div>
+
+        {progress !== undefined && (
+          <div className="mt-1">
+            <Progress percent={progress} size="small" strokeWidth={6} />
+            <p className="mt-1 text-xs text-gray-500">{progress}% lengkap</p>
+          </div>
+        )}
       </div>
     </Link>
   )

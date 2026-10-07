@@ -143,7 +143,7 @@ export function CourseDetailPage() {
 
   const handlePrimaryClick = () => {
     if (enrolled) {
-      navigate('/my-courses')
+      navigate(course ? `/my-courses/${course.id}` : '/my-courses')
       return
     }
     if (!isAuthenticated) {

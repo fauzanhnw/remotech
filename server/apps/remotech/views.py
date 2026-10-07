@@ -1,11 +1,14 @@
+from collections import Counter
 from uuid import uuid4
 
 from django.conf import settings
 from django.core.files.storage import default_storage
 from django.shortcuts import render
+from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -29,6 +32,7 @@ from server.apps.remotech.models import (
     Submission,
     UserAnswer,
     UserBadge,
+    UserProgress,
 )
 from server.apps.remotech.serializers import (
     AssignmentSerializer,
@@ -49,6 +53,7 @@ from server.apps.remotech.serializers import (
     SubmissionSerializer,
     UserAnswerSerializer,
     UserBadgeSerializer,
+    UserProgressSerializer,
 )
 from server.apps.remotech.services.auth import (
     forgot_password,
@@ -253,7 +258,11 @@ class CourseOrderViewSet(viewsets.ModelViewSet):
 class CourseEnrollmentViewSet(viewsets.ModelViewSet):
     queryset = CourseEnrollment.objects.order_by("id")
     serializer_class = CourseEnrollmentSerializer
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ["course", "user"]
+    search_fields = ["course__title"]
+    ordering_fields = ["enrolled_at"]
+    ordering = "-enrolled_at"
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -272,6 +281,70 @@ class CourseEnrollmentViewSet(viewsets.ModelViewSet):
         self.http_method_not_allowed(request, *args, **kwargs)
 
 
+class UserProgressViewSet(viewsets.ModelViewSet):
+    queryset = UserProgress.objects.order_by("id")
+    serializer_class = UserProgressSerializer
+
+    def get_queryset(self):
+        queryset = super().get_queryset().filter(user=self.request.user)
+        course = self.request.query_params.get("course")
+        if course:
+            queryset = queryset.filter(module__course=course)
+        return queryset
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        module = serializer.validated_data["module"]
+        enrolled = CourseEnrollment.objects.filter(
+            user=request.user, course=module.course
+        ).exists()
+        if not enrolled:
+            raise ValidationError({"course": ["You are not enrolled in this course."]})
+        progress, _ = UserProgress.objects.update_or_create(
+            module=module,
+            user=request.user,
+            defaults={
+                "status": UserProgress.ProgressStatus.FINISH,
+                "complete_at": timezone.now(),
+            },
+        )
+        return Response(self.get_serializer(progress).data, status=status.HTTP_201_CREATED)
+
+    def update(self, request, *args, **kwargs):
+        self.http_method_not_allowed(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+        self.http_method_not_allowed(request, *args, **kwargs)
+
+    @action(detail=False, methods=["get"], url_path="summary")
+    def summary(self, request):
+        course_ids = (
+            CourseEnrollment.objects.filter(user=request.user)
+            .values_list("course_id", flat=True)
+            .distinct()
+        )
+        finished_counts = Counter(
+            UserProgress.objects.filter(
+                user=request.user,
+                status=UserProgress.ProgressStatus.FINISH,
+            ).values_list("module__course_id", flat=True)
+        )
+        rows = []
+        for course_id in course_ids:
+            total = CourseModule.objects.filter(course_id=course_id).count()
+            completed = finished_counts.get(course_id, 0)
+            rows.append(
+                {
+                    "course": course_id,
+                    "total": total,
+                    "completed": completed,
+                    "percent": round(completed / total * 100) if total else 0,
+                }
+            )
+        return Response(rows)
+
+
 class AssignmentViewSet(viewsets.ModelViewSet):
     queryset = Assignment.objects.order_by("id")
     serializer_class = AssignmentSerializer
@@ -288,6 +361,26 @@ class SubmissionViewSet(viewsets.ModelViewSet):
     queryset = Submission.objects.order_by("id")
     serializer_class = SubmissionSerializer
     filterset_fields = ["assignment", "user"]
+
+    def perform_create(self, serializer):
+        assignment = serializer.validated_data["assignment"]
+        module = assignment.course_module
+        # user diisi dari request (body diabaikan), submission baru selalu
+        # berstatus belum dinilai.
+        submission = serializer.save(user=self.request.user, score=0, reviewed_by="")
+        enrolled = CourseEnrollment.objects.filter(
+            user=self.request.user, course=module.course
+        ).exists()
+        if enrolled:
+            # Submit tugas = otomatis menandai module selesai.
+            UserProgress.objects.update_or_create(
+                module=module,
+                user=self.request.user,
+                defaults={
+                    "status": UserProgress.ProgressStatus.FINISH,
+                    "complete_at": timezone.now(),
+                },
+            )
 
 
 class UserAnswerViewSet(viewsets.ModelViewSet):

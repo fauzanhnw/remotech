@@ -34,10 +34,20 @@ export interface OrderListParams extends PaginationParams {
   transaction_status?: OrderStatus
 }
 
-/** GET /enroll/ — filter `?course=`, `?user=`. */
+/**
+ * GET /enroll/ — filter `?course=`, `?user=`, search `?search=` (judul course),
+ * sort `?ordering=enrolled_at` (default `-enrolled_at`).
+ */
 export interface EnrollmentListParams extends PaginationParams {
   course?: number
   user?: number
+  search?: string
+  ordering?: 'enrolled_at' | '-enrolled_at'
+}
+
+/** GET /progress/ — filter `?course=` (hanya progres milik sendiri). */
+export interface ProgressListParams extends PaginationParams {
+  course?: number
 }
 
 /** GET /assignment/ — filter `?course_module=`. */

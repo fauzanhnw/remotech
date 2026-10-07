@@ -224,7 +224,7 @@ export function ModuleSection({ courseId, canManage }: ModuleSectionProps) {
     }
 
     return (
-      <ul className="space-y-2">
+      <ul className="list-none space-y-2 p-0">
         {list.map((content, index) => {
           const isUrlContent = Boolean(content.content_url)
 

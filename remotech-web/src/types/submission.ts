@@ -15,11 +15,14 @@ export interface Submission {
   modified_at: IsoDateTime
 }
 
-/** POST /submission/ — backend tidak auto-inject user. */
+/**
+ * POST /submission/ — `user` diisi backend dari token (body diabaikan),
+ * `score`/`reviewed_by` di-reset saat create (hanya mentor via PATCH).
+ */
 export interface SubmissionCreate {
-  user: number
+  user?: number
   assignment: number
-  /** URL hasil upload (pakai `uploadDocument()`), harus URL valid. */
+  /** Tautan hasil tugas (mis. Google Drive), harus URL valid. */
   submission_url: string
   score?: number
   reviewed_by?: string

@@ -43,8 +43,14 @@ import type {
   ModuleContentListParams,
   ModuleListParams,
   OrderListParams,
+  ProgressListParams,
   SubmissionListParams,
 } from './params'
+import type {
+  CourseProgressSummary,
+  UserProgress,
+  UserProgressCreate,
+} from './progress'
 import type { Submission, SubmissionCreate } from './submission'
 import type { UploadResponse } from './upload'
 import type { CurrentUser } from './user'
@@ -109,6 +115,12 @@ export interface ApiEndpoints {
     response: Paginated<CourseEnrollment>
   }
   'GET /enroll/{id}/': { response: CourseEnrollment }
+
+  // Progress (ditandai selesai per module lewat halaman detail)
+  'GET /progress/': { params?: ProgressListParams; response: Paginated<UserProgress> }
+  'POST /progress/': { body: UserProgressCreate; response: UserProgress }
+  'DELETE /progress/{id}/': { response: void }
+  'GET /progress/summary/': { response: CourseProgressSummary[] }
 
   // Leaderboard
   'GET /leaderboard/': {

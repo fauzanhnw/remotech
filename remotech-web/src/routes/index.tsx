@@ -19,6 +19,7 @@ import { MyPointsPage } from '@/pages/MyPointsPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { ProfilePage } from '@/pages/ProfilePage'
 import { RegisterPage } from '@/pages/RegisterPage'
+import { EnrolledCourseDetailPage } from '@/pages/my-courses/EnrolledCourseDetailPage'
 
 export function AppRoutes() {
   return (
@@ -30,6 +31,7 @@ export function AppRoutes() {
 
         <Route element={<RequireAuth />}>
           <Route path="my-courses" element={<MyCoursesPage />} />
+          <Route path="my-courses/:id" element={<EnrolledCourseDetailPage />} />
           <Route path="my-assignments" element={<MyAssignmentsPage />} />
           <Route path="my-points" element={<MyPointsPage />} />
           <Route path="my-orders" element={<MyOrdersPage />} />

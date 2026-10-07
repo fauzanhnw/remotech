@@ -17,6 +17,7 @@ from server.apps.remotech.models import (
     User,
     UserAnswer,
     UserBadge,
+    UserProgress,
 )
 from server.apps.remotech.services.auth import MENTOR_GROUP
 from server.apps.remotech.services.course import convert_to_webp
@@ -168,6 +169,8 @@ class CourseOrderSerializer(serializers.ModelSerializer):
 
 
 class CourseEnrollmentSerializer(serializers.ModelSerializer):
+    course = CourseSerializer(read_only=True)
+
     class Meta:
         model = CourseEnrollment
         fields = "__all__"
@@ -175,6 +178,13 @@ class CourseEnrollmentSerializer(serializers.ModelSerializer):
 
 class EnrollCourseSerializer(serializers.Serializer):
     course = serializers.PrimaryKeyRelatedField(queryset=Course.objects.all())
+
+
+class UserProgressSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserProgress
+        fields = "__all__"
+        read_only_fields = ["user", "status", "complete_at"]
 
 
 class AssignmentSerializer(serializers.ModelSerializer):
@@ -193,6 +203,9 @@ class SubmissionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Submission
         fields = "__all__"
+        # user diisi backend dari request; score/reviewed_by untuk mentor (PATCH),
+        # di-reset saat create oleh viewset.
+        read_only_fields = ["user"]
 
 
 class RegisterSerializer(serializers.Serializer):

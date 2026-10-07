@@ -2,6 +2,7 @@ import hashlib
 import io
 import os
 import tempfile
+from datetime import timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
@@ -11,6 +12,7 @@ from django.contrib.auth.models import Group, User
 from django.core.files.storage import default_storage
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import SimpleTestCase, TestCase, override_settings
+from django.utils import timezone
 from PIL import Image
 from rest_framework import status
 from rest_framework.request import Request
@@ -26,6 +28,7 @@ from server.apps.remotech.models import (
     ModuleContent,
     SetPasswordToken,
     Submission,
+    UserProgress,
 )
 from server.apps.remotech.services.auth import (
     MENTOR_GROUP,
@@ -791,7 +794,35 @@ class ListFilterTests(APITestCase):
         self.assertEqual(by_user["count"], 2)
         self.assertEqual(by_user["results"][0]["user"], self.owner.id)
         self.assertEqual(by_course["count"], 1)
-        self.assertEqual(by_course["results"][0]["course"], self.course_a.id)
+        self.assertEqual(by_course["results"][0]["course"]["id"], self.course_a.id)
+
+    def test_enrollment_search_by_course_title(self):
+        CourseEnrollment.objects.create(course=self.course_a, user=self.owner)
+        CourseEnrollment.objects.create(course=self.course_b, user=self.owner)
+
+        response = self.client.get("/enroll/?search=Course A").json()
+
+        self.assertEqual(response["count"], 1)
+        self.assertEqual(response["results"][0]["course"]["id"], self.course_a.id)
+
+    def test_enrollment_default_ordering_newest_first(self):
+        older = CourseEnrollment.objects.create(course=self.course_b, user=self.owner)
+        newer = CourseEnrollment.objects.create(course=self.course_a, user=self.owner)
+        CourseEnrollment.objects.filter(id=older.id).update(
+            enrolled_at=timezone.now() - timedelta(days=1)
+        )
+
+        default_order = self.client.get("/enroll/").json()
+        ascending = self.client.get("/enroll/?ordering=enrolled_at").json()
+
+        self.assertEqual(
+            [item["id"] for item in default_order["results"]],
+            [newer.id, older.id],
+        )
+        self.assertEqual(
+            [item["id"] for item in ascending["results"]],
+            [older.id, newer.id],
+        )
 
     def test_order_filter_by_course_and_status(self):
         CourseOrder.objects.create(
@@ -912,6 +943,72 @@ class SubmissionRouteTests(APITestCase):
         self.assertEqual(by_assignment["results"][0]["assignment"], self.assignment_a.id)
         self.assertEqual(by_user["count"], 1)
         self.assertEqual(by_user["results"][0]["user"], self.other.id)
+
+    def test_create_ignores_body_user_and_uses_request_user(self):
+        self.client.force_authenticate(user=self.other)
+
+        response = self.client.post(
+            "/submission/",
+            {
+                "user": self.owner.id,
+                "assignment": self.assignment_a.id,
+                "submission_url": "https://example.com/x.pdf",
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.json()["user"], self.other.id)
+        self.assertEqual(
+            Submission.objects.get(assignment=self.assignment_a).user, self.other
+        )
+
+    def test_create_resets_score_and_reviewed_by(self):
+        response = self.client.post(
+            "/submission/",
+            {
+                "user": self.owner.id,
+                "assignment": self.assignment_a.id,
+                "submission_url": "https://example.com/x.pdf",
+                "score": 100,
+                "reviewed_by": "spoof",
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.json()["score"], 0)
+        self.assertEqual(response.json()["reviewed_by"], "")
+
+    def test_create_submission_marks_module_complete_when_enrolled(self):
+        CourseEnrollment.objects.create(course=self.course, user=self.owner)
+
+        response = self.client.post(
+            "/submission/",
+            {
+                "user": self.owner.id,
+                "assignment": self.assignment_a.id,
+                "submission_url": "https://example.com/task.pdf",
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        progress = UserProgress.objects.get(module=self.module, user=self.owner)
+        self.assertEqual(progress.status, UserProgress.ProgressStatus.FINISH)
+        self.assertIsNotNone(progress.complete_at)
+
+    def test_create_submission_without_enrollment_does_not_mark(self):
+        response = self.client.post(
+            "/submission/",
+            {
+                "user": self.owner.id,
+                "assignment": self.assignment_a.id,
+                "submission_url": "https://example.com/task.pdf",
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertFalse(
+            UserProgress.objects.filter(module=self.module, user=self.owner).exists()
+        )
 
 
 MIDTRANS_TEST_KEY = "test-server-key"
@@ -1844,3 +1941,185 @@ class ModuleContentSequenceTests(APITestCase):
         second.refresh_from_db()
         self.assertEqual(first.sequence, 2)
         self.assertEqual(second.sequence, 1)
+
+
+class ProgressAPITests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="student", password="secret123")
+        self.other = User.objects.create_user(username="other", password="secret123")
+        self.owner = User.objects.create_user(username="owner", password="secret123")
+        self.course = Course.objects.create(user=self.owner, title="Course P")
+        self.module = CourseModule.objects.create(course=self.course, title="M1")
+        self.module_2 = CourseModule.objects.create(course=self.course, title="M2")
+        self.stranger_course = Course.objects.create(user=self.owner, title="Else")
+        self.stranger_module = CourseModule.objects.create(
+            course=self.stranger_course, title="SM"
+        )
+        CourseEnrollment.objects.create(course=self.course, user=self.user)
+
+    def test_progress_requires_authentication(self):
+        self.client.force_authenticate(user=None)
+
+        response = self.client.get("/progress/")
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_list_is_scoped_to_own_progress(self):
+        self.client.force_authenticate(user=self.user)
+        mine = UserProgress.objects.create(
+            module=self.module,
+            user=self.user,
+            status=UserProgress.ProgressStatus.FINISH,
+            complete_at=timezone.now(),
+        )
+        UserProgress.objects.create(
+            module=self.module,
+            user=self.other,
+            status=UserProgress.ProgressStatus.FINISH,
+            complete_at=timezone.now(),
+        )
+
+        response = self.client.get("/progress/").json()
+
+        self.assertEqual(response["count"], 1)
+        self.assertEqual(response["results"][0]["id"], mine.id)
+
+    def test_list_filters_by_course(self):
+        self.client.force_authenticate(user=self.user)
+        UserProgress.objects.create(
+            module=self.module,
+            user=self.user,
+            status=UserProgress.ProgressStatus.FINISH,
+            complete_at=timezone.now(),
+        )
+        other_course = Course.objects.create(user=self.owner, title="Other")
+        other_module = CourseModule.objects.create(course=other_course, title="OM")
+        UserProgress.objects.create(
+            module=other_module,
+            user=self.user,
+            status=UserProgress.ProgressStatus.FINISH,
+            complete_at=timezone.now(),
+        )
+
+        response = self.client.get(f"/progress/?course={self.course.id}").json()
+
+        self.assertEqual(response["count"], 1)
+        self.assertEqual(response["results"][0]["module"], self.module.id)
+
+    def test_create_marks_finish_and_is_idempotent(self):
+        self.client.force_authenticate(user=self.user)
+
+        first = self.client.post("/progress/", {"module": self.module.id}, format="json")
+        second = self.client.post(
+            "/progress/", {"module": self.module.id}, format="json"
+        )
+
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(second.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(
+            UserProgress.objects.filter(module=self.module, user=self.user).count(), 1
+        )
+        row = UserProgress.objects.get(module=self.module, user=self.user)
+        self.assertEqual(row.status, UserProgress.ProgressStatus.FINISH)
+        self.assertIsNotNone(row.complete_at)
+        self.assertEqual(first.json()["status"], UserProgress.ProgressStatus.FINISH)
+
+    def test_create_requires_enrollment_in_course(self):
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.post(
+            "/progress/", {"module": self.stranger_module.id}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            UserProgress.objects.filter(
+                module=self.stranger_module, user=self.user
+            ).count(),
+            0,
+        )
+
+    def test_create_requires_module(self):
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.post("/progress/", {}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_destroy_unmarks_progress(self):
+        self.client.force_authenticate(user=self.user)
+        row = UserProgress.objects.create(
+            module=self.module,
+            user=self.user,
+            status=UserProgress.ProgressStatus.FINISH,
+            complete_at=timezone.now(),
+        )
+
+        response = self.client.delete(f"/progress/{row.id}/")
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(UserProgress.objects.filter(id=row.id).exists())
+
+    def test_destroy_cannot_remove_other_users_progress(self):
+        row = UserProgress.objects.create(
+            module=self.module,
+            user=self.other,
+            status=UserProgress.ProgressStatus.FINISH,
+            complete_at=timezone.now(),
+        )
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.delete(f"/progress/{row.id}/")
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertTrue(UserProgress.objects.filter(id=row.id).exists())
+
+    def test_update_methods_not_allowed(self):
+        self.client.force_authenticate(user=self.user)
+        row = UserProgress.objects.create(
+            module=self.module,
+            user=self.user,
+            status=UserProgress.ProgressStatus.FINISH,
+            complete_at=timezone.now(),
+        )
+
+        patch_response = self.client.patch(f"/progress/{row.id}/", {}, format="json")
+        put_response = self.client.put(f"/progress/{row.id}/", {}, format="json")
+
+        self.assertEqual(
+            patch_response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED
+        )
+        self.assertEqual(put_response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def test_summary_counts_percent_for_enrolled_courses(self):
+        self.client.force_authenticate(user=self.user)
+        UserProgress.objects.create(
+            module=self.module,
+            user=self.user,
+            status=UserProgress.ProgressStatus.FINISH,
+            complete_at=timezone.now(),
+        )
+        UserProgress.objects.create(
+            module=self.module_2,
+            user=self.other,
+            status=UserProgress.ProgressStatus.FINISH,
+            complete_at=timezone.now(),
+        )
+        CourseEnrollment.objects.create(course=self.stranger_course, user=self.user)
+        UserProgress.objects.create(
+            module=self.stranger_module,
+            user=self.user,
+            status=UserProgress.ProgressStatus.FINISH,
+            complete_at=timezone.now(),
+        )
+
+        response = self.client.get("/progress/summary/").json()
+
+        by_course = {row["course"]: row for row in response}
+        self.assertEqual(len(response), 2)
+        self.assertEqual(by_course[self.course.id]["total"], 2)
+        self.assertEqual(by_course[self.course.id]["completed"], 1)
+        self.assertEqual(by_course[self.course.id]["percent"], 50)
+        self.assertEqual(by_course[self.stranger_course.id]["total"], 1)
+        self.assertEqual(by_course[self.stranger_course.id]["completed"], 1)
+        self.assertEqual(by_course[self.stranger_course.id]["percent"], 100)
