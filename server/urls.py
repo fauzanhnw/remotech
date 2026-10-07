@@ -27,6 +27,8 @@ from server.apps.remotech.views import (
     CourseModuleViewSet,
     CourseOrderViewSet,
     CourseViewSet,
+    ContentViewListView,
+    ContentViewMarkView,
     DocumentUploadView,
     ForgotPasswordPageView,
     ForgotPasswordResetViewSet,
@@ -79,6 +81,8 @@ urlpatterns = (
         path("upload/image/", ImageUploadView.as_view()),
         path("upload/document/", DocumentUploadView.as_view()),
         path("payment/notification/", MidtransNotificationView.as_view()),
+        path("content-view/", ContentViewListView.as_view()),
+        path("content-view/<int:content_id>/", ContentViewMarkView.as_view()),
     ]
     + router.urls
     + auth_router.urls

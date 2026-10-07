@@ -42,3 +42,14 @@ body {
   background-color: #1677ff !important;
   border-color: #1677ff !important;
 }
+
+/* Sidebar kurikulum (halaman enrolled course detail, xl): saat drawer terbuka
+   (`html.curriculum-pushed` di-set oleh halaman), konten & footer ikut
+   terdorong ke kiri seukuran drawer (384px) dengan animasi. */
+.app-shell {
+  transition: margin-right 300ms ease;
+}
+
+html.curriculum-pushed .app-shell {
+  margin-right: 384px;
+}

@@ -11,8 +11,9 @@ export function AppShell() {
   const { pathname } = useLocation()
   const fullBleed = FULL_BLEED_PATTERN.test(pathname)
 
+  // `app-shell` = hook CSS untuk dorongan sidebar kurikulum (index.css).
   return (
-    <div className="flex min-h-svh flex-col bg-white">
+    <div className="app-shell flex min-h-svh flex-col bg-white">
       {!fullBleed && <Navbar />}
       <main className="flex-1">
         <Outlet />

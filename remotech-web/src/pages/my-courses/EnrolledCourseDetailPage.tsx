@@ -7,17 +7,19 @@ import {
   PictureOutlined,
   UnorderedListOutlined,
 } from '@ant-design/icons'
-import { Button, Drawer, Empty, Modal, Skeleton, Tag, Tooltip } from 'antd'
+import { Button, Drawer, Empty, Modal, Skeleton, Tabs, Tag, Tooltip } from 'antd'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import {
   getCourse,
   isApiError,
+  listContentViewed,
   listEnrollments,
   listModuleContents,
   listModules,
   listProgress,
+  markContentViewed,
   markModuleComplete,
   notifyError,
   unmarkProgress,
@@ -53,6 +55,7 @@ export function EnrolledCourseDetailPage() {
   const [modules, setModules] = useState<CourseModule[]>([])
   const [enrollment, setEnrollment] = useState<CourseEnrollment | null>(null)
   const [progressRows, setProgressRows] = useState<UserProgress[]>([])
+  const [viewedContentIds, setViewedContentIds] = useState<Set<number>>(new Set())
   const [selected, setSelected] = useState<SelectedPreview | null>(null)
   const [busyModuleId, setBusyModuleId] = useState<number | null>(null)
 
@@ -61,11 +64,12 @@ export function EnrolledCourseDetailPage() {
   const [notFound, setNotFound] = useState(false)
   const [notEnrolled, setNotEnrolled] = useState(false)
 
-  const [curriculumOpen, setCurriculumOpen] = useState(true)
-  const [drawerOpen, setDrawerOpen] = useState(false)
+  // Terbuka otomatis saat masuk halaman (hanya dirender di xl — mode dorong).
+  const [drawerOpen, setDrawerOpen] = useState(true)
   const [fullViewOpen, setFullViewOpen] = useState(false)
-  const [isDesktop, setIsDesktop] = useState(() =>
-    window.matchMedia('(min-width: 1024px)').matches,
+  // Kurikulum: sidebar geser dari kanan hanya di xl (≥1280px); di bawah itu tabs.
+  const [isXl, setIsXl] = useState(() =>
+    window.matchMedia('(min-width: 1280px)').matches,
   )
 
   const invalidId = !Number.isInteger(courseId) || courseId <= 0
@@ -78,25 +82,35 @@ export function EnrolledCourseDetailPage() {
     setModules([])
     setEnrollment(null)
     setProgressRows([])
+    setViewedContentIds(new Set())
     setSelected(null)
     setLoading(true)
     setLoadFailed(false)
     setNotFound(false)
     setNotEnrolled(false)
-    setDrawerOpen(false)
-    setCurriculumOpen(true)
+    setDrawerOpen(true)
     setFullViewOpen(false)
   }
 
   useEffect(() => {
-    const media = window.matchMedia('(min-width: 1024px)')
+    const media = window.matchMedia('(min-width: 1280px)')
     const handler = (event: MediaQueryListEvent) => {
-      setIsDesktop(event.matches)
-      if (event.matches) setDrawerOpen(false)
+      setIsXl(event.matches)
+      // Drawer kurikulum hanya valid di xl — tutup saat turun di bawah xl.
+      if (!event.matches) setDrawerOpen(false)
     }
     media.addEventListener('change', handler)
     return () => media.removeEventListener('change', handler)
   }, [])
+
+  // Sidebar kurikulum (xl): saat terbuka, seluruh shell ikut terdorong
+  // seukuran drawer (lihat aturan `.curriculum-pushed` di index.css).
+  useEffect(() => {
+    document.documentElement.classList.toggle('curriculum-pushed', isXl && drawerOpen)
+    return () => {
+      document.documentElement.classList.remove('curriculum-pushed')
+    }
+  }, [isXl, drawerOpen])
 
   // Boot: course + module + enrollment (gagal → fallback; belum enroll → Empty).
   useEffect(() => {
@@ -143,6 +157,24 @@ export function EnrolledCourseDetailPage() {
       })
       .catch(() => {
         // diabaikan — kartu tetap tampil dengan progres 0
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [courseId, invalidId])
+
+  // Id konten yang sudah dibuka (untuk centang di kurikulum).
+  useEffect(() => {
+    if (invalidId) return
+    let cancelled = false
+
+    listContentViewed({ course: courseId })
+      .then((data) => {
+        if (!cancelled) setViewedContentIds(new Set(data.content_ids))
+      })
+      .catch(() => {
+        // diabaikan — centang hanya fitur tampilan
       })
 
     return () => {
@@ -199,22 +231,33 @@ export function EnrolledCourseDetailPage() {
     [progressRows],
   )
 
-  // Otomatis tandai selesai saat konten teks/video dibuka di player.
-  // Gagal → diam; student masih bisa menandai manual lewat kurikulum.
+  // Auto-complete: setiap buka konten ditandai lewat backend; module text/video
+  // baru selesai saat SEMUA kontennya sudah dilihat (POST /content-view/),
+  // bukan konten pertama. Gagal → diam; manual tetap bisa lewat kurikulum.
   useEffect(() => {
-    if (!selected) return
-    const { module } = selected
-    if (module.module_category !== 'text' && module.module_category !== 'video') return
-    if (completedIds.has(module.id)) return
+    const content = selected?.content
+    if (!content) return
 
-    markModuleComplete(module.id, { meta: { suppressErrorToast: true } })
-      .then((row) => {
-        setProgressRows((prev) => [...prev.filter((item) => item.module !== row.module), row])
+    markContentViewed(content.id, { meta: { suppressErrorToast: true } })
+      .then((result) => {
+        setViewedContentIds((prev) => {
+          if (prev.has(content.id)) return prev
+          const next = new Set(prev)
+          next.add(content.id)
+          return next
+        })
+        if (result.module_completed) {
+          listProgress({ course: courseId, page_size: 100 })
+            .then((page) => setProgressRows(page.results))
+            .catch(() => {
+              // diabaikan
+            })
+        }
       })
       .catch(() => {
-        // diabaikan
+        // diabaikan — student masih bisa menandai manual lewat kurikulum
       })
-  }, [selected, completedIds])
+  }, [selected?.content, courseId])
 
   const handleToggleComplete = async (module: CourseModule) => {
     const isDone = completedIds.has(module.id)
@@ -260,10 +303,7 @@ export function EnrolledCourseDetailPage() {
       })
   }
 
-  const handleToggleCurriculum = () => {
-    if (isDesktop) setCurriculumOpen((value) => !value)
-    else setDrawerOpen(true)
-  }
+  const handleToggleCurriculum = () => setDrawerOpen((value) => !value)
 
   usePageTitle(course?.title)
 
@@ -430,6 +470,7 @@ export function EnrolledCourseDetailPage() {
       key={courseId}
       modules={sortedModules}
       completedIds={completedIds}
+      viewedContentIds={viewedContentIds}
       busyModuleId={busyModuleId}
       selectedContentId={selected?.content?.id ?? null}
       selectedModuleId={selected?.module.id ?? null}
@@ -439,12 +480,46 @@ export function EnrolledCourseDetailPage() {
     />
   )
 
+  // Gambaran umum course — dipakai di cabang xl (langsung) dan tab <xl.
+  const overviewContent = (
+    <div className="min-w-0">
+      <div className="min-w-0">
+        <h1 className="text-2xl font-bold text-black md:text-3xl">{course.title}</h1>
+        <p className="mt-1 text-sm text-gray-600">By: {course.user_name}</p>
+        {selected && (
+          <p className="mt-2 text-sm text-gray-500">Module: {selected.module.title}</p>
+        )}
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Tag color={course.is_open ? 'green' : 'red'}>
+          {course.is_open ? 'Registration Open' : 'Registration Closed'}
+        </Tag>
+        <Tag color="blue">{course.is_publish ? 'Published' : 'Draft'}</Tag>
+        {enrollment && (
+          <Tag>
+            Enrolled at{' '}
+            {new Date(enrollment.enrolled_at).toLocaleDateString('id-ID', {
+              day: 'numeric',
+              month: 'long',
+              year: 'numeric',
+            })}
+          </Tag>
+        )}
+      </div>
+
+      <h2 className="mt-6 text-2xl font-bold text-[#08060d]">Deskripsi</h2>
+      <p className="mt-4 whitespace-pre-line leading-relaxed text-gray-600">
+        {course.description || 'Belum ada deskripsi untuk course ini.'}
+      </p>
+    </div>
+  )
+
   return (
     <>
       {/* Section atas (full-bleed gelap): toolbar + player pratinjau + judul + aksi */}
       <section className="">
         <div className="mx-auto max-w pb-1">
-          <div className="flex items-center justify-between gap-3 px-4 py-2 sm:gap-4 xl:px-5 bg-[#111827]">
+          <div className="flex items-center justify-between gap-3 px-4 py-3 sm:gap-4 xl:px-5 bg-[#111827]">
             <Link
               to="/my-courses"
               className="flex min-w-0 items-center gap-2 text-sm text-gray-300 no-underline hover:text-white"
@@ -452,21 +527,24 @@ export function EnrolledCourseDetailPage() {
               <ArrowLeftOutlined className="shrink-0" />
               <span className="truncate font-semibold ms-3">{course.title}</span>
             </Link>
-            <Tooltip title="View Content" placement="bottom">
-              <Button icon={<UnorderedListOutlined />} onClick={handleToggleCurriculum}>
-              </Button>
-            </Tooltip>
+            {isXl && (
+              <Tooltip title="View Content" placement="bottom">
+                <Button
+                  icon={<UnorderedListOutlined />}
+                  onClick={handleToggleCurriculum}
+                />
+              </Tooltip>
+            )}
           </div>
 
-          <div className="aspect-video overflow-hidden bg-black w-full min-h-[300px] sm:max-h-[300px] md:max-h-[380px]">
+          <div className="aspect-video overflow-hidden bg-black w-full min-h-[350px] sm:max-h-[350px] md:max-h-[380px]">
             {renderPreview()}
           </div>
 
-          <div className="mb-2 flex flex-wrap items-start justify-end gap-4 px-4">
+          <div className="my-1 flex flex-wrap items-start justify-end gap-4 px-4">
             {showFullViewButton && (
               <Tooltip title="View Full" placement="topLeft">
                 <Button
-                size="large"
                 className="w-full sm:w-auto"
                 icon={<ExpandOutlined />}
                 onClick={() => setFullViewOpen(true)}
@@ -478,7 +556,6 @@ export function EnrolledCourseDetailPage() {
             {selected && selected.module.module_category === 'quiz' && (
               <Button
                 type={selectedDone ? 'default' : 'primary'}
-                size="large"
                 className="w-full sm:w-auto"
                 icon={selectedDone ? <CheckCircleFilled /> : <CheckOutlined />}
                 loading={busyModuleId === selected.module.id}
@@ -491,63 +568,35 @@ export function EnrolledCourseDetailPage() {
         </div>
       </section>
 
-      {/* Section bawah: detail course + kurikulum (kolom kanan, ≥1024px) */}
-      <section className="mx-auto flex max-w-7xl items-start gap-8 px-4 py-6 md:mx-8 md:py-10 xl:px-16 border-t">
-        <div className="min-w-0 flex-1">
-          <div className="min-w-0">
-              <h1 className="text-2xl font-bold text-black md:text-3xl">
-                {course.title}
-              </h1>
-              <p className="mt-1 text-sm text-gray-600">By: {course.user_name}</p>
-              {selected && (
-                <p className="mt-2 text-sm text-gray-500">
-                  Module: {selected.module.title}
-                </p>
-              )}
-            </div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Tag color={course.is_open ? 'green' : 'red'}>
-              {course.is_open ? 'Pendaftaran Dibuka' : 'Pendaftaran Ditutup'}
-            </Tag>
-            <Tag color="blue">{course.is_publish ? 'Published' : 'Draft'}</Tag>
-            {enrollment && (
-              <Tag>
-                Enrolled at{' '}
-                {new Date(enrollment.enrolled_at).toLocaleDateString('id-ID', {
-                  day: 'numeric',
-                  month: 'long',
-                  year: 'numeric',
-                })}
-              </Tag>
-            )}
-          </div>
-
-          <h2 className="mt-6 text-2xl font-bold text-[#08060d]">Deskripsi</h2>
-          <p className="mt-4 whitespace-pre-line leading-relaxed text-gray-600">
-            {course.description || 'Belum ada deskripsi untuk course ini.'}
-          </p>
-        </div>
-
-        <aside
-          className={
-            curriculumOpen
-              ? 'sticky top-6 hidden max-h-[calc(100vh-3rem)] w-96 shrink-0 self-start overflow-y-auto rounded-xl border border-gray-200 bg-white lg:block'
-              : 'hidden'
-          }
-        >
-          {curriculumList}
-        </aside>
+      {/* Section bawah: xl = gambaran umum (kurikulum di drawer kanan);
+          <xl = tabs Kurikulum | Gambaran Umum */}
+      <section className="mx-auto max-w-7xl border-t px-4 py-6 md:mx-8 md:py-10 xl:px-16">
+        {isXl ? (
+          overviewContent
+        ) : (
+          <Tabs
+            items={[
+              { key: 'kurikulum', label: 'Kurikulum', children: curriculumList },
+              { key: 'overview', label: 'Gambaran Umum', children: overviewContent },
+            ]}
+          />
+        )}
       </section>
 
-      <Drawer
-        placement="right"
-        width="min(360px, 100vw)"
-        styles={{ body: { padding: 0 } }}
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-      >
-        {curriculumList}
-      </Drawer>
+      {isXl && (
+        <Drawer
+          placement="right"
+          width="min(384px, 100vw)"
+          // Mode dorong (push): tanpa mask — konten ikut menggeser, tutup via
+          // tombol X / Esc / tombol toolbar.
+          mask={false}
+          styles={{ body: { padding: 0 } }}
+          open={drawerOpen}
+          onClose={() => setDrawerOpen(false)}
+        >
+          {curriculumList}
+        </Drawer>
+      )}
 
       {/* Bacaan penuh konten text — layar lebar dengan scroll nyaman. */}
       <Modal

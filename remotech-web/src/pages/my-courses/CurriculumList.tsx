@@ -25,6 +25,8 @@ interface CurriculumListProps {
   modules: CourseModule[]
   /** Id module yang sudah ditandai selesai. */
   completedIds: Set<number>
+  /** Id konten yang sudah dibuka (centang hijau di daftar konten). */
+  viewedContentIds?: Set<number>
   /** Module yang sedang diproses tombol tandai-selesai (untuk spinner). */
   busyModuleId: number | null
   /** Id konten yang sedang ditampilkan di player. */
@@ -44,6 +46,7 @@ interface CurriculumListProps {
 export function CurriculumList({
   modules,
   completedIds,
+  viewedContentIds,
   busyModuleId,
   selectedContentId,
   selectedModuleId,
@@ -120,6 +123,12 @@ export function CurriculumList({
                     Content {index + 1}
                   </span>
                 </span>
+                {viewedContentIds?.has(content.id) && (
+                  <CheckCircleFilled
+                    aria-label="Sudah dibuka"
+                    className="mt-0.5 text-emerald-500"
+                  />
+                )}
               </button>
             </li>
           )

@@ -24,7 +24,9 @@ from server.apps.remotech.models import (
     CourseEnrollment,
     CourseModule,
     CourseOrder,
+    ContentViewed,
     Leaderboard,
+    LeaderboardDetail,
     ModuleContent,
     SetPasswordToken,
     Submission,
@@ -2123,3 +2125,283 @@ class ProgressAPITests(APITestCase):
         self.assertEqual(by_course[self.stranger_course.id]["total"], 1)
         self.assertEqual(by_course[self.stranger_course.id]["completed"], 1)
         self.assertEqual(by_course[self.stranger_course.id]["percent"], 100)
+
+
+class LeaderboardPointsTests(APITestCase):
+    """Poin module diselesaikan → akumulasi ke tabel leaderboard (per course)."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="student", password="secret123")
+        self.other = User.objects.create_user(username="other", password="secret123")
+        self.owner = User.objects.create_user(username="owner", password="secret123")
+        self.course = Course.objects.create(user=self.owner, title="Course L")
+        self.module = CourseModule.objects.create(
+            course=self.course, title="M1", point=150
+        )
+        self.module_2 = CourseModule.objects.create(
+            course=self.course, title="M2", point=200
+        )
+        CourseEnrollment.objects.create(course=self.course, user=self.user)
+        self.client.force_authenticate(user=self.user)
+
+    def test_complete_module_awards_points_and_detail(self):
+        response = self.client.post(
+            "/progress/", {"module": self.module.id}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        leaderboard = Leaderboard.objects.get(user=self.user, course=self.course)
+        self.assertEqual(leaderboard.total_points, 150)
+        detail = LeaderboardDetail.objects.get(leaderboard=leaderboard)
+        self.assertEqual(detail.module, self.module)
+        self.assertEqual(detail.description, "M1")
+        self.assertEqual(detail.point, 150)
+
+    def test_repeat_complete_does_not_double_points(self):
+        self.client.post("/progress/", {"module": self.module.id}, format="json")
+        self.client.post("/progress/", {"module": self.module.id}, format="json")
+
+        leaderboard = Leaderboard.objects.get(user=self.user, course=self.course)
+        self.assertEqual(leaderboard.total_points, 150)
+        self.assertEqual(
+            LeaderboardDetail.objects.filter(leaderboard=leaderboard).count(), 1
+        )
+
+    def test_multiple_completed_modules_sum_points(self):
+        self.client.post("/progress/", {"module": self.module.id}, format="json")
+        self.client.post("/progress/", {"module": self.module_2.id}, format="json")
+
+        leaderboard = Leaderboard.objects.get(user=self.user, course=self.course)
+        self.assertEqual(leaderboard.total_points, 350)
+        self.assertEqual(
+            LeaderboardDetail.objects.filter(leaderboard=leaderboard).count(), 2
+        )
+
+    def test_unmark_reduces_points_and_removes_detail(self):
+        created = self.client.post(
+            "/progress/", {"module": self.module.id}, format="json"
+        ).json()
+
+        response = self.client.delete(f"/progress/{created['id']}/")
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        leaderboard = Leaderboard.objects.get(user=self.user, course=self.course)
+        self.assertEqual(leaderboard.total_points, 0)
+        self.assertFalse(LeaderboardDetail.objects.filter(leaderboard=leaderboard))
+
+    def test_unmark_then_remark_awards_once(self):
+        created = self.client.post(
+            "/progress/", {"module": self.module.id}, format="json"
+        ).json()
+        self.client.delete(f"/progress/{created['id']}/")
+        self.client.post("/progress/", {"module": self.module.id}, format="json")
+
+        leaderboard = Leaderboard.objects.get(user=self.user, course=self.course)
+        self.assertEqual(leaderboard.total_points, 150)
+        self.assertEqual(
+            LeaderboardDetail.objects.filter(leaderboard=leaderboard).count(), 1
+        )
+
+    def test_unenrolled_create_rejected_without_leaderboard_row(self):
+        stranger = User.objects.create_user(username="stranger", password="secret123")
+        self.client.force_authenticate(user=stranger)
+
+        response = self.client.post(
+            "/progress/", {"module": self.module.id}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(
+            Leaderboard.objects.filter(user=stranger, course=self.course).exists()
+        )
+
+    def test_submission_create_awards_points(self):
+        assignment = Assignment.objects.create(
+            course_module=self.module, name="A1", description="do it"
+        )
+
+        response = self.client.post(
+            "/submission/",
+            {
+                "assignment": assignment.id,
+                "submission_url": "https://example.com/task.pdf",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        leaderboard = Leaderboard.objects.get(user=self.user, course=self.course)
+        self.assertEqual(leaderboard.total_points, 150)
+
+    def test_leaderboard_write_methods_not_allowed(self):
+        row = Leaderboard.objects.create(
+            course=self.course, user=self.user, total_points=150
+        )
+
+        create_response = self.client.post(
+            "/leaderboard/",
+            {"course": self.course.id, "user": self.other.id, "total_points": 9999},
+            format="json",
+        )
+        patch_response = self.client.patch(
+            f"/leaderboard/{row.id}/", {"total_points": 9999}, format="json"
+        )
+        delete_response = self.client.delete(f"/leaderboard/{row.id}/")
+
+        self.assertEqual(
+            create_response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED
+        )
+        self.assertEqual(
+            patch_response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED
+        )
+        self.assertEqual(
+            delete_response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED
+        )
+        row.refresh_from_db()
+        self.assertEqual(row.total_points, 150)
+
+    def test_leaderboard_list_ordered_by_points_desc(self):
+        Leaderboard.objects.create(course=self.course, user=self.other, total_points=50)
+        Leaderboard.objects.create(course=self.course, user=self.user, total_points=300)
+
+        response = self.client.get(f"/leaderboard/?course={self.course.id}").json()
+
+        self.assertEqual(response["count"], 2)
+        self.assertEqual(response["results"][0]["user"], self.user.id)
+        self.assertEqual(response["results"][0]["total_points"], 300)
+        self.assertEqual(response["results"][1]["user"], self.other.id)
+
+
+class ContentViewTests(APITestCase):
+    """POST /content-view/ - auto-complete module text/video hanya setelah
+    seluruh konten dibuka; poin leaderboard ikut tersinkron."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="viewer", password="secret123")
+        self.other = User.objects.create_user(username="other", password="secret123")
+        self.owner = User.objects.create_user(username="owner", password="secret123")
+        self.course = Course.objects.create(user=self.owner, title="Course CV")
+        self.text_module = CourseModule.objects.create(
+            course=self.course, title="Text", module_category="text", point=150
+        )
+        self.content_a = ModuleContent.objects.create(
+            module=self.text_module, content_text="<p>A</p>"
+        )
+        self.content_b = ModuleContent.objects.create(
+            module=self.text_module, content_text="<p>B</p>"
+        )
+        self.video_module = CourseModule.objects.create(
+            course=self.course, title="Video", module_category="video", point=50
+        )
+        self.video_content = ModuleContent.objects.create(
+            module=self.video_module, content_url="https://youtu.be/x"
+        )
+        self.upload_module = CourseModule.objects.create(
+            course=self.course, title="Tugas", module_category="upload", point=70
+        )
+        self.upload_content = ModuleContent.objects.create(
+            module=self.upload_module, content_url="https://example.com/brief"
+        )
+        self.quiz_module = CourseModule.objects.create(
+            course=self.course, title="Kuis", module_category="quiz", point=30
+        )
+        self.quiz_content = ModuleContent.objects.create(
+            module=self.quiz_module, content_url="https://example.com/syarat"
+        )
+        CourseEnrollment.objects.create(course=self.course, user=self.user)
+        self.client.force_authenticate(user=self.user)
+
+    def test_mark_requires_authentication(self):
+        self.client.force_authenticate(user=None)
+
+        response = self.client.post(f"/content-view/{self.content_a.id}/")
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_first_content_does_not_finish_multi_content_module(self):
+        response = self.client.post(f"/content-view/{self.content_a.id}/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.json()["module_completed"])
+        self.assertTrue(
+            ContentViewed.objects.filter(user=self.user, content=self.content_a).exists()
+        )
+        self.assertFalse(
+            UserProgress.objects.filter(
+                module=self.text_module, user=self.user
+            ).exists()
+        )
+
+    def test_last_content_finishes_module_and_syncs_leaderboard(self):
+        self.client.post(f"/content-view/{self.content_a.id}/")
+
+        response = self.client.post(f"/content-view/{self.content_b.id}/")
+
+        self.assertTrue(response.json()["module_completed"])
+        row = UserProgress.objects.get(module=self.text_module, user=self.user)
+        self.assertEqual(row.status, UserProgress.ProgressStatus.FINISH)
+        leaderboard = Leaderboard.objects.get(user=self.user, course=self.course)
+        self.assertEqual(leaderboard.total_points, 150)
+
+    def test_mark_is_idempotent(self):
+        first = self.client.post(f"/content-view/{self.content_a.id}/")
+        second = self.client.post(f"/content-view/{self.content_a.id}/")
+
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+        self.assertEqual(second.status_code, status.HTTP_200_OK)
+        self.assertFalse(second.json()["module_completed"])
+        self.assertEqual(
+            ContentViewed.objects.filter(user=self.user, content=self.content_a).count(),
+            1,
+        )
+
+    def test_single_content_video_module_completes_on_first_open(self):
+        response = self.client.post(f"/content-view/{self.video_content.id}/")
+
+        self.assertTrue(response.json()["module_completed"])
+        row = UserProgress.objects.get(module=self.video_module, user=self.user)
+        self.assertEqual(row.status, UserProgress.ProgressStatus.FINISH)
+        leaderboard = Leaderboard.objects.get(user=self.user, course=self.course)
+        self.assertEqual(leaderboard.total_points, 50)
+
+    def test_upload_module_never_auto_completes(self):
+        response = self.client.post(f"/content-view/{self.upload_content.id}/")
+
+        self.assertFalse(response.json()["module_completed"])
+        self.assertFalse(
+            UserProgress.objects.filter(
+                module=self.upload_module, user=self.user
+            ).exists()
+        )
+
+    def test_quiz_module_never_auto_completes(self):
+        response = self.client.post(f"/content-view/{self.quiz_content.id}/")
+
+        self.assertFalse(response.json()["module_completed"])
+        self.assertFalse(
+            UserProgress.objects.filter(module=self.quiz_module, user=self.user).exists()
+        )
+
+    def test_unenrolled_user_records_viewed_without_progress(self):
+        self.client.force_authenticate(user=self.other)
+
+        response = self.client.post(f"/content-view/{self.content_a.id}/")
+
+        self.assertFalse(response.json()["module_completed"])
+        self.assertTrue(
+            ContentViewed.objects.filter(user=self.other, content=self.content_a).exists()
+        )
+        self.assertFalse(
+            UserProgress.objects.filter(module=self.text_module, user=self.other).exists()
+        )
+        self.assertFalse(
+            Leaderboard.objects.filter(user=self.other, course=self.course).exists()
+        )
+
+    def test_list_returns_own_viewed_ids_scoped_by_course(self):
+        self.client.post(f"/content-view/{self.content_a.id}/")
+        ContentViewed.objects.create(user=self.other, content=self.content_b)
+
+        response = self.client.get(f"/content-view/?course={self.course.id}").json()
+
+        self.assertEqual(response["content_ids"], [self.content_a.id])

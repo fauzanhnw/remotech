@@ -1,7 +1,7 @@
 from django.contrib.auth.models import User
 from django.core.files.storage import default_storage
 from django.db import models
-from django.db.models import Max
+from django.db.models import Max, Q
 from django.utils import timezone
 from django.utils.text import slugify
 
@@ -194,11 +194,30 @@ class Leaderboard(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     total_points = models.IntegerField(default=0)
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["course", "user"], name="unique_leaderboard_course_user"
+            )
+        ]
+
 
 class LeaderboardDetail(models.Model):
     leaderboard = models.ForeignKey(Leaderboard, on_delete=models.CASCADE)
+    module = models.ForeignKey(
+        CourseModule, on_delete=models.CASCADE, null=True, blank=True
+    )
     description = models.CharField(max_length=255, blank=True)
     point = models.IntegerField(default=0)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["leaderboard", "module"],
+                condition=Q(module__isnull=False),
+                name="unique_leaderboard_detail_module",
+            )
+        ]
 
 
 class UserProgress(models.Model):
@@ -215,6 +234,24 @@ class UserProgress(models.Model):
         choices=ProgressStatus.choices,
         default=ProgressStatus.UNFINISH,
     )
+
+
+class ContentViewed(models.Model):
+    """Penanda konten module sudah dibuka student (syarat auto-complete)."""
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    content = models.ForeignKey(ModuleContent, on_delete=models.CASCADE)
+    viewed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "content"], name="unique_content_viewed_user_content"
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.user} -> {self.content}"
 
 
 class Question(CrudModel):

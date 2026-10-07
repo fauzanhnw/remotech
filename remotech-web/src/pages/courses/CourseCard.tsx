@@ -58,7 +58,7 @@ export function CourseCard({ course, to, progress }: CourseCardProps) {
         {progress !== undefined && (
           <div className="mt-1">
             <Progress percent={progress} size="small" strokeWidth={6} />
-            <p className="mt-1 text-xs text-gray-500">{progress}% lengkap</p>
+            <p className="mt-1 text-xs text-gray-500">{progress}% Complete</p>
           </div>
         )}
       </div>

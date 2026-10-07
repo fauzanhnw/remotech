@@ -22,6 +22,7 @@ import type {
   ModuleContent,
   ModuleContentCreate,
 } from './content'
+import type { ContentViewMarkResult, ContentViewedList } from './contentView'
 import type {
   Course,
   CourseCreate,
@@ -121,6 +122,10 @@ export interface ApiEndpoints {
   'POST /progress/': { body: UserProgressCreate; response: UserProgress }
   'DELETE /progress/{id}/': { response: void }
   'GET /progress/summary/': { response: CourseProgressSummary[] }
+
+  // Content view (konten dibuka — syarat auto-complete module text/video)
+  'GET /content-view/': { params?: { course?: number }; response: ContentViewedList }
+  'POST /content-view/{id}/': { response: ContentViewMarkResult }
 
   // Leaderboard
   'GET /leaderboard/': {

@@ -3,7 +3,8 @@ from uuid import uuid4
 
 from django.conf import settings
 from django.core.files.storage import default_storage
-from django.shortcuts import render
+from django.db.models import Sum
+from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
@@ -27,7 +28,9 @@ from server.apps.remotech.models import (
     CourseEnrollment,
     CourseModule,
     CourseOrder,
+    ContentViewed,
     Leaderboard,
+    LeaderboardDetail,
     ModuleContent,
     Submission,
     UserAnswer,
@@ -281,6 +284,37 @@ class CourseEnrollmentViewSet(viewsets.ModelViewSet):
         self.http_method_not_allowed(request, *args, **kwargs)
 
 
+def sync_leaderboard(user, course):
+    """Recompute total poin + detail leaderboard user dari progress `finish`.
+
+    Idempoten — aman dipanggil berulang, termasuk siklus batalkan→tandai lagi.
+    """
+    finished = UserProgress.objects.filter(
+        user=user,
+        module__course=course,
+        status=UserProgress.ProgressStatus.FINISH,
+    )
+    total_points = finished.aggregate(total=Sum("module__point"))["total"] or 0
+    leaderboard, _ = Leaderboard.objects.get_or_create(
+        user=user, course=course, defaults={"total_points": total_points}
+    )
+    if leaderboard.total_points != total_points:
+        leaderboard.total_points = total_points
+        leaderboard.save(update_fields=["total_points"])
+
+    finished_ids = set(finished.values_list("module_id", flat=True))
+    LeaderboardDetail.objects.filter(leaderboard=leaderboard).exclude(
+        module_id__in=finished_ids
+    ).delete()
+    for module in CourseModule.objects.filter(id__in=finished_ids):
+        LeaderboardDetail.objects.get_or_create(
+            leaderboard=leaderboard,
+            module=module,
+            defaults={"description": module.title, "point": module.point},
+        )
+    return leaderboard
+
+
 class UserProgressViewSet(viewsets.ModelViewSet):
     queryset = UserProgress.objects.order_by("id")
     serializer_class = UserProgressSerializer
@@ -309,6 +343,7 @@ class UserProgressViewSet(viewsets.ModelViewSet):
                 "complete_at": timezone.now(),
             },
         )
+        sync_leaderboard(request.user, module.course)
         return Response(self.get_serializer(progress).data, status=status.HTTP_201_CREATED)
 
     def update(self, request, *args, **kwargs):
@@ -316,6 +351,13 @@ class UserProgressViewSet(viewsets.ModelViewSet):
 
     def partial_update(self, request, *args, **kwargs):
         self.http_method_not_allowed(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        progress = self.get_object()
+        module = progress.module
+        self.perform_destroy(progress)
+        sync_leaderboard(request.user, module.course)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=False, methods=["get"], url_path="summary")
     def summary(self, request):
@@ -345,16 +387,84 @@ class UserProgressViewSet(viewsets.ModelViewSet):
         return Response(rows)
 
 
+class ContentViewMarkView(APIView):
+    """POST /content-view/<content_id>/ — tandai konten sudah dibuka (idempoten).
+
+    Module text/video baru otomatis `finish` (+ sinkron leaderboard) setelah
+    SELURUH kontennya dilihat, bukan konten pertama. Module upload/quiz tidak
+    pernah auto-finish lewat sini (submit tugas / tombol manual).
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, content_id):
+        content = get_object_or_404(ModuleContent, pk=content_id)
+        ContentViewed.objects.get_or_create(user=request.user, content=content)
+
+        module = content.module
+        if module.module_category not in (
+            CourseModule.Category.TEXT,
+            CourseModule.Category.VIDEO,
+        ):
+            return Response({"module_completed": False})
+
+        enrolled = CourseEnrollment.objects.filter(
+            user=request.user, course=module.course
+        ).exists()
+        already_finished = UserProgress.objects.filter(
+            module=module,
+            user=request.user,
+            status=UserProgress.ProgressStatus.FINISH,
+        ).exists()
+        total_contents = ModuleContent.objects.filter(module=module).count()
+        viewed_count = ContentViewed.objects.filter(
+            user=request.user, content__module=module
+        ).count()
+
+        if not enrolled or already_finished or not total_contents:
+            return Response({"module_completed": False})
+        if viewed_count < total_contents:
+            return Response({"module_completed": False})
+
+        UserProgress.objects.update_or_create(
+            module=module,
+            user=request.user,
+            defaults={
+                "status": UserProgress.ProgressStatus.FINISH,
+                "complete_at": timezone.now(),
+            },
+        )
+        sync_leaderboard(request.user, module.course)
+        return Response({"module_completed": True})
+
+
+class ContentViewListView(APIView):
+    """GET /content-view/?course=<id> — konten sudah-dibuka milik sendiri."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        contents = ContentViewed.objects.filter(user=request.user)
+        course = request.query_params.get("course")
+        if course:
+            contents = contents.filter(content__module__course=course)
+        return Response(
+            {"content_ids": list(contents.values_list("content_id", flat=True))}
+        )
+
+
 class AssignmentViewSet(viewsets.ModelViewSet):
     queryset = Assignment.objects.order_by("id")
     serializer_class = AssignmentSerializer
     filterset_fields = ["course_module"]
 
 
-class LeaderboardViewSet(viewsets.ModelViewSet):
-    queryset = Leaderboard.objects.order_by("id")
+class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Leaderboard.objects.order_by("-total_points", "id")
     serializer_class = LeaderboardSerializer
+    filter_backends = [DjangoFilterBackend, OrderingFilter]
     filterset_fields = ["course", "user"]
+    ordering_fields = ["total_points", "id"]
 
 
 class SubmissionViewSet(viewsets.ModelViewSet):
@@ -381,6 +491,7 @@ class SubmissionViewSet(viewsets.ModelViewSet):
                     "complete_at": timezone.now(),
                 },
             )
+            sync_leaderboard(self.request.user, module.course)
 
 
 class UserAnswerViewSet(viewsets.ModelViewSet):
