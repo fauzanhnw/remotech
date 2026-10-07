@@ -71,6 +71,10 @@ def media_url(storage_name):
     return f"{settings.BASE_URL.rstrip('/')}{path}"
 
 
+def login_url():
+    return f"{settings.FE_URL.rstrip('/')}/login"
+
+
 class UserViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
 
@@ -315,7 +319,7 @@ class SetPasswordViewSet(viewsets.ViewSet):
     permission_classes = [AllowAny]
 
     def list(self, request):
-        return render(request, "set_password.html")
+        return render(request, "set_password.html", {"login_url": login_url()})
 
     def create(self, request):
         serializer = SetPasswordSerializer(data=request.data)
@@ -377,7 +381,7 @@ class ForgotPasswordPageView(viewsets.ViewSet):
     permission_classes = [AllowAny]
 
     def list(self, request):
-        return render(request, "reset_password.html")
+        return render(request, "reset_password.html", {"login_url": login_url()})
 
 
 class MidtransNotificationView(APIView):

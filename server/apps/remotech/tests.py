@@ -710,6 +710,16 @@ class SetPasswordRouteTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("text/html", response["Content-Type"])
+        self.assertContains(response, f'href="{settings.FE_URL.rstrip("/")}/login"')
+        self.assertContains(response, "Back to Login")
+
+    def test_get_renders_reset_password_page_with_back_to_login_link(self):
+        response = self.client.get("/reset-password/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("text/html", response["Content-Type"])
+        self.assertContains(response, f'href="{settings.FE_URL.rstrip("/")}/login"')
+        self.assertContains(response, "Back to Login")
 
     def test_post_sets_password(self):
         response = self.client.post(

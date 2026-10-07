@@ -176,6 +176,9 @@ DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="noreply@remotech.web.
 # Base URL
 BASE_URL = config("BASE_URL", default="http://localhost:8000")
 
+# Frontend URL (untuk link kembali ke halaman login di template auth)
+FE_URL = config("FE_URL", default="http://localhost:5173")
+
 # Midtrans
 MIDTRANS_SERVER_KEY = config("MIDTRANS_SERVER_KEY", default="")
 MIDTRANS_CLIENT_KEY = config("MIDTRANS_CLIENT_KEY", default="")
