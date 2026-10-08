@@ -858,6 +858,23 @@ class ListFilterTests(APITestCase):
         self.assertEqual(by_status["count"], 1)
         self.assertEqual(by_status["results"][0]["order_no"], "ORD-2")
 
+    def test_order_list_includes_course_title(self):
+        CourseOrder.objects.create(
+            course=self.course_a,
+            user=self.owner,
+            order_no="ORD-1",
+            gross_amount="100000.00",
+            payment_type="gopay",
+            midtrans_transaction_id="tx-1",
+        )
+
+        response = self.client.get("/order/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        first = response.json()["results"][0]
+        self.assertEqual(first["course"], self.course_a.id)
+        self.assertEqual(first["course_title"], "Course A")
+
     def test_assignment_filter_by_course_module(self):
         Assignment.objects.create(
             course_module=self.module_a, name="A1", description="do it"
@@ -1583,6 +1600,144 @@ class CurrentUserAPITests(APITestCase):
         self.client.force_authenticate(user=None)
 
         response = self.client.get("/user/me/")
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class UserProfileUpdateTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="budi@example.com",
+            email="budi@example.com",
+            first_name="Budi",
+            last_name="Santoso",
+            password="secret123",
+        )
+
+    def test_patch_updates_name_and_email(self):
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.patch(
+            "/user/me/",
+            {
+                "first_name": "Budi Ardian",
+                "last_name": "Santoso",
+                "email": "baru@example.com",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.first_name, "Budi Ardian")
+        self.assertEqual(self.user.last_name, "Santoso")
+        self.assertEqual(self.user.email, "baru@example.com")
+        # username dipakai sebagai identitas login — ikut menyesuaikan email.
+        self.assertEqual(self.user.username, "baru@example.com")
+        self.assertEqual(response.json()["email"], "baru@example.com")
+
+    def test_patch_keeps_username_when_not_equal_to_email(self):
+        self.user.username = "budi"
+        self.user.save(update_fields=["username"])
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.patch(
+            "/user/me/", {"email": "baru@example.com"}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.username, "budi")
+        self.assertEqual(self.user.email, "baru@example.com")
+
+    def test_patch_rejects_email_taken_by_another_user(self):
+        User.objects.create_user(username="lain@example.com", email="lain@example.com")
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.patch(
+            "/user/me/", {"email": "lain@example.com"}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.json()["errors"][0]["attr"], "email")
+
+    def test_patch_requires_authentication(self):
+        self.client.force_authenticate(user=None)
+
+        response = self.client.patch("/user/me/", {"first_name": "X"}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class UserChangePasswordTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="budi@example.com",
+            email="budi@example.com",
+            first_name="Budi",
+            last_name="Santoso",
+            password="secret123",
+        )
+
+    def change_password(self, **overrides):
+        payload = {
+            "old_password": "secret123",
+            "new_password": "newsecret456",
+            "new_password_confirm": "newsecret456",
+        }
+        payload.update(overrides)
+        return self.client.post("/user/change-password/", payload, format="json")
+
+    def test_change_password_updates_password(self):
+        self.client.force_authenticate(user=self.user)
+
+        response = self.change_password()
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password("newsecret456"))
+        self.assertFalse(self.user.check_password("secret123"))
+
+    def test_wrong_old_password_returns_field_error(self):
+        self.client.force_authenticate(user=self.user)
+
+        response = self.change_password(old_password="salah12345")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.json()["errors"][0]["attr"], "old_password")
+
+    def test_mismatched_confirmation_returns_field_error(self):
+        self.client.force_authenticate(user=self.user)
+
+        response = self.change_password(new_password_confirm="lain456")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.json()["errors"][0]["attr"], "new_password_confirm")
+
+    def test_rejects_reused_password(self):
+        self.client.force_authenticate(user=self.user)
+
+        response = self.change_password(
+            new_password="secret123", new_password_confirm="secret123"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.json()["errors"][0]["attr"], "new_password")
+
+    def test_rejects_numeric_password(self):
+        self.client.force_authenticate(user=self.user)
+
+        response = self.change_password(
+            new_password="1234567890", new_password_confirm="1234567890"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.json()["errors"][0]["attr"], "new_password")
+
+    def test_requires_authentication(self):
+        self.client.force_authenticate(user=None)
+
+        response = self.change_password()
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 

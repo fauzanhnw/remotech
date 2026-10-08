@@ -41,6 +41,7 @@ from server.apps.remotech.models import (
 from server.apps.remotech.serializers import (
     AssignmentSerializer,
     BadgeSerializer,
+    ChangePasswordSerializer,
     CourseEnrollmentSerializer,
     CourseModuleSerializer,
     CourseOrderSerializer,
@@ -52,6 +53,7 @@ from server.apps.remotech.serializers import (
     ImageUploadSerializer,
     LeaderboardSerializer,
     ModuleContentSerializer,
+    ProfileUpdateSerializer,
     QuestionSerializer,
     RegisterSerializer,
     SetPasswordSerializer,
@@ -95,11 +97,29 @@ def login_url():
 
 
 class UserViewSet(viewsets.ViewSet):
+    """Profil user login: baca/ubah `/user/me/` dan ganti password."""
+
     permission_classes = [IsAuthenticated]
 
-    @action(detail=False, methods=["get"])
+    @action(detail=False, methods=["get", "patch"])
     def me(self, request):
+        if request.method == "PATCH":
+            serializer = ProfileUpdateSerializer(
+                instance=request.user, data=request.data, partial=True
+            )
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
         return Response(CurrentUserSerializer(request.user).data)
+
+    @action(detail=False, methods=["post"], url_path="change-password")
+    def change_password(self, request):
+        serializer = ChangePasswordSerializer(
+            data=request.data, context={"request": request}
+        )
+        serializer.is_valid(raise_exception=True)
+        request.user.set_password(serializer.validated_data["new_password"])
+        request.user.save(update_fields=["password"])
+        return Response({"message": "Password updated successfully."})
 
 
 class BadgeViewSet(viewsets.ModelViewSet):

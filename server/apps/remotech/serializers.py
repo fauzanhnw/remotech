@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 from rest_framework.fields import empty
 from rest_framework.utils.html import is_html_input
@@ -34,6 +36,7 @@ from server.apps.remotech.services.richtext import (
 )
 
 MAX_DOCUMENT_SIZE = 20 * 1024 * 1024
+USERNAME_MAX_LENGTH = User._meta.get_field("username").max_length
 DOCUMENT_EXTENSIONS = {
     "pdf",
     "doc",
@@ -340,6 +343,14 @@ class DocumentUploadSerializer(serializers.Serializer):
 
 
 class CourseOrderSerializer(serializers.ModelSerializer):
+    """Order pembelian course.
+
+    `course_title` diturunkan dari relasi `course` (viewset sudah
+    `select_related("course")`, jadi tidak ada query tambahan).
+    """
+
+    course_title = serializers.SerializerMethodField()
+
     class Meta:
         model = CourseOrder
         fields = "__all__"
@@ -354,6 +365,10 @@ class CourseOrderSerializer(serializers.ModelSerializer):
             "created_at",
             "paid_at",
         ]
+
+    def get_course_title(self, obj):
+        course = getattr(obj, "course", None)
+        return getattr(course, "title", "") or ""
 
 
 class CourseEnrollmentSerializer(serializers.ModelSerializer):
@@ -549,6 +564,43 @@ class ForgotPasswordSerializer(serializers.Serializer):
     email = serializers.EmailField()
 
 
+class ProfileUpdateSerializer(serializers.ModelSerializer):
+    """Update profil milik sendiri (PATCH /user/me/).
+
+    `username` diisi email saat registrasi dan dipakai sebagai identitas login,
+    jadi saat email berganti `username` ikut diganti agar user tetap bisa
+    login memakai email barunya.
+    """
+
+    email = serializers.EmailField()
+
+    class Meta:
+        model = User
+        fields = ["first_name", "last_name", "email"]
+
+    def validate_email(self, value):
+        user = self.instance
+        if user is None:
+            return value
+
+        taken = (
+            User.objects.filter(username=value).exclude(pk=user.pk).exists()
+            or User.objects.filter(email=value).exclude(pk=user.pk).exists()
+        )
+        if taken:
+            raise serializers.ValidationError("Email already registered.")
+
+        if user.username == user.email and len(value) > USERNAME_MAX_LENGTH:
+            raise serializers.ValidationError("Email is too long to be a username.")
+        return value
+
+    def update(self, instance, validated_data):
+        email = validated_data.get("email")
+        if email and email != instance.email and instance.username == instance.email:
+            instance.username = email
+        return super().update(instance, validated_data)
+
+
 class CurrentUserSerializer(serializers.ModelSerializer):
     full_name = serializers.SerializerMethodField()
     is_mentor = serializers.SerializerMethodField()
@@ -563,3 +615,44 @@ class CurrentUserSerializer(serializers.ModelSerializer):
 
     def get_is_mentor(self, obj):
         return obj.groups.filter(name=MENTOR_GROUP).exists()
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    """Ganti password user login (POST /user/change-password/).
+
+    Wajib menyertakan password lama; password baru divalidasi memakai
+    `AUTH_PASSWORD_VALIDATORS` (minimal 8 karakter, bukan password umum, dll).
+    """
+
+    old_password = serializers.CharField(write_only=True)
+    new_password = serializers.CharField(write_only=True)
+    new_password_confirm = serializers.CharField(write_only=True)
+
+    def validate_old_password(self, value):
+        user = self.context["request"].user
+        if not user.check_password(value):
+            raise serializers.ValidationError("Current password is incorrect.")
+        return value
+
+    def validate_new_password(self, value):
+        user = self.context["request"].user
+        try:
+            validate_password(value, user=user)
+        except DjangoValidationError as error:
+            raise serializers.ValidationError(error.messages)
+        return value
+
+    def validate(self, data):
+        if data["new_password"] != data["new_password_confirm"]:
+            raise serializers.ValidationError(
+                {"new_password_confirm": "Passwords do not match."}
+            )
+        if data["new_password"] == data["old_password"]:
+            raise serializers.ValidationError(
+                {
+                    "new_password": (
+                        "New password must be different from the current one."
+                    )
+                }
+            )
+        return data

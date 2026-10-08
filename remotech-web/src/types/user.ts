@@ -10,3 +10,20 @@ export interface CurrentUser {
   /** True bila user termasuk group `mentor`. */
   is_mentor: boolean
 }
+
+/**
+ * PATCH /user/me/ — update nama & email (semua opsional).
+ * `username` mengikuti `email` bila keduanya masih sama (identitas login).
+ */
+export interface ProfileUpdatePayload {
+  first_name?: string
+  last_name?: string
+  email?: string
+}
+
+/** POST /user/change-password/ — wajib password lama, baru divalidasi backend. */
+export interface ChangePasswordPayload {
+  old_password: string
+  new_password: string
+  new_password_confirm: string
+}

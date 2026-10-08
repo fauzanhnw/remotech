@@ -201,7 +201,7 @@ export function MentorAssignmentDetailPage() {
   if (invalidId) return <NotFoundPage />
 
   return (
-    <section className="mx-auto max-w-7xl px-4 pb-16 md:mx-8 xl:px-16">
+    <section className="mx-auto max-w-7xl px-4 pt-8 pb-16 md:mx-8 xl:px-16">
       <div className="mb-6">
         <Link
           to="/mentor/assignments"

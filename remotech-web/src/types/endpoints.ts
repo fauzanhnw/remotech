@@ -66,7 +66,11 @@ import type {
   UserAnswerUpsert,
 } from './quiz'
 import type { UploadResponse } from './upload'
-import type { CurrentUser } from './user'
+import type {
+  ChangePasswordPayload,
+  CurrentUser,
+  ProfileUpdatePayload,
+} from './user'
 
 export interface ApiEndpoints {
   'GET /': { response: Record<string, string> }
@@ -186,6 +190,11 @@ export interface ApiEndpoints {
 
   // User
   'GET /user/me/': { response: CurrentUser }
+  'PATCH /user/me/': { body: ProfileUpdatePayload; response: CurrentUser }
+  'POST /user/change-password/': {
+    body: ChangePasswordPayload
+    response: MessageResponse
+  }
 }
 
 /** Tipe response dari sebuah endpoint. */

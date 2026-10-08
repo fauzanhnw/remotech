@@ -130,7 +130,7 @@ export function MentorCourseDetailPage() {
             <h1 className="mt-3 text-3xl font-bold text-[#08060d] lg:text-4xl">
               {course.title}
             </h1>
-            <p className="mt-2 text-gray-600">oleh {course.user_name}</p>
+            <p className="mt-2 text-gray-600">By {course.user_name}</p>
             <p className="mt-4 text-2xl font-bold text-[#08060d]">
               {formatRupiah(course.price)}
             </p>

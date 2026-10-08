@@ -87,7 +87,7 @@ export function CoursesPage() {
   }
 
   return (
-    <section className="mx-auto max-w-7xl px-4 py-10 justify-center xl:px-16 md:mx-8">
+    <section className="mx-auto max-w px-4 py-10 justify-center xl:px-16 md:mx-8">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-[#08060d]">Courses</h1>
         <p className="mt-2 text-gray-600">

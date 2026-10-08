@@ -14,6 +14,8 @@ export type OrderStatus =
 export interface CourseOrder {
   id: number
   course: number
+  /** Judul course (diturunkan dari relasi, bukan kolom order). */
+  course_title: string
   user: number
   order_no: string
   transaction_status: OrderStatus
