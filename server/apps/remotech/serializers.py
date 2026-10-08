@@ -397,9 +397,35 @@ class AssignmentSerializer(serializers.ModelSerializer):
 
 
 class LeaderboardSerializer(serializers.ModelSerializer):
+    """Papan skor per course; `course_title` diturunkan dari relasi course."""
+
+    course_title = serializers.SerializerMethodField()
+
     class Meta:
         model = Leaderboard
         fields = "__all__"
+
+    def get_course_title(self, obj):
+        course = getattr(obj, "course", None)
+        return getattr(course, "title", "") or ""
+
+
+class MyLeaderboardCourseSerializer(serializers.Serializer):
+    """Satu course pada ringkasan poin milik sendiri (GET /leaderboard/me/)."""
+
+    course = serializers.IntegerField()
+    course_title = serializers.CharField()
+    total_points = serializers.IntegerField()
+    # Null bila belum ada baris leaderboard (belum pernah menyelesaikan module).
+    rank = serializers.IntegerField(allow_null=True)
+    participants = serializers.IntegerField()
+
+
+class MyLeaderboardSerializer(serializers.Serializer):
+    """Ringkasan poin milik sendiri lintas course (GET /leaderboard/me/)."""
+
+    total_points = serializers.IntegerField()
+    courses = MyLeaderboardCourseSerializer(many=True)
 
 
 class SubmissionSerializer(serializers.ModelSerializer):

@@ -54,6 +54,7 @@ from server.apps.remotech.serializers import (
     ImageUploadSerializer,
     LeaderboardSerializer,
     ModuleContentSerializer,
+    MyLeaderboardSerializer,
     ProfileUpdateSerializer,
     QuestionSerializer,
     RegisterSerializer,
@@ -797,11 +798,63 @@ class QuestionViewSet(CourseOwnerMixin, viewsets.ModelViewSet):
 
 
 class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
+    """Papan skor per course + ringkasan poin milik sendiri (`/leaderboard/me/`)."""
+
     queryset = Leaderboard.objects.order_by("-total_points", "id")
     serializer_class = LeaderboardSerializer
     filter_backends = [DjangoFilterBackend, OrderingFilter]
     filterset_fields = ["course", "user"]
     ordering_fields = ["total_points", "id"]
+
+    @action(detail=False, methods=["get"], url_path="me")
+    def me(self, request):
+        """GET /leaderboard/me/ — total poin + per-course (judul, rank, peserta).
+
+        Course yang di-enroll selalu ikut (poin 0, `rank` null bila belum
+        pernah menyelesaikan module); urutan: poin tertinggi dulu.
+        """
+        user = request.user
+        enrollments = list(
+            CourseEnrollment.objects.filter(user=user).select_related("course")
+        )
+        course_ids = [entry.course_id for entry in enrollments]
+
+        my_points = {
+            row.course_id: row.total_points
+            for row in Leaderboard.objects.filter(user=user)
+        }
+
+        counts = Counter()
+        ranks = {}
+        rows = (
+            Leaderboard.objects.filter(course_id__in=course_ids)
+            .order_by("course_id", "-total_points", "id")
+            .values_list("course_id", "user_id")
+        )
+        for course_id, row_user_id in rows:
+            counts[course_id] += 1
+            if row_user_id == user.pk:
+                ranks[course_id] = counts[course_id]
+
+        courses = [
+            {
+                "course": entry.course_id,
+                "course_title": entry.course.title,
+                "total_points": my_points.get(entry.course_id, 0),
+                "rank": ranks.get(entry.course_id),
+                "participants": counts.get(entry.course_id, 0),
+            }
+            for entry in enrollments
+        ]
+        courses.sort(key=lambda item: (-item["total_points"], item["course_title"]))
+
+        serializer = MyLeaderboardSerializer(
+            {
+                "total_points": sum(my_points.get(course_id, 0) for course_id in course_ids),
+                "courses": courses,
+            }
+        )
+        return Response(serializer.data)
 
 
 def find_quiz_submission(user, module):

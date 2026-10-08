@@ -30,7 +30,7 @@ import type {
   CourseModuleCreate,
 } from './course'
 import type { CourseEnrollment } from './enrollment'
-import type { Leaderboard, LeaderboardCreate } from './leaderboard'
+import type { Leaderboard, LeaderboardCreate, MyLeaderboard } from './leaderboard'
 import type {
   CourseOrder,
   EnrollCoursePayload,
@@ -152,6 +152,7 @@ export interface ApiEndpoints {
   }
   'POST /leaderboard/': { body: LeaderboardCreate; response: Leaderboard }
   'GET /leaderboard/{id}/': { response: Leaderboard }
+  'GET /leaderboard/me/': { response: MyLeaderboard }
   'PATCH /leaderboard/{id}/': { body: Partial<LeaderboardCreate>; response: Leaderboard }
   'DELETE /leaderboard/{id}/': { response: void }
 

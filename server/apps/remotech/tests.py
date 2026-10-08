@@ -2416,6 +2416,87 @@ class ProgressAPITests(APITestCase):
         self.assertEqual(by_course[self.stranger_course.id]["percent"], 100)
 
 
+class MyLeaderboardTests(APITestCase):
+    """GET /leaderboard/me/ — ringkasan poin milik sendiri lintas course."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="student", password="secret123")
+        self.other = User.objects.create_user(username="other", password="secret123")
+        self.owner = User.objects.create_user(username="owner", password="secret123")
+        self.course = Course.objects.create(user=self.owner, title="Course A")
+        self.course_b = Course.objects.create(user=self.owner, title="Course B")
+        CourseEnrollment.objects.create(course=self.course, user=self.user)
+        CourseEnrollment.objects.create(course=self.course_b, user=self.user)
+        self.client.force_authenticate(user=self.user)
+
+    def mine_in(self, data, course_id):
+        return next(row for row in data["courses"] if row["course"] == course_id)
+
+    def test_me_requires_authentication(self):
+        self.client.force_authenticate(user=None)
+
+        response = self.client.get("/leaderboard/me/")
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_me_lists_enrolled_courses_without_points(self):
+        response = self.client.get("/leaderboard/me/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertEqual(data["total_points"], 0)
+        self.assertEqual(
+            [(row["course"], row["course_title"]) for row in data["courses"]],
+            [(self.course.id, "Course A"), (self.course_b.id, "Course B")],
+        )
+        self.assertTrue(all(row["total_points"] == 0 for row in data["courses"]))
+        self.assertTrue(all(row["rank"] is None for row in data["courses"]))
+        self.assertTrue(all(row["participants"] == 0 for row in data["courses"]))
+
+    def test_me_reports_rank_and_participants(self):
+        Leaderboard.objects.create(user=self.other, course=self.course, total_points=300)
+        Leaderboard.objects.create(user=self.owner, course=self.course, total_points=100)
+        Leaderboard.objects.create(user=self.user, course=self.course, total_points=200)
+
+        mine = self.mine_in(self.client.get("/leaderboard/me/").json(), self.course.id)
+
+        self.assertEqual(mine["course_title"], "Course A")
+        self.assertEqual(mine["total_points"], 200)
+        self.assertEqual(mine["rank"], 2)
+        self.assertEqual(mine["participants"], 3)
+
+    def test_me_ties_break_by_leaderboard_id(self):
+        Leaderboard.objects.create(user=self.other, course=self.course, total_points=100)
+        Leaderboard.objects.create(user=self.user, course=self.course, total_points=100)
+
+        mine = self.mine_in(self.client.get("/leaderboard/me/").json(), self.course.id)
+
+        self.assertEqual(mine["rank"], 2)
+
+    def test_me_sums_points_across_courses_and_sorts_desc(self):
+        Leaderboard.objects.create(user=self.user, course=self.course, total_points=50)
+        Leaderboard.objects.create(user=self.user, course=self.course_b, total_points=250)
+
+        data = self.client.get("/leaderboard/me/").json()
+
+        self.assertEqual(data["total_points"], 300)
+        self.assertEqual(
+            [row["course"] for row in data["courses"]],
+            [self.course_b.id, self.course.id],
+        )
+
+    def test_me_ignores_courses_not_enrolled(self):
+        stranger_course = Course.objects.create(user=self.owner, title="Else")
+        Leaderboard.objects.create(user=self.user, course=stranger_course, total_points=999)
+
+        data = self.client.get("/leaderboard/me/").json()
+
+        self.assertEqual(data["total_points"], 0)
+        self.assertNotIn(
+            stranger_course.id, [row["course"] for row in data["courses"]]
+        )
+
+
 class LeaderboardPointsTests(APITestCase):
     """Poin module diselesaikan → akumulasi ke tabel leaderboard (per course)."""
 

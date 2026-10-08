@@ -1,9 +1,18 @@
 import { deleteJson, getJson, patchJson, postJson } from './shared'
 import type { Paginated } from '@/types/api'
-import type { Leaderboard, LeaderboardCreate } from '@/types/leaderboard'
+import type {
+  Leaderboard,
+  LeaderboardCreate,
+  MyLeaderboard,
+} from '@/types/leaderboard'
 import type { LeaderboardListParams } from '@/types/params'
 
 export type { LeaderboardListParams } from '@/types/params'
+
+/** GET /leaderboard/me/ — total poin + per-course (judul, rank, peserta). */
+export function getMyLeaderboard(): Promise<MyLeaderboard> {
+  return getJson<MyLeaderboard>('/leaderboard/me/')
+}
 
 /** GET /leaderboard/ — wajib login, filter `?course=`, `?user=`. */
 export function listLeaderboards(
