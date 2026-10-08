@@ -1,11 +1,13 @@
 /** Papan skor per course. */
 
-/** GET /leaderboard/{id}/ — `course_title` diturunkan dari relasi course. */
+/** GET /leaderboard/{id}/ — `course_title`/`user_name` diturunkan dari relasi. */
 export interface Leaderboard {
   id: number
   course: number
   course_title: string
   user: number
+  /** Nama lengkap peserta; fallback ke username/email. */
+  user_name: string
   total_points: number
 }
 
@@ -32,4 +34,13 @@ export interface MyLeaderboard {
   total_points: number
   /** Urut poin tertinggi; course tanpa poin tetap ikut dengan `rank` null. */
   courses: MyLeaderboardCourse[]
+}
+
+/** GET /leaderboard/{id}/details/ — rincian poin satu peserta per module. */
+export interface LeaderboardDetailEntry {
+  id: number
+  module: number | null
+  /** Judul module (diisi saat sinkronisasi poin). */
+  description: string
+  point: number
 }

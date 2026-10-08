@@ -46,7 +46,7 @@ export function MyPointsPage() {
 
   if (!data && loading) {
     return (
-      <section className="mx-auto max-w-7xl px-4 py-10 pb-16 md:mx-8 xl:px-16">
+      <section className="mx-auto max-w px-4 py-10 pb-16 md:mx-8 xl:px-16">
         <h1 className="mb-6 text-3xl font-bold text-[#08060d]">My Point</h1>
         <Skeleton active paragraph={{ rows: 6 }} />
       </section>
@@ -55,7 +55,7 @@ export function MyPointsPage() {
 
   if (!data) {
     return (
-      <section className="mx-auto max-w-7xl px-4 py-10 pb-16 md:mx-8 xl:px-16">
+      <section className="mx-auto max-w px-4 py-10 pb-16 md:mx-8 xl:px-16">
         <h1 className="mb-6 text-3xl font-bold text-[#08060d]">My Point</h1>
         <Empty description="Gagal memuat data poin." className="py-16">
           <Button type="primary" onClick={() => void load()}>
@@ -70,7 +70,7 @@ export function MyPointsPage() {
   const hasPoints = data.total_points > 0
 
   return (
-    <section className="mx-auto max-w-7xl px-4 py-10 pb-16 md:mx-8 xl:px-16">
+    <section className="mx-auto max-w px-4 py-10 pb-16 md:mx-8 xl:px-16">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-3xl font-bold text-[#08060d]">My Point</h1>

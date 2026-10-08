@@ -121,14 +121,14 @@ export function MentorAssignmentsPage() {
         </div>
       </div>
 
-      <div className="mb-4 flex gap-3">
+      <div className="mb-4 flex flex-wrap sm:flex-nowrap gap-3">
         <Input
           allowClear
           prefix={<SearchOutlined className="text-gray-400" />}
           placeholder="Cari judul module atau course..."
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          className="max-w-sm"
+          className="w-full"
         />
         <Space>
           <Select

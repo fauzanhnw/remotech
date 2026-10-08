@@ -2416,6 +2416,87 @@ class ProgressAPITests(APITestCase):
         self.assertEqual(by_course[self.stranger_course.id]["percent"], 100)
 
 
+class LeaderboardDetailsTests(APITestCase):
+    """GET /leaderboard/ (user_name) dan /leaderboard/{id}/details/ (rincian)."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user(username="owner", password="secret123")
+        self.user = User.objects.create_user(
+            username="budi@example.com",
+            email="budi@example.com",
+            first_name="Budi",
+            last_name="Santoso",
+            password="secret123",
+        )
+        self.course = Course.objects.create(user=self.owner, title="Course A")
+        self.first = CourseModule.objects.create(course=self.course, title="M1")
+        self.second = CourseModule.objects.create(course=self.course, title="M2")
+        self.leaderboard = Leaderboard.objects.create(
+            user=self.user, course=self.course, total_points=75
+        )
+        LeaderboardDetail.objects.create(
+            leaderboard=self.leaderboard,
+            module=self.first,
+            description="M1",
+            point=25,
+        )
+        LeaderboardDetail.objects.create(
+            leaderboard=self.leaderboard,
+            module=self.second,
+            description="M2",
+            point=50,
+        )
+        self.client.force_authenticate(user=self.user)
+
+    def test_list_returns_user_name_and_course_title(self):
+        response = self.client.get("/leaderboard/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        row = next(
+            item
+            for item in response.json()["results"]
+            if item["id"] == self.leaderboard.id
+        )
+        self.assertEqual(row["user_name"], "Budi Santoso")
+        self.assertEqual(row["course_title"], "Course A")
+
+    def test_user_name_falls_back_to_username(self):
+        other = User.objects.create_user(username="other", password="secret123")
+        row_id = Leaderboard.objects.create(
+            user=other, course=self.course, total_points=10
+        ).id
+
+        response = self.client.get("/leaderboard/").json()
+        row = next(item for item in response["results"] if item["id"] == row_id)
+
+        self.assertEqual(row["user_name"], "other")
+
+    def test_details_returns_breakdown_ordered_by_module_sequence(self):
+        response = self.client.get(f"/leaderboard/{self.leaderboard.id}/details/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertEqual(
+            [(row["description"], row["point"]) for row in data],
+            [("M1", 25), ("M2", 50)],
+        )
+        self.assertEqual(
+            [row["module"] for row in data], [self.first.id, self.second.id]
+        )
+
+    def test_details_unknown_leaderboard_returns_404(self):
+        response = self.client.get("/leaderboard/999999/details/")
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_details_requires_authentication(self):
+        self.client.force_authenticate(user=None)
+
+        response = self.client.get(f"/leaderboard/{self.leaderboard.id}/details/")
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
 class MyLeaderboardTests(APITestCase):
     """GET /leaderboard/me/ — ringkasan poin milik sendiri lintas course."""
 

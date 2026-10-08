@@ -1,6 +1,6 @@
 /** Konfigurasi menu sidebar dashboard mentor. */
 
-import { BookOutlined, FileTextOutlined } from '@ant-design/icons'
+import { BookOutlined, FileTextOutlined, TrophyOutlined } from '@ant-design/icons'
 import type { ElementType } from 'react'
 
 export interface MentorMenuItem {
@@ -17,5 +17,11 @@ export const mentorMenuItems: MentorMenuItem[] = [
     label: 'Assignments',
     to: '/mentor/assignments',
     icon: FileTextOutlined,
+  },
+  {
+    key: 'leaderboard',
+    label: 'Leaderboard',
+    to: '/mentor/leaderboard',
+    icon: TrophyOutlined,
   },
 ]

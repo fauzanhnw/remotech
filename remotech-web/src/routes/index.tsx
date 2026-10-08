@@ -12,6 +12,7 @@ import { MentorCoursesPage } from '@/pages/mentor/MentorCoursesPage'
 import { MentorCourseDetailPage } from '@/pages/mentor/MentorCourseDetailPage'
 import { MentorAssignmentsPage } from '@/pages/mentor/MentorAssignmentsPage'
 import { MentorAssignmentDetailPage } from '@/pages/mentor/MentorAssignmentDetailPage'
+import { MentorLeaderboardPage } from '@/pages/mentor/MentorLeaderboardPage'
 import { MentorPage } from '@/pages/MentorPage'
 import { MyAssignmentsPage } from '@/pages/MyAssignmentsPage'
 import { MyCoursesPage } from '@/pages/MyCoursesPage'
@@ -48,6 +49,7 @@ export function AppRoutes() {
                 path="assignments/:id"
                 element={<MentorAssignmentDetailPage />}
               />
+              <Route path="leaderboard" element={<MentorLeaderboardPage />} />
             </Route>
           </Route>
         </Route>

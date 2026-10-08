@@ -14,6 +14,7 @@ from server.apps.remotech.models import (
     CourseModule,
     CourseOrder,
     Leaderboard,
+    LeaderboardDetail,
     ModuleContent,
     Question,
     QuestionOption,
@@ -397,9 +398,10 @@ class AssignmentSerializer(serializers.ModelSerializer):
 
 
 class LeaderboardSerializer(serializers.ModelSerializer):
-    """Papan skor per course; `course_title` diturunkan dari relasi course."""
+    """Papan skor per course; `course_title`/`user_name` turunan relasi."""
 
     course_title = serializers.SerializerMethodField()
+    user_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Leaderboard
@@ -408,6 +410,24 @@ class LeaderboardSerializer(serializers.ModelSerializer):
     def get_course_title(self, obj):
         course = getattr(obj, "course", None)
         return getattr(course, "title", "") or ""
+
+    def get_user_name(self, obj):
+        user = getattr(obj, "user", None)
+        if user is None:
+            return ""
+        return user.get_full_name() or user.username
+
+
+class LeaderboardDetailSerializer(serializers.ModelSerializer):
+    """Rincian poin satu baris leaderboard per module (GET /leaderboard/{id}/details/).
+
+    `description` diisi judul module saat `sync_leaderboard`, jadi tidak perlu
+    join ulang ke module untuk menampilkan teksnya.
+    """
+
+    class Meta:
+        model = LeaderboardDetail
+        fields = ["id", "module", "description", "point"]
 
 
 class MyLeaderboardCourseSerializer(serializers.Serializer):

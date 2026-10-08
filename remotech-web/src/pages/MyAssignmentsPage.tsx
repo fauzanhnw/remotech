@@ -242,7 +242,18 @@ export function MyAssignmentsPage() {
             )}
           </p>
         </div>
-        <Space>
+      </div>
+
+      <div className="mb-4 flex flex-wrap sm:flex-nowrap gap-3">
+        <Input
+          allowClear
+          prefix={<SearchOutlined className="text-gray-400" />}
+          placeholder="Cari judul module atau course..."
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          className="w-full"
+        />
+        <Space className="flex flex-wrap sm:flex-nowrap">
           <Select
             value={typeFilter}
             onChange={setTypeFilter}
@@ -251,7 +262,7 @@ export function MyAssignmentsPage() {
               { value: 'task', label: 'Tugas' },
               { value: 'quiz', label: 'Kuis' },
             ]}
-            style={{ width: 140 }}
+            style={{ width: 120 }}
           />
           <Select
             value={statusFilter}
@@ -270,17 +281,6 @@ export function MyAssignmentsPage() {
           </Button>
           </Tooltip>
         </Space>
-      </div>
-
-      <div className="mb-4">
-        <Input
-          allowClear
-          prefix={<SearchOutlined className="text-gray-400" />}
-          placeholder="Cari judul module atau course..."
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          className="max-w-sm"
-        />
       </div>
 
       {loading ? (

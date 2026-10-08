@@ -24,6 +24,7 @@ import {
 } from '@/api'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { NotFoundPage } from '@/pages/NotFoundPage'
+import { LeaderboardPanel } from '@/components/LeaderboardPanel'
 import type { ModuleContent } from '@/types/content'
 import type { Course, CourseModule } from '@/types/course'
 import type { CourseEnrollment } from '@/types/enrollment'
@@ -546,6 +547,20 @@ export function EnrolledCourseDetailPage() {
     </div>
   )
 
+  // Papan skor course (tab terpisah — data sendiri, dimuat saat dipilih).
+  const leaderboardContent = <LeaderboardPanel courseId={courseId} />
+
+  const lowerSectionTabs = isXl
+    ? [
+        { key: 'overview', label: 'Gambaran Umum', children: overviewContent },
+        { key: 'leaderboard', label: 'Leaderboard', children: leaderboardContent },
+      ]
+    : [
+        { key: 'kurikulum', label: 'Kurikulum', children: curriculumList },
+        { key: 'overview', label: 'Gambaran Umum', children: overviewContent },
+        { key: 'leaderboard', label: 'Leaderboard', children: leaderboardContent },
+      ]
+
   return (
     <>
       {/* Section atas (full-bleed gelap): toolbar + player pratinjau + judul + aksi */}
@@ -589,19 +604,10 @@ export function EnrolledCourseDetailPage() {
         </div>
       </section>
 
-      {/* Section bawah: xl = gambaran umum (kurikulum di drawer kanan);
-          <xl = tabs Kurikulum | Gambaran Umum */}
+      {/* Section bawah: tabs Gambaran Umum | Leaderboard (xl menambah tab
+          Kurikulum di posisi pertama — xl memakai drawer kurikulum terpisah) */}
       <section className="mx-auto max-w-7xl border-t px-4 py-6 md:mx-8 md:py-10 xl:px-16">
-        {isXl ? (
-          overviewContent
-        ) : (
-          <Tabs
-            items={[
-              { key: 'kurikulum', label: 'Kurikulum', children: curriculumList },
-              { key: 'overview', label: 'Gambaran Umum', children: overviewContent },
-            ]}
-          />
-        )}
+        <Tabs items={lowerSectionTabs} />
       </section>
 
       {isXl && (

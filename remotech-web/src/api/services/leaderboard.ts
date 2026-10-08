@@ -3,6 +3,7 @@ import type { Paginated } from '@/types/api'
 import type {
   Leaderboard,
   LeaderboardCreate,
+  LeaderboardDetailEntry,
   MyLeaderboard,
 } from '@/types/leaderboard'
 import type { LeaderboardListParams } from '@/types/params'
@@ -24,6 +25,13 @@ export function listLeaderboards(
 /** GET /leaderboard/{id}/ */
 export function getLeaderboard(id: number): Promise<Leaderboard> {
   return getJson<Leaderboard>(`/leaderboard/${id}/`)
+}
+
+/** GET /leaderboard/{id}/details/ — rincian poin per module satu peserta. */
+export function getLeaderboardDetails(
+  id: number,
+): Promise<LeaderboardDetailEntry[]> {
+  return getJson<LeaderboardDetailEntry[]>(`/leaderboard/${id}/details/`)
 }
 
 /** POST /leaderboard/ — wajib isi `user` (backend tidak auto-inject). */

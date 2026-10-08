@@ -52,6 +52,7 @@ from server.apps.remotech.serializers import (
     EnrollCourseSerializer,
     ForgotPasswordSerializer,
     ImageUploadSerializer,
+    LeaderboardDetailSerializer,
     LeaderboardSerializer,
     ModuleContentSerializer,
     MyLeaderboardSerializer,
@@ -800,7 +801,9 @@ class QuestionViewSet(CourseOwnerMixin, viewsets.ModelViewSet):
 class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
     """Papan skor per course + ringkasan poin milik sendiri (`/leaderboard/me/`)."""
 
-    queryset = Leaderboard.objects.order_by("-total_points", "id")
+    queryset = Leaderboard.objects.select_related("user", "course").order_by(
+        "-total_points", "id"
+    )
     serializer_class = LeaderboardSerializer
     filter_backends = [DjangoFilterBackend, OrderingFilter]
     filterset_fields = ["course", "user"]
@@ -855,6 +858,15 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             }
         )
         return Response(serializer.data)
+
+    @action(detail=True, methods=["get"])
+    def details(self, request, pk=None):
+        """GET /leaderboard/{id}/details/ — rincian poin per module satu peserta."""
+        leaderboard = self.get_object()
+        rows = LeaderboardDetail.objects.filter(leaderboard=leaderboard).order_by(
+            "module__sequence", "id"
+        )
+        return Response(LeaderboardDetailSerializer(rows, many=True).data)
 
 
 def find_quiz_submission(user, module):
