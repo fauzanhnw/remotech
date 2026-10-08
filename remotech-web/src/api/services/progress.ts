@@ -3,7 +3,12 @@ import type { AxiosRequestConfig } from 'axios'
 import { deleteJson, getJson, postJson } from './shared'
 import type { Paginated } from '@/types/api'
 import type { ProgressListParams } from '@/types/params'
-import type { CourseProgressSummary, UserProgress, UserProgressCreate } from '@/types/progress'
+import type {
+  CourseProgressSummary,
+  UserProgress,
+  UserProgressCreate,
+  WeeklyActivity,
+} from '@/types/progress'
 
 export type { ProgressListParams } from '@/types/params'
 
@@ -35,4 +40,12 @@ export function unmarkProgress(id: number): Promise<void> {
 /** GET /progress/summary/ — ringkasan semua course yang di-enroll (tanpa paginasi). */
 export function getProgressSummary(): Promise<CourseProgressSummary[]> {
   return getJson<CourseProgressSummary[]>('/progress/summary/')
+}
+
+/**
+ * GET /progress/activity/ — grafik 7 hari terakhir + streak belajar
+ * (gabungan buka konten, selesai module, submit tugas/quiz; hari zona WIB).
+ */
+export function getWeeklyActivity(): Promise<WeeklyActivity> {
+  return getJson<WeeklyActivity>('/progress/activity/')
 }

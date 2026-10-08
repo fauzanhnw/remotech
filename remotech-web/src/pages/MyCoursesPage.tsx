@@ -8,6 +8,7 @@ import type { CourseEnrollment } from '@/types/enrollment'
 import type { CourseProgressSummary } from '@/types/progress'
 import { CourseCard } from '@/pages/courses/CourseCard'
 import { CourseFilters } from '@/pages/courses/CourseFilters'
+import { StreakCard } from '@/pages/my-courses/StreakCard'
 
 const PAGE_SIZE = 12
 
@@ -104,11 +105,13 @@ export function MyCoursesPage() {
   )
 
   return (
-    <section className="mx-auto max-w-7xl px-4 py-10 xl:px-16 md:mx-8">
+    <section className="mx-auto max-w px-4 py-10 xl:px-16 md:mx-8">
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-[#08060d]">Enrolled Courses</h1>
-        <p className="mt-2 text-gray-600">Course yang kamu ikuti beserta progres belajarmu.</p>
+        <p className="mt-2 text-gray-600">Course yang sudah diambil</p>
       </div>
+
+      <StreakCard />
 
       <div className="max-w">
         <CourseFilters
@@ -123,7 +126,7 @@ export function MyCoursesPage() {
 
       <div className="mt-6">
         {loading ? (
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-2 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
             {Array.from({ length: 6 }).map((_, index) => (
               <Skeleton key={index} active paragraph={{ rows: 4 }} />
             ))}
@@ -139,7 +142,7 @@ export function MyCoursesPage() {
           />
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-6 sm:grid-cols-2 md:grid-cols-3">
+            <div className="grid grid-cols-2 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
               {enrollments.results.map((enrollment) => (
                 <CourseCard
                   key={enrollment.id}

@@ -2,7 +2,7 @@ import hashlib
 import io
 import os
 import tempfile
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -46,6 +46,7 @@ from server.apps.remotech.services.richtext import (
     extract_media_urls,
     sanitize_richtext,
 )
+from server.apps.remotech.views import ACTIVITY_TIME_ZONE
 from server.pagination import StandardPagination
 
 TEST_MEDIA_ROOT = tempfile.mkdtemp(prefix="remotech-test-media-")
@@ -2105,6 +2106,132 @@ class ModuleContentSequenceTests(APITestCase):
         second.refresh_from_db()
         self.assertEqual(first.sequence, 2)
         self.assertEqual(second.sequence, 1)
+
+
+class ProgressActivityTests(APITestCase):
+    """GET /progress/activity/ — grafik 7 hari + streak belajar (zona WIB)."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="student", password="secret123")
+        self.other = User.objects.create_user(username="other", password="secret123")
+        self.owner = User.objects.create_user(username="owner", password="secret123")
+        self.course = Course.objects.create(user=self.owner, title="Course A")
+        self.module = CourseModule.objects.create(course=self.course, title="M1")
+        self.content = ModuleContent.objects.create(
+            module=self.module, content_text="<p>isi</p>"
+        )
+        self.assignment = Assignment.objects.create(
+            course_module=self.module, name="A1", description="kerjakan"
+        )
+        CourseEnrollment.objects.create(course=self.course, user=self.user)
+        self.today = timezone.localtime(
+            timezone.now(), ACTIVITY_TIME_ZONE
+        ).date()
+        self.client.force_authenticate(user=self.user)
+
+    @staticmethod
+    def at(day):
+        """Tengah hari WIB pada `day` — aman dari batas pergantian hari."""
+        return datetime.combine(day, time(12, 0), tzinfo=ACTIVITY_TIME_ZONE)
+
+    def activity(self):
+        response = self.client.get("/progress/activity/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return response.json()
+
+    def mark_views(self, *days):
+        """Buat satu konten baru per hari (ContentViewed unik per konten)."""
+        for day in days:
+            content = ModuleContent.objects.create(
+                module=self.module, content_text=f"<p>{day}</p>"
+            )
+            viewed = ContentViewed.objects.create(user=self.user, content=content)
+            ContentViewed.objects.filter(pk=viewed.pk).update(
+                viewed_at=self.at(day)
+            )
+
+    def test_activity_requires_authentication(self):
+        self.client.force_authenticate(user=None)
+
+        response = self.client.get("/progress/activity/")
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_returns_seven_days_ending_today_without_activity(self):
+        data = self.activity()
+
+        self.assertEqual(len(data["days"]), 7)
+        self.assertEqual(data["days"][-1]["date"], self.today.isoformat())
+        self.assertEqual(data["days"][-1]["weekday"], self.today.weekday())
+        self.assertTrue(all(not entry["active"] for entry in data["days"]))
+        self.assertEqual(data["week_active_count"], 0)
+        self.assertEqual(data["current_streak"], 0)
+        self.assertEqual(data["best_streak"], 0)
+
+    def test_counts_content_view_progress_and_submission(self):
+        self.mark_views(self.today)
+        UserProgress.objects.create(
+            module=self.module,
+            user=self.user,
+            status=UserProgress.ProgressStatus.FINISH,
+            complete_at=self.at(self.today),
+        )
+        submission = Submission.objects.create(
+            user=self.user,
+            assignment=self.assignment,
+            submission_url="https://example.com/a",
+        )
+        Submission.objects.filter(pk=submission.pk).update(
+            submit_on=self.at(self.today - timedelta(days=1))
+        )
+
+        data = self.activity()
+
+        self.assertEqual(data["days"][-1]["count"], 2)
+        self.assertTrue(data["days"][-1]["active"])
+        self.assertTrue(data["days"][-2]["active"])
+        self.assertEqual(data["week_active_count"], 2)
+        self.assertEqual(data["current_streak"], 2)
+
+    def test_streak_breaks_on_gap(self):
+        self.mark_views(self.today, self.today - timedelta(days=2))
+
+        data = self.activity()
+
+        self.assertEqual(data["current_streak"], 1)
+        self.assertEqual(data["best_streak"], 1)
+
+    def test_streak_continues_from_yesterday_when_today_inactive(self):
+        self.mark_views(self.today - timedelta(days=1))
+
+        data = self.activity()
+
+        self.assertEqual(data["current_streak"], 1)
+        self.assertFalse(data["days"][-1]["active"])
+
+    def test_best_streak_uses_history_beyond_one_week(self):
+        self.mark_views(
+            self.today - timedelta(days=10),
+            self.today - timedelta(days=9),
+            self.today - timedelta(days=8),
+        )
+
+        data = self.activity()
+
+        self.assertEqual(data["best_streak"], 3)
+        self.assertEqual(data["current_streak"], 0)
+        self.assertFalse(any(entry["active"] for entry in data["days"]))
+
+    def test_ignores_activity_from_other_users(self):
+        viewed = ContentViewed.objects.create(user=self.other, content=self.content)
+        ContentViewed.objects.filter(pk=viewed.pk).update(
+            viewed_at=self.at(self.today)
+        )
+
+        data = self.activity()
+
+        self.assertFalse(data["days"][-1]["active"])
+        self.assertEqual(data["current_streak"], 0)
 
 
 class ProgressAPITests(APITestCase):

@@ -100,7 +100,7 @@ export function ProfilePage() {
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-[#08060d]">Profile</h1>
         <p className="mt-2 text-gray-600">
-          Perbarui informasi akun dan password kamu.
+          Perbarui informasi akun dan password
         </p>
       </div>
 
@@ -109,7 +109,7 @@ export function ProfilePage() {
           {initials}
         </div>
         <div className="min-w-0">
-          <p className="truncate text-lg font-semibold text-[#08060d]">
+          <p className="truncate text-lg font-semibold text-[#08060d] mb-0">
             {user.full_name}
           </p>
           <p className="truncate text-sm text-gray-500">{user.email}</p>

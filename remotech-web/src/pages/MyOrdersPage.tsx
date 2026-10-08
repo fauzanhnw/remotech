@@ -295,7 +295,7 @@ export function MyOrdersPage() {
         <div>
           <h1 className="text-3xl font-bold text-[#08060d]">My Order</h1>
           <p className="mt-2 text-gray-600">
-            Riwayat pembelian course kamu.
+            Riwayat pembelian course
             {pendingCount > 0 && (
               <span className="ml-1 font-medium text-amber-600">
                 {pendingCount} menunggu pembayaran

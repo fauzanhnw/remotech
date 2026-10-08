@@ -1,4 +1,5 @@
 from collections import Counter
+from datetime import datetime, time, timedelta, timezone as dt_tz
 from uuid import uuid4
 
 from django.conf import settings
@@ -83,6 +84,12 @@ from server.apps.remotech.services.payment import (
     handle_notification,
 )
 from server.apps.remotech.services.richtext import extract_media_urls
+
+# Zona "hari" untuk streak belajar: WIB (UTC+7). Indonesia tidak punya DST,
+# jadi fixed offset aman dan tidak butuh paket tzdata.
+ACTIVITY_TIME_ZONE = dt_tz(timedelta(hours=7))
+# Riwayat yang dibaca untuk current/best streak (grafik tetap 7 hari terakhir).
+STREAK_LOOKBACK_DAYS = 365
 
 
 def media_url(storage_name):
@@ -580,6 +587,78 @@ class UserProgressViewSet(viewsets.ModelViewSet):
                 }
             )
         return Response(rows)
+
+    @action(detail=False, methods=["get"], url_path="activity")
+    def activity(self, request):
+        """GET /progress/activity/ — grafik 7 hari + streak belajar.
+
+        Hari aktif = ada konten dibuka (`ContentViewed.viewed_at`), module
+        selesai (`UserProgress.complete_at`) atau tugas/quiz dikumpulkan
+        (`Submission.submit_on`) pada hari yang sama (zona WIB). `days` selalu
+        berisi 7 hari terakhir (terakhir = hari ini); `current_streak` boleh
+        berawal dari kemarin bila hari ini belum ada aktivitas.
+        """
+        user = request.user
+        today = timezone.localtime(timezone.now(), ACTIVITY_TIME_ZONE).date()
+        window_start = datetime.combine(
+            today - timedelta(days=STREAK_LOOKBACK_DAYS - 1),
+            time.min,
+            tzinfo=ACTIVITY_TIME_ZONE,
+        )
+
+        def local_date(value):
+            return timezone.localtime(value, ACTIVITY_TIME_ZONE).date()
+
+        sources = (
+            ContentViewed.objects.filter(user=user, viewed_at__gte=window_start)
+            .values_list("viewed_at", flat=True),
+            UserProgress.objects.filter(user=user, complete_at__gte=window_start)
+            .values_list("complete_at", flat=True),
+            Submission.objects.filter(user=user, submit_on__gte=window_start)
+            .values_list("submit_on", flat=True),
+        )
+        counts = Counter()
+        for timestamps in sources:
+            for value in timestamps.iterator():
+                counts[local_date(value)] += 1
+        active_dates = set(counts)
+
+        current_streak = 0
+        day = today if today in active_dates else today - timedelta(days=1)
+        while day in active_dates:
+            current_streak += 1
+            day -= timedelta(days=1)
+
+        best_streak = run = 0
+        day = today - timedelta(days=STREAK_LOOKBACK_DAYS - 1)
+        while day <= today:
+            if day in active_dates:
+                run += 1
+                best_streak = max(best_streak, run)
+            else:
+                run = 0
+            day += timedelta(days=1)
+
+        days = []
+        for offset in range(6, -1, -1):
+            day = today - timedelta(days=offset)
+            days.append(
+                {
+                    "date": day.isoformat(),
+                    "weekday": day.weekday(),
+                    "active": day in active_dates,
+                    "count": counts.get(day, 0),
+                }
+            )
+
+        return Response(
+            {
+                "days": days,
+                "current_streak": current_streak,
+                "best_streak": best_streak,
+                "week_active_count": sum(1 for entry in days if entry["active"]),
+            }
+        )
 
 
 class ContentViewMarkView(APIView):

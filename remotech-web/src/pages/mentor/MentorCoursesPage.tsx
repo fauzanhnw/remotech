@@ -94,7 +94,7 @@ export function MentorCoursesPage() {
   }
 
   return (
-    <section className="mx-auto max-w-7xl px-4 py-10 xl:px-16 md:mx-8">
+    <section className="mx-auto max-w px-4 py-10 xl:px-16 md:mx-8">
       <div className="mb flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-[#08060d]">My Courses</h1>
@@ -127,7 +127,7 @@ export function MentorCoursesPage() {
 
       <div className="mt-6">
         {loading ? (
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-2 gap-6 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {Array.from({ length: 6 }).map((_, index) => (
               <Skeleton key={index} active paragraph={{ rows: 4 }} />
             ))}
@@ -143,7 +143,7 @@ export function MentorCoursesPage() {
           />
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-6 sm:grid-cols-2 md:grid-cols-3">
+            <div className="grid grid-cols-2 gap-6 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {courses.results.map((course) => (
                 <CourseCard
                   key={course.id}

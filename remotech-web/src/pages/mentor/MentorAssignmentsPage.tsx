@@ -106,7 +106,7 @@ export function MentorAssignmentsPage() {
   const pendingTotal = visibleCards.reduce((sum, card) => sum + card.pending, 0)
 
   return (
-    <section className="mx-auto max-w-7xl px-4 pt-8 pb-16 md:mx-8 xl:px-16">
+    <section className="mx-auto max-w px-4 pt-8 pb-16 md:mx-8 xl:px-16">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold text-[#08060d]">Penilaian Penugasan</h2>
@@ -149,7 +149,7 @@ export function MentorAssignmentsPage() {
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4">
           {Array.from({ length: 6 }).map((_, index) => (
             <Skeleton key={index} active paragraph={{ rows: 3 }} />
           ))}
@@ -168,7 +168,7 @@ export function MentorAssignmentsPage() {
           className="py-16"
         />
       ) : (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4">
           {visibleCards.map((card) => (
             <Link
               key={card.module}

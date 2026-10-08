@@ -22,6 +22,32 @@ export interface CourseProgressSummary {
   total: number
   /** Jumlah module yang ditandai selesai user. */
   completed: number
-  /** Persen pembulatan (0 bila `total` 0). */
+  /** Persen pembulatan (bila `total` 0). */
   percent: number
+}
+
+/** GET /progress/activity/ — satu hari pada grafik streak (zona WIB). */
+export interface DayActivity {
+  /** Tanggal ISO `YYYY-MM-DD` dalam zona WIB. */
+  date: string
+  /** Hari dalam minggu: Senin = 0 … Minggu = 6. */
+  weekday: number
+  /** True bila ada aktivitas (buka konten / selesai module / submit) hari itu. */
+  active: boolean
+  /** Jumlah kejadian aktivitas hari itu. */
+  count: number
+}
+
+/**
+ * GET /progress/activity/ — grafik 7 hari terakhir (terakhir = hari ini)
+ * plus streak belajar; hari dihitung dalam zona WIB.
+ */
+export interface WeeklyActivity {
+  days: DayActivity[]
+  /** Hari beruntun sampai hari ini; bila hari ini belum aktif, berawal dari kemarin. */
+  current_streak: number
+  /** Hari beruntun terpanjang dalam 365 hari terakhir. */
+  best_streak: number
+  /** Jumlah hari aktif di antara 7 hari `days`. */
+  week_active_count: number
 }

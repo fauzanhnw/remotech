@@ -231,12 +231,12 @@ export function MyAssignmentsPage() {
   }
 
   return (
-    <section className="mx-auto max-w-7xl px-4 py-10 pb-16 md:mx-8 xl:px-16">
+    <section className="mx-auto max-w px-4 py-10 pb-16 md:mx-8 xl:px-16">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-3xl font-bold text-[#08060d]">My Assignment</h1>
           <p className="mt-2 text-gray-600">
-            Tugas dan kuis dari course yang kamu ikuti.
+            Tugas dan kuis dari course yang kamu ambil
             {summary && (
               <span className="ml-1 font-medium text-orange-600">{summary}</span>
             )}
@@ -284,7 +284,7 @@ export function MyAssignmentsPage() {
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
           {Array.from({ length: 6 }).map((_, index) => (
             <Skeleton key={index} active paragraph={{ rows: 3 }} />
           ))}
@@ -298,7 +298,7 @@ export function MyAssignmentsPage() {
           )}
         </Empty>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
           {visible.map((item) => (
             <Link
               key={item.module}

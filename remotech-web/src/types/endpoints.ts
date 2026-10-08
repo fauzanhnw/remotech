@@ -52,6 +52,7 @@ import type {
   CourseProgressSummary,
   UserProgress,
   UserProgressCreate,
+  WeeklyActivity,
 } from './progress'
 import type {
   GradeEssayPayload,
@@ -138,6 +139,7 @@ export interface ApiEndpoints {
   'POST /progress/': { body: UserProgressCreate; response: UserProgress }
   'DELETE /progress/{id}/': { response: void }
   'GET /progress/summary/': { response: CourseProgressSummary[] }
+  'GET /progress/activity/': { response: WeeklyActivity }
 
   // Content view (konten dibuka — syarat auto-complete module text/video)
   'GET /content-view/': { params?: { course?: number }; response: ContentViewedList }
