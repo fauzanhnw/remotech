@@ -45,6 +45,7 @@ import type {
   ModuleListParams,
   OrderListParams,
   ProgressListParams,
+  QuestionListParams,
   SubmissionListParams,
 } from './params'
 import type {
@@ -52,7 +53,18 @@ import type {
   UserProgress,
   UserProgressCreate,
 } from './progress'
-import type { Submission, SubmissionCreate } from './submission'
+import type {
+  GradeEssayPayload,
+  Submission,
+  SubmissionCreate,
+} from './submission'
+import type {
+  Question,
+  QuestionCreate,
+  QuizSession,
+  UserAnswer,
+  UserAnswerUpsert,
+} from './quiz'
 import type { UploadResponse } from './upload'
 import type { CurrentUser } from './user'
 
@@ -146,6 +158,27 @@ export interface ApiEndpoints {
   'GET /submission/{id}/': { response: Submission }
   'PATCH /submission/{id}/': { body: Partial<SubmissionCreate>; response: Submission }
   'DELETE /submission/{id}/': { response: void }
+  // Penilaian bagian essay quiz (mentor) — total dibatasi poin module.
+  'POST /submission/{id}/grade-essay/': { body: GradeEssayPayload; response: Submission }
+
+  // Question (soal quiz — hanya module berkategori quiz)
+  'GET /question/': { params?: QuestionListParams; response: Paginated<Question> }
+  'POST /question/': { body: QuestionCreate; response: Question }
+  'GET /question/{id}/': { response: Question }
+  'PATCH /question/{id}/': { body: Partial<QuestionCreate>; response: Question }
+  'DELETE /question/{id}/': { response: void }
+
+  // User answer (jawaban per soal — upsert per submission + soal)
+  'GET /user-answer/': {
+    params?: { submission?: number; question?: number }
+    response: Paginated<UserAnswer>
+  }
+  'POST /user-answer/': { body: UserAnswerUpsert; response: UserAnswer }
+  'DELETE /user-answer/{id}/': { response: void }
+
+  // Quiz flow (student): buka/resume → jawab → submit
+  'POST /module/{id}/quiz/start/': { body?: never; response: QuizSession }
+  'POST /module/{id}/quiz/submit/': { body: { submission: number }; response: QuizSession }
 
   // Upload
   'POST /upload/image/': { body: FormData; response: UploadResponse }

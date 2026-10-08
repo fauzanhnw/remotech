@@ -1,14 +1,12 @@
 import { LinkOutlined, UploadOutlined } from '@ant-design/icons'
-import { Button, Input, Skeleton } from 'antd'
+import { Button, Empty, Input, Skeleton, Tag } from 'antd'
 import { useEffect, useState } from 'react'
 
 import { useAuth } from '@/auth/AuthContext'
 import {
-  createAssignment,
   createSubmission,
   listAssignments,
   listSubmissions,
-  markModuleComplete,
   notifyError,
   notifySuccess,
   updateSubmission,
@@ -41,6 +39,7 @@ const validateUrl = (value: string): string | null => {
  * Panel pengumpulan tugas untuk module berkategori `upload`.
  * Student menempelkan tautan hasil kerja (mis. Google Drive) — dibuat sebagai
  * Submission untuk dinilai mentor; module ikut otomatis ditandai selesai.
+ * Tugas dibuat mentor (Assignment) — bila belum ada, panel menampilkan empty state.
  */
 export function AssignmentSubmitPanel({ module, onSubmitted }: AssignmentSubmitPanelProps) {
   const { user } = useAuth()
@@ -92,34 +91,19 @@ export function AssignmentSubmitPanel({ module, onSubmitted }: AssignmentSubmitP
   }, [module.id, userId])
 
   const handleSubmit = async () => {
+    if (!assignment) return
     const validationError = validateUrl(url)
     setUrlError(validationError)
     if (validationError) return
 
     setSubmitting(true)
     try {
-      let target = assignment
-      if (!target) {
-        // Belum ada assignment untuk module — buat saat pengumpulan pertama.
-        target = await createAssignment({
-          course_module: module.id,
-          name: module.title,
-          description: module.description || 'Kumpulkan tautan hasil pekerjaanmu di sini.',
-        })
-        setAssignment(target)
-      }
-
       const trimmed = url.trim()
       const saved = submission
         ? await updateSubmission(submission.id, { submission_url: trimmed })
-        : await createSubmission({ assignment: target.id, submission_url: trimmed })
+        : await createSubmission({ assignment: assignment.id, submission_url: trimmed })
       setSubmission(saved)
       setUrl(trimmed)
-
-      // Jalur PATCH tidak otomatis menandai selesai di backend — jaga-jaga.
-      await markModuleComplete(module.id, {
-        meta: { suppressErrorToast: true },
-      }).catch(() => undefined)
 
       notifySuccess('Tugas berhasil dikumpulkan.')
       onSubmitted()
@@ -144,6 +128,12 @@ export function AssignmentSubmitPanel({ module, onSubmitted }: AssignmentSubmitP
 
       {loading ? (
         <Skeleton className="mt-4" active paragraph={{ rows: 3 }} />
+      ) : !assignment ? (
+        <Empty
+          className="mt-4"
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+          description="Belum ada tugas dari mentor untuk module ini."
+        />
       ) : (
         <div className="mt-4 space-y-3">
           <label htmlFor="submission-url" className="block text-sm font-medium text-[#08060d]">
@@ -187,17 +177,28 @@ export function AssignmentSubmitPanel({ module, onSubmitted }: AssignmentSubmitP
           </div>
 
           {submission && (
-            <p className="text-xs text-gray-500">
-              Terkumpul{' '}
-              {new Date(submission.submit_on).toLocaleString('id-ID', {
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
-              {submission.score > 0 && ` · Skor: ${submission.score}`}
-            </p>
+            <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
+              <span>
+                Terkumpul{' '}
+                {new Date(submission.submit_on).toLocaleString('id-ID', {
+                  day: 'numeric',
+                  month: 'long',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </span>
+              {submission.is_graded ? (
+                <Tag color="green" className="mr-0">
+                  Skor: {submission.score}
+                  {submission.max_score != null && `/${submission.max_score}`}
+                </Tag>
+              ) : (
+                <Tag color="orange" className="mr-0">
+                  Menunggu penilaian mentor
+                </Tag>
+              )}
+            </div>
           )}
         </div>
       )}

@@ -1,3 +1,5 @@
+import type { AxiosRequestConfig } from 'axios'
+
 import { deleteJson, getJson, patchJson, postJson } from './shared'
 import type { Paginated } from '@/types/api'
 import type { SubmissionListParams } from '@/types/params'
@@ -26,8 +28,13 @@ export function createSubmission(payload: SubmissionCreate): Promise<Submission>
 export function updateSubmission(
   id: number,
   payload: Partial<SubmissionCreate>,
+  config?: AxiosRequestConfig,
 ): Promise<Submission> {
-  return patchJson<Submission, Partial<SubmissionCreate>>(`/submission/${id}/`, payload)
+  return patchJson<Submission, Partial<SubmissionCreate>>(
+    `/submission/${id}/`,
+    payload,
+    config,
+  )
 }
 
 /** DELETE /submission/{id}/ */

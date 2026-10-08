@@ -12,6 +12,15 @@ def validate_module_content(attrs, instance=None):
         raise ValidationError({"module": "This field is required."})
 
     category = module.module_category
+    if category == CourseModule.Category.QUIZ:
+        raise ValidationError(
+            {
+                "module": [
+                    "Module quiz tidak memakai content — kelola soalnya "
+                    "lewat resource question."
+                ]
+            }
+        )
     if category == CourseModule.Category.TEXT:
         content_text = attrs.get("content_text")
         if content_text is None and instance is not None:

@@ -14,8 +14,12 @@ import { Button, Collapse, Empty, Popconfirm, Skeleton, Tag } from 'antd'
 import { useCallback, useEffect, useState } from 'react'
 
 import {
+  deleteAssignment,
   deleteModule,
   deleteModuleContent,
+  deleteQuestion,
+  listAssignments,
+  listQuestions,
   listModuleContents,
   listModules,
   notifyError,
@@ -23,10 +27,13 @@ import {
   updateModule,
   updateModuleContent,
 } from '@/api'
-import type { ModuleContent } from '@/types/content'
+import type { Assignment, ModuleContent } from '@/types/content'
 import type { CourseModule, ModuleCategory } from '@/types/course'
+import type { Question } from '@/types/quiz'
+import { AssignmentFormModal } from './AssignmentFormModal'
 import { ContentFormModal } from './ContentFormModal'
 import { ModuleFormModal } from './ModuleFormModal'
+import { QuestionFormModal } from './QuestionFormModal'
 
 interface ModuleSectionProps {
   courseId: number
@@ -41,7 +48,17 @@ const CATEGORY_ICONS: Record<ModuleCategory, ReactNode> = {
   quiz: <QuestionCircleOutlined />,
 }
 
-/** Pengelolaan module + konten course: CRUD, reorder ↑↓, hapus (Popconfirm). */
+const QUESTION_TYPE_LABELS: Record<string, string> = {
+  choices: 'Pilihan Ganda',
+  boolean: 'Benar/Salah',
+  essai: 'Essay',
+}
+
+/**
+ * Pengelolaan module + isinya: CRUD module, reorder ↑↓, hapus.
+ * Isi per kategori: text/video → konten; upload → assignment (tugas);
+ * quiz → daftar soal + opsi.
+ */
 export function ModuleSection({ courseId, canManage }: ModuleSectionProps) {
   const [modules, setModules] = useState<CourseModule[]>([])
   const [modulesLoading, setModulesLoading] = useState(true)
@@ -49,6 +66,12 @@ export function ModuleSection({ courseId, canManage }: ModuleSectionProps) {
 
   const [contents, setContents] = useState<Record<number, ModuleContent[]>>({})
   const [contentsStatus, setContentsStatus] = useState<Record<number, 'loading' | 'loaded'>>({})
+  const [assignments, setAssignments] = useState<Record<number, Assignment | null>>({})
+  const [assignmentStatus, setAssignmentStatus] = useState<
+    Record<number, 'loading' | 'loaded'>
+  >({})
+  const [questions, setQuestions] = useState<Record<number, Question[]>>({})
+  const [questionStatus, setQuestionStatus] = useState<Record<number, 'loading' | 'loaded'>>({})
   const [activeKeys, setActiveKeys] = useState<string[]>([])
 
   const [busy, setBusy] = useState<Record<string, boolean>>({})
@@ -61,6 +84,16 @@ export function ModuleSection({ courseId, canManage }: ModuleSectionProps) {
     module: CourseModule | null
     content: ModuleContent | null
   }>({ open: false, module: null, content: null })
+  const [assignmentModal, setAssignmentModal] = useState<{
+    open: boolean
+    module: CourseModule | null
+    assignment: Assignment | null
+  }>({ open: false, module: null, assignment: null })
+  const [questionModal, setQuestionModal] = useState<{
+    open: boolean
+    module: CourseModule | null
+    question: Question | null
+  }>({ open: false, module: null, question: null })
 
   const refreshModules = () => setModulesKey((value) => value + 1)
 
@@ -92,7 +125,49 @@ export function ModuleSection({ courseId, canManage }: ModuleSectionProps) {
     [contentsStatus],
   )
 
+  const loadAssignment = useCallback(
+    async (moduleId: number, force = false) => {
+      if (!force && assignmentStatus[moduleId]) return
+      setAssignmentStatus((prev) => ({ ...prev, [moduleId]: 'loading' }))
+      try {
+        const page = await listAssignments({ course_module: moduleId, page_size: 1 })
+        setAssignments((prev) => ({ ...prev, [moduleId]: page.results[0] ?? null }))
+        setAssignmentStatus((prev) => ({ ...prev, [moduleId]: 'loaded' }))
+      } catch (error) {
+        setAssignmentStatus((prev) => {
+          const next = { ...prev }
+          delete next[moduleId]
+          return next
+        })
+        notifyError(error)
+      }
+    },
+    [assignmentStatus],
+  )
+
+  const loadQuestions = useCallback(
+    async (moduleId: number, force = false) => {
+      if (!force && questionStatus[moduleId]) return
+      setQuestionStatus((prev) => ({ ...prev, [moduleId]: 'loading' }))
+      try {
+        const page = await listQuestions({ module: moduleId, page_size: 100 })
+        setQuestions((prev) => ({ ...prev, [moduleId]: page.results }))
+        setQuestionStatus((prev) => ({ ...prev, [moduleId]: 'loaded' }))
+      } catch (error) {
+        setQuestionStatus((prev) => {
+          const next = { ...prev }
+          delete next[moduleId]
+          return next
+        })
+        notifyError(error)
+      }
+    },
+    [questionStatus],
+  )
+
   const refreshContents = (moduleId: number) => loadContents(moduleId, true)
+  const refreshAssignment = (moduleId: number) => loadAssignment(moduleId, true)
+  const refreshQuestions = (moduleId: number) => loadQuestions(moduleId, true)
 
   useEffect(() => {
     let cancelled = false
@@ -162,6 +237,16 @@ export function ModuleSection({ courseId, canManage }: ModuleSectionProps) {
         delete next[module.id]
         return next
       })
+      setAssignments((prev) => {
+        const next = { ...prev }
+        delete next[module.id]
+        return next
+      })
+      setQuestions((prev) => {
+        const next = { ...prev }
+        delete next[module.id]
+        return next
+      })
       refreshModules()
     } catch (error) {
       notifyError(error)
@@ -208,9 +293,39 @@ export function ModuleSection({ courseId, canManage }: ModuleSectionProps) {
     }
   }
 
+  const handleDeleteAssignment = async (module: CourseModule) => {
+    const assignment = assignments[module.id]
+    if (!assignment) return
+    try {
+      await deleteAssignment(assignment.id)
+      notifySuccess('Tugas berhasil dihapus.')
+      await refreshAssignment(module.id)
+    } catch (error) {
+      notifyError(error)
+    }
+  }
+
+  const handleDeleteQuestion = async (moduleId: number, question: Question) => {
+    try {
+      await deleteQuestion(question.id)
+      notifySuccess('Soal berhasil dihapus.')
+      await refreshQuestions(moduleId)
+    } catch (error) {
+      // Termasuk penolakan bila soal sudah pernah dijawab (toast interceptor).
+      notifyError(error)
+    }
+  }
+
   const handlePanelChange = (keys: string[]) => {
     setActiveKeys(keys)
-    keys.forEach((key) => void loadContents(Number(key)))
+    keys.forEach((key) => {
+      const moduleId = Number(key)
+      const module = modules.find((item) => item.id === moduleId)
+      if (!module) return
+      if (module.module_category === 'upload') void loadAssignment(moduleId)
+      else if (module.module_category === 'quiz') void loadQuestions(moduleId)
+      else void loadContents(moduleId)
+    })
   }
 
   const renderContentList = (module: CourseModule) => {
@@ -307,6 +422,167 @@ export function ModuleSection({ courseId, canManage }: ModuleSectionProps) {
           )
         })}
       </ul>
+    )
+  }
+
+  const renderAssignment = (module: CourseModule) => {
+    const status = assignmentStatus[module.id]
+    const assignment = assignments[module.id] ?? null
+
+    if (status === 'loading') return <Skeleton active paragraph={{ rows: 2 }} />
+
+    if (!assignment) {
+      return (
+        <div className="rounded-lg border border-dashed border-gray-300 p-3">
+          <p className="text-sm text-gray-500">
+            Belum ada tugas. Student mengumpulkan tautan hasil kerja melalui tugas ini.
+          </p>
+          {canManage && (
+            <Button
+              className="mt-2"
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => setAssignmentModal({ open: true, module, assignment: null })}
+            >
+              Buat Tugas
+            </Button>
+          )}
+        </div>
+      )
+    }
+
+    return (
+      <div className="flex items-start gap-3 rounded-lg border border-gray-200 bg-white p-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-[#08060d]">{assignment.name}</p>
+          <p className="mt-1 whitespace-pre-line text-sm text-gray-600">
+            {assignment.description || 'Tanpa deskripsi.'}
+          </p>
+          <p className="mt-1 text-xs text-gray-400">
+            Tempat student mengumpulkan tautan hasil kerja.
+          </p>
+        </div>
+        {canManage && (
+          <div className="flex shrink-0 gap-1">
+            <Button
+              size="small"
+              type="text"
+              aria-label="Edit tugas"
+              icon={<EditOutlined />}
+              onClick={() =>
+                setAssignmentModal({ open: true, module, assignment })
+              }
+            />
+            <Popconfirm
+              title="Hapus tugas ini?"
+              description="Submission student pada tugas ini ikut terhapus permanen."
+              okText="Hapus"
+              okButtonProps={{ danger: true }}
+              cancelText="Batal"
+              onConfirm={() => void handleDeleteAssignment(module)}
+            >
+              <Button
+                size="small"
+                type="text"
+                danger
+                aria-label="Hapus tugas"
+                icon={<DeleteOutlined />}
+              />
+            </Popconfirm>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  const renderQuestions = (module: CourseModule) => {
+    const status = questionStatus[module.id]
+    const list = questions[module.id] ?? []
+
+    return (
+      <div>
+        {status === 'loading' ? (
+          <Skeleton active paragraph={{ rows: 3 }} />
+        ) : list.length === 0 ? (
+          <p className="text-sm text-gray-500">Belum ada soal untuk quiz ini.</p>
+        ) : (
+          <ul className="list-none space-y-2 p-0">
+            {list.map((question, index) => (
+              <li
+                key={question.id}
+                className="flex items-start gap-3 rounded-lg border border-gray-200 bg-white p-3"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-semibold text-gray-400">
+                      {index + 1}.
+                    </span>
+                    <Tag className="mr-0">
+                      {QUESTION_TYPE_LABELS[question.question_type] ??
+                        question.question_type}
+                    </Tag>
+                    <span className="text-sm font-medium text-[#08060d]">
+                      {question.question_text}
+                    </span>
+                  </div>
+                  {question.question_type !== 'essai' && (
+                    <ul className="mt-2 list-none space-y-1 p-0 pl-6">
+                      {question.options.map((option, optionIndex) => (
+                        <li key={option.id} className="text-xs text-gray-600">
+                          {String.fromCharCode(65 + optionIndex)}. {option.option_text}
+                          {option.is_correct && (
+                            <span className="ml-1 font-semibold text-emerald-600">
+                              (benar)
+                            </span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                {canManage && (
+                  <div className="flex shrink-0 gap-1">
+                    <Button
+                      size="small"
+                      type="text"
+                      aria-label="Edit soal"
+                      icon={<EditOutlined />}
+                      onClick={() => setQuestionModal({ open: true, module, question })}
+                    />
+                    <Popconfirm
+                      title="Hapus soal ini?"
+                      description="Tidak bisa dihapus bila sudah ada pengerjaan student."
+                      okText="Hapus"
+                      okButtonProps={{ danger: true }}
+                      cancelText="Batal"
+                      onConfirm={() => void handleDeleteQuestion(module.id, question)}
+                    >
+                      <Button
+                        size="small"
+                        type="text"
+                        danger
+                        aria-label="Hapus soal"
+                        icon={<DeleteOutlined />}
+                      />
+                    </Popconfirm>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {canManage && (
+          <Button
+            className="mt-3"
+            type="dashed"
+            icon={<PlusOutlined />}
+            onClick={() => setQuestionModal({ open: true, module, question: null })}
+          >
+            Tambah Soal
+          </Button>
+        )}
+      </div>
     )
   }
 
@@ -407,20 +683,26 @@ export function ModuleSection({ courseId, canManage }: ModuleSectionProps) {
                   </p>
                 )}
 
-                {renderContentList(module)}
+                {module.module_category === 'upload' && renderAssignment(module)}
+                {module.module_category === 'quiz' && renderQuestions(module)}
+                {(module.module_category === 'text' ||
+                  module.module_category === 'video') &&
+                  renderContentList(module)}
 
-                {canManage && (
-                  <Button
-                    className="mt-3"
-                    type="dashed"
-                    icon={<PlusOutlined />}
-                    onClick={() =>
-                      setContentModal({ open: true, module, content: null })
-                    }
-                  >
-                    Add Content
-                  </Button>
-                )}
+                {canManage &&
+                  (module.module_category === 'text' ||
+                    module.module_category === 'video') && (
+                    <Button
+                      className="mt-3"
+                      type="dashed"
+                      icon={<PlusOutlined />}
+                      onClick={() =>
+                        setContentModal({ open: true, module, content: null })
+                      }
+                    >
+                      Add Content
+                    </Button>
+                  )}
               </div>
             ),
           }))}
@@ -442,6 +724,30 @@ export function ModuleSection({ courseId, canManage }: ModuleSectionProps) {
         onClose={() => setContentModal({ open: false, module: null, content: null })}
         onSaved={() => {
           if (contentModal.module) refreshContents(contentModal.module.id)
+        }}
+      />
+
+      <AssignmentFormModal
+        open={assignmentModal.open}
+        module={assignmentModal.module}
+        assignment={assignmentModal.assignment}
+        onClose={() =>
+          setAssignmentModal({ open: false, module: null, assignment: null })
+        }
+        onSaved={() => {
+          if (assignmentModal.module) refreshAssignment(assignmentModal.module.id)
+        }}
+      />
+
+      <QuestionFormModal
+        open={questionModal.open}
+        module={questionModal.module?.id ?? 0}
+        question={questionModal.question}
+        onClose={() =>
+          setQuestionModal({ open: false, module: null, question: null })
+        }
+        onSaved={() => {
+          if (questionModal.module) refreshQuestions(questionModal.module.id)
         }}
       />
     </section>

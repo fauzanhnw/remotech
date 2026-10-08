@@ -96,6 +96,9 @@ export function CurriculumList({
     if (status === 'loading') return <Skeleton active paragraph={{ rows: 2 }} />
 
     if (!status || list.length === 0) {
+      // Module upload: panel tugas (Kumpulkan tugas) sudah jelas tanpa daftar
+      // konten — kosong berarti tidak ada lampiran, jangan tampilkan teks apa pun.
+      if (module.module_category === 'upload') return null
       return <p className="text-sm text-gray-500">Belum ada konten untuk module ini.</p>
     }
 
@@ -164,34 +167,49 @@ export function CurriculumList({
             onChange={(keys) => handlePanelChange(keys as string[])}
             items={modules.map((module) => {
               const isDone = completedIds.has(module.id)
+              // Progres upload/quiz diatur backend (submit tugas / quiz).
+              const autoManaged =
+                module.module_category === 'upload' ||
+                module.module_category === 'quiz'
 
               return {
                 key: String(module.id),
                 label: (
                   <span className="flex min-w-0 items-center gap-2">
+                    {!autoManaged && (
+                      <span
+                        onClick={(event) => event.stopPropagation()}
+                        onKeyDown={(event) => event.stopPropagation()}
+                      >
+                        <Button
+                          size="small"
+                          type="text"
+                          aria-label={isDone ? 'Batalkan tanda selesai' : 'Tandai selesai'}
+                          loading={busyModuleId === module.id}
+                          icon={
+                            isDone ? (
+                              <CheckCircleFilled className="text-emerald-500" />
+                            ) : (
+                              <CheckCircleOutlined />
+                            )
+                          }
+                          onClick={() => onToggleComplete(module)}
+                        />
+                      </span>
+                    )}
                     <span
-                      onClick={(event) => event.stopPropagation()}
-                      onKeyDown={(event) => event.stopPropagation()}
+                      className={
+                        isDone && autoManaged
+                          ? 'flex min-w-0 items-center gap-2 text-emerald-600'
+                          : 'flex min-w-0 items-center gap-2'
+                      }
                     >
-                      <Button
-                        size="small"
-                        type="text"
-                        aria-label={isDone ? 'Batalkan tanda selesai' : 'Tandai selesai'}
-                        loading={busyModuleId === module.id}
-                        icon={
-                          isDone ? (
-                            <CheckCircleFilled className="text-emerald-500" />
-                          ) : (
-                            <CheckCircleOutlined />
-                          )
-                        }
-                        onClick={() => onToggleComplete(module)}
-                      />
+                      {autoManaged && isDone && <CheckCircleFilled />}
+                      <span className="text-[#1677ff]">
+                        {CATEGORY_ICONS[module.module_category]}
+                      </span>
+                      <span className="truncate font-medium">{module.title}</span>
                     </span>
-                    <span className="text-[#1677ff]">
-                      {CATEGORY_ICONS[module.module_category]}
-                    </span>
-                    <span className="truncate font-medium">{module.title}</span>
                     <Tag className="mr-0 shrink-0">{module.point} poin</Tag>
                   </span>
                 ),
@@ -213,7 +231,18 @@ export function CurriculumList({
                         Kumpulkan tugas
                       </Button>
                     )}
-                    {renderContentItems(module)}
+                    {module.module_category === 'quiz' && onSelectModule && (
+                      <Button
+                        block
+                        className="mb-3"
+                        type={selectedModuleId === module.id ? 'primary' : 'default'}
+                        icon={<QuestionCircleOutlined />}
+                        onClick={() => onSelectModule(module)}
+                      >
+                        {isDone ? 'Lihat Hasil Kuis' : 'Mulai Kuis'}
+                      </Button>
+                    )}
+                    {module.module_category !== 'quiz' && renderContentItems(module)}
                   </div>
                 ),
               }

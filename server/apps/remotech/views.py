@@ -3,7 +3,7 @@ from uuid import uuid4
 
 from django.conf import settings
 from django.core.files.storage import default_storage
-from django.db.models import Sum
+from django.db.models import OuterRef, Q, Subquery
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
@@ -32,6 +32,7 @@ from server.apps.remotech.models import (
     Leaderboard,
     LeaderboardDetail,
     ModuleContent,
+    Question,
     Submission,
     UserAnswer,
     UserBadge,
@@ -51,6 +52,7 @@ from server.apps.remotech.serializers import (
     ImageUploadSerializer,
     LeaderboardSerializer,
     ModuleContentSerializer,
+    QuestionSerializer,
     RegisterSerializer,
     SetPasswordSerializer,
     SubmissionSerializer,
@@ -63,6 +65,15 @@ from server.apps.remotech.services.auth import (
     register_user,
     reset_password,
     set_password,
+)
+from server.apps.remotech.services.grading import (
+    compute_auto_score,
+    count_correct_answers,
+    derive_submission_module_id,
+    quiz_submission_scores,
+    split_points,
+    submission_module,
+    upload_submission_scores,
 )
 from server.apps.remotech.services.payment import (
     check_payment_status,
@@ -159,6 +170,139 @@ class CourseModuleViewSet(CourseOwnerMixin, viewsets.ModelViewSet):
         if validated_data is not None and "course" in validated_data:
             return validated_data["course"]
         return instance.course if instance is not None else None
+
+    @action(detail=True, methods=["post"], url_path="quiz/start")
+    def quiz_start(self, request, pk=None):
+        """Buka/resume quiz: draft submission + jawaban yang sudah tersimpan.
+
+        Draft kosong diadopsi agar id submission stabil antar start; draft
+        kosong yang tidak terpakai dibuang agar tidak menumpuk.
+        """
+        module = self.get_object()
+        if module.module_category != CourseModule.Category.QUIZ:
+            raise ValidationError({"module": ["Bukan module quiz."]})
+        if not CourseEnrollment.objects.filter(
+            user=request.user, course=module.course
+        ).exists():
+            raise ValidationError(
+                {"course": ["You are not enrolled in this course."]}
+            )
+
+        questions = list(
+            module.question_set.prefetch_related("questionoption_set").order_by(
+                "sequence", "id"
+            )
+        )
+        if not questions:
+            raise ValidationError({"module": ["Quiz belum memiliki soal."]})
+
+        submission, empty_drafts = find_quiz_submission(request.user, module)
+        if empty_drafts:
+            Submission.objects.filter(
+                id__in=[draft.pk for draft in empty_drafts]
+            ).delete()
+        if submission is None:
+            submission = Submission.objects.create(
+                user=request.user,
+                assignment=None,
+                submission_url="",
+                score=0,
+                reviewed_by="",
+            )
+
+        completed = bool(submission.reviewed_by)
+        payload = quiz_result_payload(submission, questions, reveal=completed)
+        payload["completed"] = completed
+        if completed:
+            payload["result"] = quiz_result_summary(submission, questions, module)
+        return Response(payload)
+
+    @action(detail=True, methods=["post"], url_path="quiz/submit")
+    def quiz_submit(self, request, pk=None):
+        """Selesaikan quiz: semua soal wajib terjawab, lalu skor dihitung.
+
+        Bagian pilihan dinilai otomatis (`reviewed_by="system"` bila tanpa
+        essay); module ber-essay menyisakan `reviewed_by` kosong sampai mentor
+        menilai lewat `POST /submission/{id}/grade-essay/`.
+        """
+        module = self.get_object()
+        if module.module_category != CourseModule.Category.QUIZ:
+            raise ValidationError({"module": ["Bukan module quiz."]})
+        if not CourseEnrollment.objects.filter(
+            user=request.user, course=module.course
+        ).exists():
+            raise ValidationError(
+                {"course": ["You are not enrolled in this course."]}
+            )
+
+        submission_id = request.data.get("submission")
+        if not submission_id:
+            raise ValidationError(
+                {"submission": ["This field is required."]}
+            )
+        submission = get_object_or_404(
+            Submission,
+            pk=submission_id,
+            user=request.user,
+            assignment__isnull=True,
+        )
+        if submission.reviewed_by:
+            raise ValidationError(
+                {"submission": ["Quiz sudah pernah disubmit."]}
+            )
+        module_id = derive_submission_module_id(submission)
+        if module_id is not None and module_id != module.pk:
+            raise ValidationError(
+                {"submission": ["Submission ini bukan untuk module tersebut."]}
+            )
+
+        questions = list(
+            module.question_set.prefetch_related("questionoption_set").order_by(
+                "sequence", "id"
+            )
+        )
+        if not questions:
+            raise ValidationError({"module": ["Quiz belum memiliki soal."]})
+
+        answered_ids = set(
+            UserAnswer.objects.filter(submission=submission).values_list(
+                "question_id", flat=True
+            )
+        )
+        missing = [question.pk for question in questions if question.pk not in answered_ids]
+        if missing:
+            raise ValidationError(
+                {
+                    "answers": [
+                        "Lengkapi semua jawaban sebelum mengumpulkan quiz. "
+                        f"Masih ada {len(missing)} soal yang belum dijawab."
+                    ]
+                }
+            )
+
+        weights = split_points(module, questions)
+        correct = count_correct_answers(submission, questions)
+        auto_score = compute_auto_score(weights, correct)
+        has_essay = weights.essay_count > 0
+
+        submission.score = auto_score
+        submission.reviewed_by = "" if has_essay else "system"
+        submission.save(update_fields=["score", "reviewed_by"])
+
+        UserProgress.objects.update_or_create(
+            module=module,
+            user=request.user,
+            defaults={
+                "status": UserProgress.ProgressStatus.FINISH,
+                "complete_at": timezone.now(),
+            },
+        )
+        sync_leaderboard(request.user, module.course)
+
+        payload = quiz_result_payload(submission, questions, reveal=True)
+        payload["completed"] = True
+        payload["result"] = quiz_result_summary(submission, questions, module)
+        return Response(payload)
 
 
 class ModuleContentViewSet(CourseOwnerMixin, viewsets.ModelViewSet):
@@ -288,13 +432,29 @@ def sync_leaderboard(user, course):
     """Recompute total poin + detail leaderboard user dari progress `finish`.
 
     Idempoten — aman dipanggil berulang, termasuk siklus batalkan→tandai lagi.
+    Module text/video memberi `module.point` penuh; module upload/quiz memberi
+    skor submission terakhirnya (0 bila belum ada atau belum dinilai).
     """
     finished = UserProgress.objects.filter(
         user=user,
         module__course=course,
         status=UserProgress.ProgressStatus.FINISH,
     )
-    total_points = finished.aggregate(total=Sum("module__point"))["total"] or 0
+    finished_ids = list(finished.values_list("module_id", flat=True))
+    upload_scores = upload_submission_scores(user)
+    quiz_scores = quiz_submission_scores(user)
+
+    points_by_module = {}
+    for module in CourseModule.objects.filter(id__in=finished_ids):
+        if module.module_category == CourseModule.Category.UPLOAD:
+            point = upload_scores.get(module.id, 0)
+        elif module.module_category == CourseModule.Category.QUIZ:
+            point = quiz_scores.get(module.id, 0)
+        else:
+            point = module.point
+        points_by_module[module.id] = point
+
+    total_points = sum(points_by_module.values())
     leaderboard, _ = Leaderboard.objects.get_or_create(
         user=user, course=course, defaults={"total_points": total_points}
     )
@@ -302,16 +462,19 @@ def sync_leaderboard(user, course):
         leaderboard.total_points = total_points
         leaderboard.save(update_fields=["total_points"])
 
-    finished_ids = set(finished.values_list("module_id", flat=True))
     LeaderboardDetail.objects.filter(leaderboard=leaderboard).exclude(
         module_id__in=finished_ids
     ).delete()
-    for module in CourseModule.objects.filter(id__in=finished_ids):
-        LeaderboardDetail.objects.get_or_create(
+    for module_id, point in points_by_module.items():
+        module = CourseModule.objects.get(pk=module_id)
+        detail, created = LeaderboardDetail.objects.get_or_create(
             leaderboard=leaderboard,
             module=module,
-            defaults={"description": module.title, "point": module.point},
+            defaults={"description": module.title, "point": point},
         )
+        if not created and detail.point != point:
+            detail.point = point
+            detail.save(update_fields=["point"])
     return leaderboard
 
 
@@ -335,6 +498,18 @@ class UserProgressViewSet(viewsets.ModelViewSet):
         ).exists()
         if not enrolled:
             raise ValidationError({"course": ["You are not enrolled in this course."]})
+        if module.module_category in (
+            CourseModule.Category.UPLOAD,
+            CourseModule.Category.QUIZ,
+        ):
+            raise ValidationError(
+                {
+                    "module": [
+                        "Module upload/quiz diselesaikan lewat pengumpulan "
+                        "tugas atau pengerjaan quiz, bukan penandaan manual."
+                    ]
+                }
+            )
         progress, _ = UserProgress.objects.update_or_create(
             module=module,
             user=request.user,
@@ -453,10 +628,73 @@ class ContentViewListView(APIView):
         )
 
 
-class AssignmentViewSet(viewsets.ModelViewSet):
-    queryset = Assignment.objects.order_by("id")
+class AssignmentViewSet(CourseOwnerMixin, viewsets.ModelViewSet):
+    """Pengumpulan penugasan module `upload`.
+
+    Mentor membuat assignment lewat "Add Content" (hanya pemilik course);
+    student lalu mengumpulkan tautan hasil kerjanya sebagai Submission.
+    """
+
+    queryset = Assignment.objects.select_related(
+        "course_module", "course_module__course"
+    ).order_by("id")
     serializer_class = AssignmentSerializer
     filterset_fields = ["course_module"]
+
+    def get_course(self, instance=None, validated_data=None):
+        if validated_data is not None and "course_module" in validated_data:
+            return validated_data["course_module"].course
+        return instance.course_module.course if instance is not None else None
+
+
+class QuestionViewSet(CourseOwnerMixin, viewsets.ModelViewSet):
+    """Soal + opsi jawaban module quiz (nested `options`).
+
+    List/retrieve publik untuk login; `is_correct`/`explanation` hanya
+    di-reveal ke pemilik course (lihat QuestionSerializer).
+    """
+
+    queryset = (
+        Question.objects.select_related("module", "module__course")
+        .prefetch_related("questionoption_set")
+        .order_by("module", "sequence", "id")
+    )
+    serializer_class = QuestionSerializer
+    filterset_fields = ["module"]
+
+    def get_course(self, instance=None, validated_data=None):
+        if validated_data is not None and "module" in validated_data:
+            return validated_data["module"].course
+        return instance.module.course if instance is not None else None
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context["reveal"] = self._reveal_correctness()
+        return context
+
+    def _reveal_correctness(self):
+        """Kunci jawaban hanya untuk pemilik course module terkait."""
+        user = self.request.user
+        if not user or not user.is_authenticated:
+            return False
+
+        module = None
+        module_id = self.request.query_params.get("module")
+        if module_id and str(module_id).isdigit():
+            module = CourseModule.objects.filter(pk=int(module_id)).first()
+        elif self.action == "retrieve":
+            question = Question.objects.filter(pk=self.kwargs.get("pk")).first()
+            module = question.module if question else None
+        if module is None:
+            return False
+        return module.course.user_id == user.pk
+
+    def perform_destroy(self, instance):
+        if UserAnswer.objects.filter(question__module=instance.module).exists():
+            raise ValidationError(
+                {"detail": ["Quiz sudah ada pengerjaan — soal tidak bisa dihapus."]}
+            )
+        super().perform_destroy(instance)
 
 
 class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
@@ -467,36 +705,386 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
     ordering_fields = ["total_points", "id"]
 
 
+def find_quiz_submission(user, module):
+    """(submission quiz user untuk module, draft-tanpa-jawaban sisanya).
+
+    Module submission quiz diturunkan dari jawabannya. Draft yang belum punya
+    jawaban sama sekali belum bisa diidentifikasi module-nya — bila belum ada
+    submission untuk module ini, draft kosong pertama diadopsi (bukan membuat
+    baru) supaya id submission stabil antar start; sisanya dibuang.
+    """
+    found = None
+    empty_drafts = []
+    candidates = Submission.objects.filter(
+        user=user, assignment__isnull=True
+    ).order_by("id")
+    for submission in candidates:
+        module_id = derive_submission_module_id(submission)
+        if module_id == module.pk:
+            found = submission
+        elif module_id is None:
+            empty_drafts.append(submission)
+
+    if found is None and empty_drafts:
+        found = empty_drafts.pop(0)
+    return found, empty_drafts
+
+
+def quiz_result_payload(submission, questions, reveal):
+    return {
+        "submission": SubmissionSerializer(submission).data,
+        "questions": QuestionSerializer(
+            questions, many=True, context={"reveal": reveal}
+        ).data,
+        "answers": UserAnswerSerializer(
+            UserAnswer.objects.filter(submission=submission), many=True
+        ).data,
+    }
+
+
+def quiz_result_summary(submission, questions, module):
+    """Ringkasan skor quiz untuk response start (sudah selesai) & submit."""
+    weights = split_points(module, questions)
+    correct = count_correct_answers(submission, questions)
+    return {
+        "score": submission.score,
+        "max_score": module.point,
+        "auto_score": compute_auto_score(weights, correct),
+        "auto_max": weights.auto_max,
+        "essay_max": weights.essay_max,
+        "correct": correct,
+        "auto_total": weights.auto_count,
+        "essay_count": weights.essay_count,
+        # Essay ditahan sampai mentor menilai (reviewed_by masih kosong).
+        "pending": weights.essay_count > 0 and submission.reviewed_by == "",
+    }
+
+
 class SubmissionViewSet(viewsets.ModelViewSet):
-    queryset = Submission.objects.order_by("id")
+    """Submission tugas (assignment) & hasil quiz (tanpa assignment).
+
+    Pembacaan: submission milik sendiri atau submission course milik
+    request.user (mentor). Penilaian tugas lewat PATCH `score` (maksimal
+    poin module); penilaian essay quiz lewat action `grade-essay`.
+    """
+
+    queryset = Submission.objects.select_related(
+        "user",
+        "assignment",
+        "assignment__course_module",
+        "assignment__course_module__course",
+    )
     serializer_class = SubmissionSerializer
     filterset_fields = ["assignment", "user"]
+
+    def get_queryset(self):
+        # module diturunkan dari jawaban quiz (assignment kosong)
+        queryset = (
+            super()
+            .get_queryset()
+            .annotate(
+                derived_module=Subquery(
+                    CourseModule.objects.filter(
+                        question__useranswer__submission=OuterRef("pk")
+                    ).values("id")[:1]
+                ),
+                derived_module_title=Subquery(
+                    CourseModule.objects.filter(
+                        question__useranswer__submission=OuterRef("pk")
+                    ).values("title")[:1]
+                ),
+                derived_module_point=Subquery(
+                    CourseModule.objects.filter(
+                        question__useranswer__submission=OuterRef("pk")
+                    ).values("point")[:1]
+                ),
+                derived_course=Subquery(
+                    CourseModule.objects.filter(
+                        question__useranswer__submission=OuterRef("pk")
+                    ).values("course_id")[:1]
+                ),
+                derived_course_title=Subquery(
+                    CourseModule.objects.filter(
+                        question__useranswer__submission=OuterRef("pk")
+                    ).values("course__title")[:1]
+                ),
+            )
+            .order_by("id")
+        )
+
+        user = self.request.user
+        if not user.is_superuser:
+            own_modules = CourseModule.objects.filter(
+                course__user=user
+            ).values_list("id", flat=True)
+            queryset = queryset.filter(
+                Q(user=user)
+                | Q(assignment__course_module_id__in=own_modules)
+                | Q(derived_module__in=own_modules)
+            )
+
+        params = self.request.query_params
+        module = params.get("module")
+        if module and str(module).isdigit():
+            queryset = queryset.filter(
+                Q(assignment__course_module_id=int(module))
+                | Q(derived_module=int(module))
+            )
+        course = params.get("course")
+        if course and str(course).isdigit():
+            course_modules = CourseModule.objects.filter(
+                course_id=int(course)
+            ).values_list("id", flat=True)
+            queryset = queryset.filter(
+                Q(assignment__course_module_id__in=course_modules)
+                | Q(derived_module__in=course_modules)
+            )
+        graded = params.get("graded")
+        if graded == "true":
+            queryset = queryset.exclude(reviewed_by="")
+        elif graded == "false":
+            queryset = queryset.filter(reviewed_by="")
+
+        return queryset
 
     def perform_create(self, serializer):
         assignment = serializer.validated_data["assignment"]
         module = assignment.course_module
-        # user diisi dari request (body diabaikan), submission baru selalu
-        # berstatus belum dinilai.
-        submission = serializer.save(user=self.request.user, score=0, reviewed_by="")
-        enrolled = CourseEnrollment.objects.filter(
-            user=self.request.user, course=module.course
-        ).exists()
-        if enrolled:
+        user = self.request.user
+
+        # Satu submission per (assignment, user): submit ulang memperbarui
+        # tautan selama belum dinilai.
+        existing = Submission.objects.filter(user=user, assignment=assignment).first()
+        if existing is not None and existing.reviewed_by:
+            raise ValidationError(
+                {
+                    "assignment": [
+                        "Tugas sudah dinilai dan tidak bisa dikumpulkan ulang."
+                    ]
+                }
+            )
+        serializer.instance = existing
+        submission = serializer.save(user=user, score=0, reviewed_by="")
+
+        if CourseEnrollment.objects.filter(user=user, course=module.course).exists():
             # Submit tugas = otomatis menandai module selesai.
             UserProgress.objects.update_or_create(
                 module=module,
-                user=self.request.user,
+                user=user,
                 defaults={
                     "status": UserProgress.ProgressStatus.FINISH,
                     "complete_at": timezone.now(),
                 },
             )
-            sync_leaderboard(self.request.user, module.course)
+            sync_leaderboard(user, module.course)
+
+    def perform_update(self, serializer):
+        submission = serializer.instance
+        user = self.request.user
+        fields = set(serializer.validated_data)
+
+        if fields & {"score", "reviewed_by"}:
+            # Jalur penilaian mentor.
+            module = submission_module(submission)
+            if module is None or module.course.user_id != user.pk:
+                self.permission_denied(
+                    self.request, message="You do not own this course."
+                )
+            if fields - {"score", "reviewed_by"}:
+                raise ValidationError(
+                    {
+                        "detail": [
+                            "Saat menilai, hanya score dan reviewed_by "
+                            "yang boleh diubah."
+                        ]
+                    }
+                )
+            if submission.assignment_id is None:
+                raise ValidationError(
+                    {"detail": ["Submission quiz dinilai lewat grade-essay."]}
+                )
+            serializer.save(reviewed_by=user.username[:50])
+            sync_leaderboard(submission.user, module.course)
+            return
+
+        # Jalur student: memperbarui tautan tugas milik sendiri.
+        if submission.user_id != user.pk:
+            self.permission_denied(
+                self.request, message="You can only update your own submission."
+            )
+        if fields - {"submission_url"}:
+            raise ValidationError(
+                {"detail": ["Hanya submission_url yang bisa diperbarui."]}
+            )
+        if submission.reviewed_by:
+            raise ValidationError(
+                {"detail": ["Submission sudah dinilai dan tidak bisa diubah."]}
+            )
+        if submission.assignment_id is None:
+            raise ValidationError(
+                {"detail": ["Submission quiz tidak bisa diubah manual."]}
+            )
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        user = self.request.user
+        module = submission_module(instance)
+        is_course_owner = module is not None and module.course.user_id == user.pk
+        if instance.user_id != user.pk and not is_course_owner:
+            self.permission_denied(self.request, message="Not allowed.")
+        instance.delete()
+
+    @action(detail=True, methods=["post"], url_path="grade-essay")
+    def grade_essay(self, request, pk=None):
+        """Mentor menilai jawaban essay submission quiz → skor final.
+
+        Skor otomatis (bagian pilihan) dihitung ulang dari jawaban, sehingga
+        penilaian ulang idempoten. Total akhir dibatasi poin maksimal module.
+        """
+        submission = self.get_object()
+        if submission.assignment_id is not None:
+            raise ValidationError(
+                {"detail": ["Submission tugas dinilai lewat PATCH score."]}
+            )
+
+        module = submission_module(submission)
+        if module is None:
+            raise ValidationError(
+                {"detail": ["Submission quiz belum memiliki jawaban."]}
+            )
+        if module.course.user_id != request.user.pk:
+            self.permission_denied(request, message="You do not own this course.")
+
+        items = request.data.get("answers")
+        if not isinstance(items, list) or not items:
+            raise ValidationError(
+                {"answers": ["Setidaknya satu jawaban essay harus dinilai."]}
+            )
+
+        questions = list(module.question_set.all())
+        weights = split_points(module, questions)
+        if weights.essay_count == 0:
+            raise ValidationError(
+                {"answers": ["Module ini tidak memiliki soal essay."]}
+            )
+
+        answered_ids = set(
+            UserAnswer.objects.filter(submission=submission).values_list(
+                "question_id", flat=True
+            )
+        )
+        if not {question.pk for question in questions}.issubset(answered_ids):
+            raise ValidationError(
+                {"detail": ["Quiz belum disubmit, tidak bisa dinilai."]}
+            )
+        if not UserProgress.objects.filter(
+            module=module, user=submission.user
+        ).exists():
+            raise ValidationError(
+                {"detail": ["Quiz belum disubmit, tidak bisa dinilai."]}
+            )
+
+        essay_answers = {
+            answer.pk: answer
+            for answer in UserAnswer.objects.filter(
+                submission=submission,
+                question__question_type=Question.QuestionType.ESSAI,
+            )
+        }
+        graded = {}
+        for item in items:
+            if not isinstance(item, dict):
+                raise ValidationError(
+                    {"answers": ["Format data penilaian tidak valid."]}
+                )
+            answer_id = item.get("id")
+            score = item.get("score")
+            if answer_id not in essay_answers:
+                raise ValidationError(
+                    {
+                        "answers": [
+                            "Hanya jawaban essay milik submission ini yang "
+                            "bisa dinilai."
+                        ]
+                    }
+                )
+            if answer_id in graded:
+                raise ValidationError(
+                    {"answers": ["Terdapat jawaban ganda dalam data penilaian."]}
+                )
+            if isinstance(score, bool) or not isinstance(score, int) or score < 0:
+                raise ValidationError(
+                    {"answers": ["Nilai harus bilangan bulat lebih besar atau sama dengan 0."]}
+                )
+            graded[answer_id] = score
+
+        if set(graded) != set(essay_answers):
+            raise ValidationError(
+                {"answers": ["Semua jawaban essay harus dinilai."]}
+            )
+
+        auto_score = compute_auto_score(
+            weights, count_correct_answers(submission, questions)
+        )
+        final_score = auto_score + sum(graded.values())
+        if final_score > module.point:
+            raise ValidationError(
+                {
+                    "answers": [
+                        f"Total nilai melebihi poin maksimal module ({module.point})."
+                    ]
+                }
+            )
+
+        for answer_id, score in graded.items():
+            UserAnswer.objects.filter(pk=answer_id).update(score=score)
+        submission.score = final_score
+        submission.reviewed_by = request.user.username[:50]
+        submission.save(update_fields=["score", "reviewed_by"])
+        if CourseEnrollment.objects.filter(
+            user=submission.user, course=module.course
+        ).exists():
+            sync_leaderboard(submission.user, module.course)
+        return Response(SubmissionSerializer(submission).data)
 
 
 class UserAnswerViewSet(viewsets.ModelViewSet):
-    queryset = UserAnswer.objects.order_by("id")
+    """Simpan jawaban quiz per soal (upsert per submission + soal)."""
+
+    queryset = UserAnswer.objects.select_related(
+        "submission", "question", "question_option"
+    ).order_by("question__sequence", "question__id")
     serializer_class = UserAnswerSerializer
+    filterset_fields = ["submission", "question"]
+
+    def get_queryset(self):
+        return super().get_queryset().filter(submission__user=self.request.user)
+
+    def create(self, request, *args, **kwargs):
+        # Instance diisi sebelum validasi agar UniqueTogetherValidator
+        # mengabaikan baris lama → POST ulang = upsert, bukan 400.
+        existing = None
+        submission_id = request.data.get("submission")
+        question_id = request.data.get("question")
+        if submission_id and question_id:
+            existing = self.get_queryset().filter(
+                submission_id=submission_id, question_id=question_id
+            ).first()
+        serializer = self.get_serializer(data=request.data, instance=existing)
+        serializer.is_valid(raise_exception=True)
+        answer = serializer.save()
+        return Response(
+            self.get_serializer(answer).data, status=status.HTTP_201_CREATED
+        )
+
+    def perform_destroy(self, instance):
+        if instance.submission.user_id != self.request.user.pk:
+            self.permission_denied(self.request, message="Not allowed.")
+        if instance.submission.reviewed_by:
+            raise ValidationError(
+                {"detail": ["Quiz sudah disubmit dan jawaban tidak bisa dihapus."]}
+            )
+        instance.delete()
 
 
 class ImageUploadView(APIView):

@@ -4,6 +4,7 @@ import os
 import tempfile
 from datetime import timedelta
 from decimal import Decimal
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import requests
@@ -28,8 +29,11 @@ from server.apps.remotech.models import (
     Leaderboard,
     LeaderboardDetail,
     ModuleContent,
+    Question,
+    QuestionOption,
     SetPasswordToken,
     Submission,
+    UserAnswer,
     UserProgress,
 )
 from server.apps.remotech.services.auth import (
@@ -37,6 +41,7 @@ from server.apps.remotech.services.auth import (
     PARTICIPANT_GROUP,
     register_user,
 )
+from server.apps.remotech.services.grading import compute_auto_score, split_points
 from server.apps.remotech.services.richtext import (
     extract_media_urls,
     sanitize_richtext,
@@ -886,7 +891,9 @@ class SubmissionRouteTests(APITestCase):
         self.owner = User.objects.create_user(username="owner", password="secret123")
         self.other = User.objects.create_user(username="other", password="secret123")
         self.course = Course.objects.create(user=self.owner, title="Course Sub")
-        self.module = CourseModule.objects.create(course=self.course, title="M1")
+        self.module = CourseModule.objects.create(
+            course=self.course, title="M1", module_category="upload"
+        )
         self.assignment_a = Assignment.objects.create(
             course_module=self.module, name="A1", description="desc"
         )
@@ -2216,8 +2223,13 @@ class LeaderboardPointsTests(APITestCase):
         )
 
     def test_submission_create_awards_points(self):
+        """Module upload memberi poin leaderboard dari skor submission:
+        0 sebelum dinilai, naik setelah mentor menilai."""
+        upload_module = CourseModule.objects.create(
+            course=self.course, title="Upload", module_category="upload", point=150
+        )
         assignment = Assignment.objects.create(
-            course_module=self.module, name="A1", description="do it"
+            course_module=upload_module, name="A1", description="do it"
         )
 
         response = self.client.post(
@@ -2231,6 +2243,16 @@ class LeaderboardPointsTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         leaderboard = Leaderboard.objects.get(user=self.user, course=self.course)
+        self.assertEqual(leaderboard.total_points, 0)
+
+        submission_id = response.json()["id"]
+        self.client.force_authenticate(user=self.owner)
+        patch_response = self.client.patch(
+            f"/submission/{submission_id}/", {"score": 150}, format="json"
+        )
+        self.assertEqual(patch_response.status_code, status.HTTP_200_OK)
+
+        leaderboard.refresh_from_db()
         self.assertEqual(leaderboard.total_points, 150)
 
     def test_leaderboard_write_methods_not_allowed(self):
@@ -2402,6 +2424,1071 @@ class ContentViewTests(APITestCase):
         self.client.post(f"/content-view/{self.content_a.id}/")
         ContentViewed.objects.create(user=self.other, content=self.content_b)
 
-        response = self.client.get(f"/content-view/?course={self.course.id}").json()
+        response = self.client.get(
+            f"/content-view/?course={self.course.id}"
+        ).json()
 
         self.assertEqual(response["content_ids"], [self.content_a.id])
+
+
+def make_choice_question(module, text, correct_index=0, labels=("A", "B")):
+    question = Question.objects.create(
+        module=module, question_text=text, question_type="choices"
+    )
+    for index, label in enumerate(labels):
+        QuestionOption.objects.create(
+            question=question,
+            option_text=label,
+            is_correct=index == correct_index,
+        )
+    return question
+
+
+def make_boolean_question(module, text, correct_is_true=True):
+    question = Question.objects.create(
+        module=module, question_text=text, question_type="boolean"
+    )
+    QuestionOption.objects.create(
+        question=question, option_text="Benar", is_correct=correct_is_true
+    )
+    QuestionOption.objects.create(
+        question=question, option_text="Salah", is_correct=not correct_is_true
+    )
+    return question
+
+
+def make_essay_question(module, text):
+    return Question.objects.create(
+        module=module, question_text=text, question_type="essai"
+    )
+
+
+class QuizWeightsUnitTests(SimpleTestCase):
+    """Pembagian `module.point` per soal — bagian essay ditahan mentor."""
+
+    def test_weights_sum_to_module_point(self):
+        module = CourseModule(course_id=None, point=100)
+        questions = [
+            SimpleNamespace(is_essay=False),
+            SimpleNamespace(is_essay=False),
+            SimpleNamespace(is_essay=False),
+            SimpleNamespace(is_essay=True),
+        ]
+
+        weights = split_points(module, questions)
+
+        self.assertEqual(weights.total, 4)
+        self.assertEqual(weights.auto_count, 3)
+        self.assertEqual(weights.essay_count, 1)
+        self.assertEqual(weights.auto_max, 75)
+        self.assertEqual(weights.essay_max, 25)
+        self.assertEqual(weights.auto_max + weights.essay_max, module.point)
+
+    def test_auto_only_module_scores_full_point(self):
+        module = CourseModule(course_id=None, point=90)
+        questions = [SimpleNamespace(is_essay=False) for _ in range(3)]
+
+        weights = split_points(module, questions)
+
+        self.assertEqual(weights.essay_max, 0)
+        self.assertEqual(weights.auto_max, 90)
+        self.assertEqual(compute_auto_score(weights, correct_count=2), 60)
+
+    def test_essay_only_module_has_no_auto_part(self):
+        module = CourseModule(course_id=None, point=50)
+        questions = [SimpleNamespace(is_essay=True) for _ in range(2)]
+
+        weights = split_points(module, questions)
+
+        self.assertEqual(weights.auto_count, 0)
+        self.assertEqual(weights.auto_max, 0)
+        self.assertEqual(weights.essay_max, 50)
+        self.assertEqual(compute_auto_score(weights, correct_count=0), 0)
+
+
+class AssignmentOwnershipTests(APITestCase):
+    """Assignment module upload dibuat/dikelola mentor (pemilik course)."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user(username="owner", password="secret123")
+        self.other = User.objects.create_user(username="other", password="secret123")
+        self.course = Course.objects.create(user=self.owner, title="Course AO")
+        self.module = CourseModule.objects.create(
+            course=self.course, title="Tugas", module_category="upload"
+        )
+        self.payload = {
+            "course_module": self.module.id,
+            "name": "Tugas 1",
+            "description": "Kumpulkan tautan hasil kerja.",
+        }
+
+    def test_list_requires_authentication(self):
+        self.client.force_authenticate(user=None)
+
+        response = self.client.get("/assignment/")
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_student_can_list_assignments(self):
+        self.client.force_authenticate(user=self.other)
+
+        response = self.client.get(f"/assignment/?course_module={self.module.id}")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()["count"], 0)
+
+    def test_non_owner_cannot_create_assignment(self):
+        self.client.force_authenticate(user=self.other)
+
+        response = self.client.post("/assignment/", self.payload, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertFalse(Assignment.objects.filter(course_module=self.module).exists())
+
+    def test_owner_creates_assignment(self):
+        self.client.force_authenticate(user=self.owner)
+
+        response = self.client.post("/assignment/", self.payload, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.json()["name"], "Tugas 1")
+
+    def test_non_owner_cannot_update_assignment(self):
+        assignment = Assignment.objects.create(
+            course_module=self.module, name="A1", description="d"
+        )
+        self.client.force_authenticate(user=self.other)
+
+        response = self.client.patch(
+            f"/assignment/{assignment.id}/", {"name": "Hack"}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        assignment.refresh_from_db()
+        self.assertEqual(assignment.name, "A1")
+
+    def test_owner_updates_and_deletes_assignment(self):
+        assignment = Assignment.objects.create(
+            course_module=self.module, name="A1", description="d"
+        )
+        self.client.force_authenticate(user=self.owner)
+
+        patch_response = self.client.patch(
+            f"/assignment/{assignment.id}/", {"name": "A2"}, format="json"
+        )
+        delete_response = self.client.delete(f"/assignment/{assignment.id}/")
+
+        self.assertEqual(patch_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(delete_response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(Assignment.objects.filter(pk=assignment.id).exists())
+
+
+class UploadSubmissionFlowTests(APITestCase):
+    """Module upload = tempat mengumpulkan tautan tugas, dinilai mentor
+    dengan skor maksimal poin module."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user(username="owner", password="secret123")
+        self.student = User.objects.create_user(
+            username="student", password="secret123"
+        )
+        self.other = User.objects.create_user(username="other", password="secret123")
+        self.course = Course.objects.create(user=self.owner, title="Course U")
+        self.upload_module = CourseModule.objects.create(
+            course=self.course, title="Tugas", module_category="upload", point=100
+        )
+        self.text_module = CourseModule.objects.create(
+            course=self.course, title="Materi", module_category="text", point=100
+        )
+        self.quiz_module = CourseModule.objects.create(
+            course=self.course, title="Kuis", module_category="quiz", point=100
+        )
+        self.assignment = Assignment.objects.create(
+            course_module=self.upload_module, name="Tugas 1", description="d"
+        )
+        self.text_assignment = Assignment.objects.create(
+            course_module=self.text_module, name="A-teks", description="d"
+        )
+        CourseEnrollment.objects.create(course=self.course, user=self.student)
+        self.client.force_authenticate(user=self.student)
+
+    def submit_payload(self, url="https://example.com/hasil.pdf", assignment=None):
+        return {
+            "assignment": (assignment or self.assignment).id,
+            "submission_url": url,
+        }
+
+    def test_create_submission(self):
+        response = self.client.post("/submission/", self.submit_payload(), format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        data = response.json()
+        self.assertEqual(data["score"], 0)
+        self.assertFalse(data["is_graded"])
+        self.assertFalse(data["is_quiz"])
+        self.assertEqual(data["module"], self.upload_module.id)
+        self.assertEqual(data["max_score"], 100)
+        self.assertEqual(data["user_name"], "student")
+
+    def test_resubmit_updates_single_row(self):
+        first = self.client.post(
+            "/submission/", self.submit_payload(), format="json"
+        )
+        second = self.client.post(
+            "/submission/", self.submit_payload(url="https://example.com/v2.pdf"),
+            format="json",
+        )
+
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(second.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(
+            Submission.objects.filter(assignment=self.assignment).count(), 1
+        )
+        submission = Submission.objects.get(assignment=self.assignment)
+        self.assertEqual(submission.submission_url, "https://example.com/v2.pdf")
+
+    def test_resubmit_rejected_after_graded(self):
+        created = self.client.post(
+            "/submission/", self.submit_payload(), format="json"
+        ).json()
+        self.client.force_authenticate(user=self.owner)
+        self.client.patch(f"/submission/{created['id']}/", {"score": 80}, format="json")
+
+        self.client.force_authenticate(user=self.student)
+        response = self.client.post(
+            "/submission/", self.submit_payload(), format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_submission_url_required(self):
+        response = self.client.post(
+            "/submission/", {"assignment": self.assignment.id}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_only_upload_modules_accept_submissions(self):
+        response = self.client.post(
+            "/submission/", self.submit_payload(assignment=self.text_assignment),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(
+            Submission.objects.filter(assignment=self.text_assignment).exists()
+        )
+
+    def test_student_can_update_own_url_before_graded(self):
+        created = self.client.post(
+            "/submission/", self.submit_payload(), format="json"
+        ).json()
+
+        response = self.client.patch(
+            f"/submission/{created['id']}/",
+            {"submission_url": "https://example.com/baru.pdf"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            Submission.objects.get(pk=created["id"]).submission_url,
+            "https://example.com/baru.pdf",
+        )
+
+    def test_student_cannot_grade_own_submission(self):
+        created = self.client.post(
+            "/submission/", self.submit_payload(), format="json"
+        ).json()
+
+        response = self.client.patch(
+            f"/submission/{created['id']}/", {"score": 100}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(Submission.objects.get(pk=created["id"]).score, 0)
+
+    def test_non_owner_cannot_grade(self):
+        created = self.client.post(
+            "/submission/", self.submit_payload(), format="json"
+        ).json()
+        self.client.force_authenticate(user=self.other)
+
+        response = self.client.patch(
+            f"/submission/{created['id']}/", {"score": 100}, format="json"
+        )
+
+        # submission course lain tidak terlihat → tidak bocor ke-403/404
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_owner_grades_with_score_limit_and_reviewer(self):
+        created = self.client.post(
+            "/submission/", self.submit_payload(), format="json"
+        ).json()
+        self.client.force_authenticate(user=self.owner)
+
+        too_high = self.client.patch(
+            f"/submission/{created['id']}/", {"score": 101}, format="json"
+        )
+        negative = self.client.patch(
+            f"/submission/{created['id']}/", {"score": -1}, format="json"
+        )
+        valid = self.client.patch(
+            f"/submission/{created['id']}/", {"score": 85}, format="json"
+        )
+
+        self.assertEqual(too_high.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(negative.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(valid.status_code, status.HTTP_200_OK)
+        submission = Submission.objects.get(pk=created["id"])
+        self.assertEqual(submission.score, 85)
+        self.assertEqual(submission.reviewed_by, "owner")
+        self.assertTrue(valid.json()["is_graded"])
+
+    def test_student_cannot_edit_after_graded(self):
+        created = self.client.post(
+            "/submission/", self.submit_payload(), format="json"
+        ).json()
+        self.client.force_authenticate(user=self.owner)
+        self.client.patch(f"/submission/{created['id']}/", {"score": 50}, format="json")
+
+        self.client.force_authenticate(user=self.student)
+        response = self.client.patch(
+            f"/submission/{created['id']}/",
+            {"submission_url": "https://example.com/ganti.pdf"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_student_cannot_grade_via_extra_fields(self):
+        created = self.client.post(
+            "/submission/", self.submit_payload(), format="json"
+        ).json()
+
+        response = self.client.patch(
+            f"/submission/{created['id']}/",
+            {"submission_url": "https://example.com/x.pdf", "score": 99},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_submission_visibility_scoped_to_own_and_own_course(self):
+        mine = self.client.post(
+            "/submission/", self.submit_payload(), format="json"
+        ).json()
+        self.client.force_authenticate(user=self.other)
+        stranger_view = self.client.get("/submission/").json()
+        Submission.objects.create(
+            user=self.other,
+            assignment=self.assignment,
+            submission_url="https://example.com/other.pdf",
+        )
+
+        self.client.force_authenticate(user=self.owner)
+        owner_view = self.client.get("/submission/").json()
+        self.client.force_authenticate(user=self.student)
+        student_view = self.client.get("/submission/").json()
+
+        self.assertEqual(stranger_view["count"], 0)
+        self.assertEqual(owner_view["count"], 2)
+        self.assertEqual(student_view["count"], 1)
+        self.assertEqual(student_view["results"][0]["id"], mine["id"])
+
+    def test_graded_filter(self):
+        created = self.client.post(
+            "/submission/", self.submit_payload(), format="json"
+        ).json()
+        self.client.force_authenticate(user=self.owner)
+        self.client.patch(f"/submission/{created['id']}/", {"score": 10}, format="json")
+
+        pending = self.client.get("/submission/?graded=false").json()
+        graded = self.client.get("/submission/?graded=true").json()
+
+        self.assertEqual(pending["count"], 0)
+        self.assertEqual(graded["count"], 1)
+
+    def test_manual_progress_blocked_for_upload_and_quiz(self):
+        upload_progress = self.client.post(
+            "/progress/", {"module": self.upload_module.id}, format="json"
+        )
+        quiz_progress = self.client.post(
+            "/progress/", {"module": self.quiz_module.id}, format="json"
+        )
+
+        self.assertEqual(upload_progress.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(quiz_progress.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(UserProgress.objects.filter(user=self.student).exists())
+
+
+class QuestionAPITests(APITestCase):
+    """Soal + opsi quiz dikelola pemilik course; kunci jawaban disembunyikan
+    dari student sampai hasil final."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user(username="owner", password="secret123")
+        self.other = User.objects.create_user(username="other", password="secret123")
+        self.course = Course.objects.create(user=self.owner, title="Course Q")
+        self.quiz_module = CourseModule.objects.create(
+            course=self.course, title="Kuis", module_category="quiz", point=100
+        )
+        self.text_module = CourseModule.objects.create(
+            course=self.course, title="Materi", module_category="text", point=100
+        )
+
+    def payload(self, **overrides):
+        body = {
+            "module": self.quiz_module.id,
+            "question_text": "2 + 2 = ?",
+            "question_type": "choices",
+            "explanation": "Karena 2+2=4.",
+            "options": [
+                {"option_text": "4", "is_correct": True},
+                {"option_text": "5", "is_correct": False},
+            ],
+        }
+        body.update(overrides)
+        return body
+
+    def test_list_requires_authentication(self):
+        self.client.force_authenticate(user=None)
+
+        response = self.client.get("/question/")
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_owner_creates_question_with_nested_options(self):
+        self.client.force_authenticate(user=self.owner)
+
+        first = self.client.post("/question/", self.payload(), format="json")
+        second = self.client.post(
+            "/question/", self.payload(question_text="3 + 3?"), format="json"
+        )
+
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+        data = first.json()
+        self.assertEqual(len(data["options"]), 2)
+        self.assertEqual(data["sequence"], 1)
+        self.assertEqual(second.json()["sequence"], 2)
+
+    def test_non_owner_cannot_create_question(self):
+        self.client.force_authenticate(user=self.other)
+
+        response = self.client.post("/question/", self.payload(), format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertFalse(Question.objects.filter(module=self.quiz_module).exists())
+
+    def test_student_list_hides_correctness_and_explanation(self):
+        self.client.force_authenticate(user=self.owner)
+        created = self.client.post("/question/", self.payload(), format="json").json()
+        self.client.force_authenticate(user=self.other)
+
+        response = self.client.get(
+            f"/question/?module={self.quiz_module.id}"
+        ).json()
+
+        self.assertEqual(response["count"], 1)
+        item = response["results"][0]
+        self.assertEqual(item["id"], created["id"])
+        self.assertEqual(item["explanation"], "")
+        for option in item["options"]:
+            self.assertNotIn("is_correct", option)
+
+    def test_owner_list_reveals_correctness(self):
+        self.client.force_authenticate(user=self.owner)
+        self.client.post("/question/", self.payload(), format="json")
+
+        item = self.client.get(
+            f"/question/?module={self.quiz_module.id}"
+        ).json()["results"][0]
+
+        self.assertEqual(item["explanation"], "Karena 2+2=4.")
+        self.assertTrue(item["options"][0]["is_correct"])
+
+    def test_question_requires_min_two_options(self):
+        self.client.force_authenticate(user=self.owner)
+
+        response = self.client.post(
+            "/question/",
+            self.payload(options=[{"option_text": "4", "is_correct": True}]),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_question_requires_exactly_one_correct_option(self):
+        self.client.force_authenticate(user=self.owner)
+
+        response = self.client.post(
+            "/question/",
+            self.payload(
+                options=[
+                    {"option_text": "4", "is_correct": True},
+                    {"option_text": "5", "is_correct": True},
+                ]
+            ),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_boolean_question_requires_exactly_two_options(self):
+        self.client.force_authenticate(user=self.owner)
+
+        response = self.client.post(
+            "/question/",
+            self.payload(
+                question_type="boolean",
+                options=[
+                    {"option_text": "Benar", "is_correct": True},
+                    {"option_text": "Salah", "is_correct": False},
+                    {"option_text": "Tidak", "is_correct": False},
+                ],
+            ),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_essay_question_rejects_options(self):
+        self.client.force_authenticate(user=self.owner)
+
+        response = self.client.post(
+            "/question/", self.payload(question_type="essai"), format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_essay_question_without_options_is_valid(self):
+        self.client.force_authenticate(user=self.owner)
+
+        response = self.client.post(
+            "/question/",
+            self.payload(question_type="essai", options=[]),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_question_only_allowed_on_quiz_module(self):
+        self.client.force_authenticate(user=self.owner)
+
+        response = self.client.post(
+            "/question/", self.payload(module=self.text_module.id), format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_question_locked_after_attempt(self):
+        self.client.force_authenticate(user=self.owner)
+        created = self.client.post("/question/", self.payload(), format="json").json()
+        student = User.objects.create_user(username="s2", password="secret123")
+        CourseEnrollment.objects.create(course=self.course, user=student)
+        submission = Submission.objects.create(
+            user=student, assignment=None, submission_url=""
+        )
+        option = QuestionOption.objects.filter(question_id=created["id"]).first()
+        UserAnswer.objects.create(
+            submission=submission,
+            question_id=created["id"],
+            question_option=option,
+        )
+
+        patch_response = self.client.patch(
+            f"/question/{created['id']}/", {"question_text": "Diubah"}, format="json"
+        )
+        delete_response = self.client.delete(f"/question/{created['id']}/")
+
+        self.assertEqual(patch_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(delete_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertTrue(Question.objects.filter(pk=created["id"]).exists())
+
+    def test_quiz_module_rejects_module_content(self):
+        self.client.force_authenticate(user=self.owner)
+
+        response = self.client.post(
+            "/module-content/",
+            {"module": self.quiz_module.id, "content_text": "<p>brief</p>"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(ModuleContent.objects.filter(module=self.quiz_module).exists())
+
+
+class QuizFlowTests(APITestCase):
+    """Alur quiz: start (draft) → jawab per soal → submit → skor otomatis."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user(username="owner", password="secret123")
+        self.student = User.objects.create_user(
+            username="student", password="secret123"
+        )
+        self.other = User.objects.create_user(username="other", password="secret123")
+        self.course = Course.objects.create(user=self.owner, title="Course Z")
+        self.quiz = CourseModule.objects.create(
+            course=self.course, title="Kuis", module_category="quiz", point=100
+        )
+        # 4 soal pilihan (bobot masing-masing 25)
+        self.q1 = make_choice_question(self.quiz, "Q1", correct_index=0)
+        self.q2 = make_choice_question(self.quiz, "Q2", correct_index=1)
+        self.q3 = make_boolean_question(self.quiz, "Q3", correct_is_true=True)
+        self.q4 = make_boolean_question(self.quiz, "Q4", correct_is_true=False)
+        CourseEnrollment.objects.create(course=self.course, user=self.student)
+        self.client.force_authenticate(user=self.student)
+
+    def start(self, module_id=None):
+        return self.client.post(
+            f"/module/{module_id or self.quiz.id}/quiz/start/", {}, format="json"
+        )
+
+    def answer(self, submission_id, question, option=None, text=""):
+        body = {"submission": submission_id, "question": question.pk}
+        if option is not None:
+            body["question_option"] = option.pk
+        if text:
+            body["answer_text"] = text
+        return self.client.post("/user-answer/", body, format="json")
+
+    def submit(self, submission_id, module_id=None):
+        return self.client.post(
+            f"/module/{module_id or self.quiz.id}/quiz/submit/",
+            {"submission": submission_id},
+            format="json",
+        )
+
+    def correct_option(self, question, chosen_index=0):
+        return question.questionoption_set.order_by("sequence")[chosen_index]
+
+    def test_start_creates_resumable_draft(self):
+        first = self.start()
+        second = self.start()
+
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+        self.assertFalse(first.json()["completed"])
+        self.assertEqual(first.json()["submission"]["id"], second.json()["submission"]["id"])
+        self.assertEqual(
+            Submission.objects.filter(user=self.student, assignment=None).count(), 1
+        )
+
+    def test_start_requires_enrollment(self):
+        self.client.force_authenticate(user=self.other)
+
+        response = self.start()
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_start_requires_existing_questions(self):
+        empty_quiz = CourseModule.objects.create(
+            course=self.course, title="Kosong", module_category="quiz", point=10
+        )
+
+        response = self.start(empty_quiz.id)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_start_rejects_non_quiz_module(self):
+        text_module = CourseModule.objects.create(
+            course=self.course, title="Materi", module_category="text"
+        )
+
+        response = self.start(text_module.id)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_questions_hidden_before_submit(self):
+        data = self.start().json()
+
+        for question in data["questions"]:
+            self.assertEqual(question["explanation"], "")
+            for option in question["options"]:
+                self.assertNotIn("is_correct", option)
+
+    def test_answer_upserts_single_row(self):
+        submission_id = self.start().json()["submission"]["id"]
+        first_option = self.correct_option(self.q1, 0)
+        second_option = self.correct_option(self.q1, 1)
+
+        first = self.answer(submission_id, self.q1, option=first_option)
+        second = self.answer(submission_id, self.q1, option=second_option)
+
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(second.status_code, status.HTTP_201_CREATED)
+        answers = UserAnswer.objects.filter(submission_id=submission_id)
+        self.assertEqual(answers.count(), 1)
+        self.assertEqual(answers.first().question_option, second_option)
+
+    def test_choices_answer_requires_option(self):
+        submission_id = self.start().json()["submission"]["id"]
+
+        response = self.answer(submission_id, self.q1)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_answer_option_must_belong_to_question(self):
+        submission_id = self.start().json()["submission"]["id"]
+        foreign_option = self.correct_option(self.q2, 0)
+
+        response = self.answer(submission_id, self.q1, option=foreign_option)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_cannot_answer_someone_elses_submission(self):
+        submission_id = self.start().json()["submission"]["id"]
+        self.client.force_authenticate(user=self.other)
+
+        response = self.answer(submission_id, self.q1, option=self.correct_option(self.q1))
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_submit_rejected_until_all_answered(self):
+        submission_id = self.start().json()["submission"]["id"]
+        self.answer(submission_id, self.q1, option=self.correct_option(self.q1, 0))
+        self.answer(submission_id, self.q2, option=self.correct_option(self.q2, 1))
+
+        response = self.submit(submission_id)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        errors = response.json()["errors"]
+        self.assertIn("Lengkapi semua jawaban", str(errors))
+        submission = Submission.objects.get(pk=submission_id)
+        self.assertEqual(submission.reviewed_by, "")
+
+    def answer_all_correctly(self, submission_id):
+        self.answer(submission_id, self.q1, option=self.correct_option(self.q1, 0))
+        self.answer(submission_id, self.q2, option=self.correct_option(self.q2, 1))
+        self.answer(submission_id, self.q3, option=self.correct_option(self.q3, 0))
+        self.answer(submission_id, self.q4, option=self.correct_option(self.q4, 1))
+
+    def test_submit_scores_correct_answers_and_finishes_module(self):
+        submission_id = self.start().json()["submission"]["id"]
+        self.answer_all_correctly(submission_id)
+
+        response = self.submit(submission_id)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertTrue(data["completed"])
+        self.assertIs(data["result"]["pending"], False)
+        self.assertEqual(data["result"]["score"], 100)
+        self.assertEqual(data["result"]["max_score"], 100)
+        submission = Submission.objects.get(pk=submission_id)
+        self.assertEqual(submission.score, 100)
+        self.assertEqual(submission.reviewed_by, "system")
+        progress = UserProgress.objects.get(module=self.quiz, user=self.student)
+        self.assertEqual(progress.status, UserProgress.ProgressStatus.FINISH)
+        leaderboard = Leaderboard.objects.get(user=self.student, course=self.course)
+        self.assertEqual(leaderboard.total_points, 100)
+
+    def test_partial_correct_answers_score_proportionally(self):
+        submission_id = self.start().json()["submission"]["id"]
+        self.answer(submission_id, self.q1, option=self.correct_option(self.q1, 0))
+        self.answer(submission_id, self.q2, option=self.correct_option(self.q2, 1))
+        self.answer(submission_id, self.q3, option=self.correct_option(self.q3, 0))
+        self.answer(submission_id, self.q4, option=self.correct_option(self.q4, 0))
+
+        response = self.submit(submission_id)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()["result"]["correct"], 3)
+        self.assertEqual(response.json()["result"]["score"], 75)
+
+    def test_questions_revealed_after_submit(self):
+        submission_id = self.start().json()["submission"]["id"]
+        self.answer_all_correctly(submission_id)
+
+        data = self.submit(submission_id).json()
+
+        for question in data["questions"]:
+            self.assertIn("is_correct", question["options"][0])
+
+    def test_retake_blocked_after_submit(self):
+        submission_id = self.start().json()["submission"]["id"]
+        self.answer_all_correctly(submission_id)
+        self.submit(submission_id)
+
+        second_submit = self.submit(submission_id)
+        restart = self.start()
+
+        self.assertEqual(second_submit.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(restart.status_code, status.HTTP_200_OK)
+        self.assertTrue(restart.json()["completed"])
+        self.assertEqual(restart.json()["submission"]["id"], submission_id)
+        self.assertEqual(
+            Submission.objects.filter(user=self.student, assignment=None).count(), 1
+        )
+
+    def test_submit_rejects_non_quiz_module(self):
+        text_module = CourseModule.objects.create(
+            course=self.course, title="Materi", module_category="text"
+        )
+        submission_id = self.start().json()["submission"]["id"]
+
+        response = self.submit(submission_id, module_id=text_module.id)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_unanswered_draft_is_adopted_not_duplicated(self):
+        first = self.start()
+        other_quiz = CourseModule.objects.create(
+            course=self.course, title="Kuis 2", module_category="quiz", point=50
+        )
+        make_choice_question(other_quiz, "X1")
+
+        switch = self.start(other_quiz.id)
+        back = self.start()
+
+        self.assertEqual(switch.json()["submission"]["id"], first.json()["submission"]["id"])
+        self.assertEqual(back.json()["submission"]["id"], first.json()["submission"]["id"])
+        self.assertEqual(
+            Submission.objects.filter(user=self.student, assignment=None).count(), 1
+        )
+
+
+class EssayQuizGradingTests(APITestCase):
+    """Quiz ber-essay: skor otomatis ditahan, mentor menilai essay → final."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user(username="owner", password="secret123")
+        self.student = User.objects.create_user(
+            username="student", password="secret123"
+        )
+        self.other = User.objects.create_user(username="other", password="secret123")
+        self.course = Course.objects.create(user=self.owner, title="Course E")
+        self.quiz = CourseModule.objects.create(
+            course=self.course, title="Kuis Essay", module_category="quiz", point=100
+        )
+        # 3 pilihan (auto_max 75) + 1 essay (essay_max 25)
+        self.q1 = make_choice_question(self.quiz, "Q1", correct_index=0)
+        self.q2 = make_choice_question(self.quiz, "Q2", correct_index=0)
+        self.q3 = make_choice_question(self.quiz, "Q3", correct_index=0)
+        self.essay = make_essay_question(self.quiz, "Jelaskan konsepnya.")
+        CourseEnrollment.objects.create(course=self.course, user=self.student)
+        self.client.force_authenticate(user=self.student)
+
+    def submit_pending_quiz(self):
+        start = self.client.post(
+            f"/module/{self.quiz.id}/quiz/start/", {}, format="json"
+        ).json()
+        submission_id = start["submission"]["id"]
+        for question in (self.q1, self.q2, self.q3):
+            option = question.questionoption_set.order_by("sequence").first()
+            self.client.post(
+                "/user-answer/",
+                {
+                    "submission": submission_id,
+                    "question": question.pk,
+                    "question_option": option.pk,
+                },
+                format="json",
+            )
+        self.client.post(
+            "/user-answer/",
+            {
+                "submission": submission_id,
+                "question": self.essay.pk,
+                "answer_text": "Konsepnya begini.",
+            },
+            format="json",
+        )
+        response = self.client.post(
+            f"/module/{self.quiz.id}/quiz/submit/",
+            {"submission": submission_id},
+            format="json",
+        )
+        return submission_id, response
+
+    def grade(self, submission_id, answers, user=None):
+        self.client.force_authenticate(user=user or self.owner)
+        return self.client.post(
+            f"/submission/{submission_id}/grade-essay/",
+            {"answers": answers},
+            format="json",
+        )
+
+    def test_essay_quiz_stays_pending_after_submit(self):
+        submission_id, response = self.submit_pending_quiz()
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertTrue(data["result"]["pending"])
+        self.assertEqual(data["result"]["auto_score"], 75)
+        self.assertEqual(data["result"]["essay_max"], 25)
+        submission = Submission.objects.get(pk=submission_id)
+        self.assertEqual(submission.score, 75)
+        self.assertEqual(submission.reviewed_by, "")
+        self.assertFalse(response.json()["submission"]["is_graded"])
+        leaderboard = Leaderboard.objects.get(user=self.student, course=self.course)
+        self.assertEqual(leaderboard.total_points, 75)
+
+    def test_grade_essay_finalizes_score(self):
+        submission_id, _ = self.submit_pending_quiz()
+        essay_answer = UserAnswer.objects.get(
+            submission_id=submission_id, question=self.essay
+        )
+
+        response = self.grade(submission_id, [{"id": essay_answer.pk, "score": 25}])
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()["score"], 100)
+        submission = Submission.objects.get(pk=submission_id)
+        self.assertEqual(submission.score, 100)
+        self.assertEqual(submission.reviewed_by, "owner")
+        essay_answer.refresh_from_db()
+        self.assertEqual(essay_answer.score, 25)
+        leaderboard = Leaderboard.objects.get(user=self.student, course=self.course)
+        self.assertEqual(leaderboard.total_points, 100)
+
+    def test_grade_essay_rejects_total_over_module_point(self):
+        submission_id, _ = self.submit_pending_quiz()
+        essay_answer = UserAnswer.objects.get(
+            submission_id=submission_id, question=self.essay
+        )
+
+        response = self.grade(submission_id, [{"id": essay_answer.pk, "score": 26}])
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        submission = Submission.objects.get(pk=submission_id)
+        self.assertEqual(submission.score, 75)
+        self.assertEqual(submission.reviewed_by, "")
+
+    def test_grade_essay_rejects_non_essay_answer(self):
+        submission_id, _ = self.submit_pending_quiz()
+        choice_answer = UserAnswer.objects.get(
+            submission_id=submission_id, question=self.q1
+        )
+
+        response = self.grade(submission_id, [{"id": choice_answer.pk, "score": 10}])
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_grade_essay_rejects_empty_payload(self):
+        submission_id, _ = self.submit_pending_quiz()
+
+        response = self.grade(submission_id, [])
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_grade_essay_denied_for_non_owner(self):
+        submission_id, _ = self.submit_pending_quiz()
+        essay_answer = UserAnswer.objects.get(
+            submission_id=submission_id, question=self.essay
+        )
+
+        response = self.grade(
+            submission_id, [{"id": essay_answer.pk, "score": 25}], user=self.other
+        )
+
+        # submission course lain tidak terlihat → tidak bocor ke-403
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(Submission.objects.get(pk=submission_id).score, 75)
+
+    def test_grade_essay_is_idempotent_on_regrade(self):
+        submission_id, _ = self.submit_pending_quiz()
+        essay_answer = UserAnswer.objects.get(
+            submission_id=submission_id, question=self.essay
+        )
+
+        first = self.grade(submission_id, [{"id": essay_answer.pk, "score": 25}])
+        second = self.grade(submission_id, [{"id": essay_answer.pk, "score": 25}])
+
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+        self.assertEqual(second.status_code, status.HTTP_200_OK)
+        self.assertEqual(Submission.objects.get(pk=submission_id).score, 100)
+
+    def test_grade_essay_rejected_for_upload_submission(self):
+        assignment = Assignment.objects.create(
+            course_module=CourseModule.objects.create(
+                course=self.course, title="Tugas", module_category="upload"
+            ),
+            name="A1",
+            description="d",
+        )
+        upload_submission = Submission.objects.create(
+            user=self.student, assignment=assignment, submission_url="https://x.com/a"
+        )
+
+        response = self.grade(upload_submission.pk, [{"id": 1, "score": 5}])
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_grade_essay_rejected_before_submit(self):
+        start = self.client.post(
+            f"/module/{self.quiz.id}/quiz/start/", {}, format="json"
+        ).json()
+        submission_id = start["submission"]["id"]
+        for question in (self.q1, self.q2, self.q3):
+            option = question.questionoption_set.order_by("sequence").first()
+            self.client.post(
+                "/user-answer/",
+                {
+                    "submission": submission_id,
+                    "question": question.pk,
+                    "question_option": option.pk,
+                },
+                format="json",
+            )
+        self.client.post(
+            "/user-answer/",
+            {
+                "submission": submission_id,
+                "question": self.essay.pk,
+                "answer_text": "Belum disubmit.",
+            },
+            format="json",
+        )
+        essay_answer = UserAnswer.objects.get(
+            submission_id=submission_id, question=self.essay
+        )
+
+        response = self.grade(submission_id, [{"id": essay_answer.pk, "score": 25}])
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        submission = Submission.objects.get(pk=submission_id)
+        self.assertEqual(submission.reviewed_by, "")
+
+    def test_grade_essay_requires_all_essay_answers(self):
+        quiz2 = CourseModule.objects.create(
+            course=self.course, title="Kuis 2", module_category="quiz", point=50
+        )
+        choice = make_choice_question(quiz2, "C1")
+        e1 = make_essay_question(quiz2, "E1")
+        e2 = make_essay_question(quiz2, "E2")
+        start = self.client.post(
+            f"/module/{quiz2.id}/quiz/start/", {}, format="json"
+        ).json()
+        submission_id = start["submission"]["id"]
+        option = choice.questionoption_set.order_by("sequence").first()
+        for question, body in (
+            (choice, {"question_option": option.pk}),
+            (e1, {"answer_text": "jawab 1"}),
+            (e2, {"answer_text": "jawab 2"}),
+        ):
+            self.client.post(
+                "/user-answer/",
+                {"submission": submission_id, "question": question.pk, **body},
+                format="json",
+            )
+        submit = self.client.post(
+            f"/module/{quiz2.id}/quiz/submit/",
+            {"submission": submission_id},
+            format="json",
+        )
+        self.assertEqual(submit.status_code, status.HTTP_200_OK)
+
+        ans1 = UserAnswer.objects.get(submission_id=submission_id, question=e1)
+        ans2 = UserAnswer.objects.get(submission_id=submission_id, question=e2)
+        partial = self.grade(submission_id, [{"id": ans1.pk, "score": 10}])
+        full = self.grade(
+            submission_id,
+            [{"id": ans1.pk, "score": 10}, {"id": ans2.pk, "score": 15}],
+        )
+
+        self.assertEqual(partial.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Semua jawaban essay", str(partial.json()))
+        self.assertEqual(full.status_code, status.HTTP_200_OK)
+        self.assertEqual(full.json()["score"], 42)
+        submission = Submission.objects.get(pk=submission_id)
+        self.assertEqual(submission.score, 42)

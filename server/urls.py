@@ -37,11 +37,13 @@ from server.apps.remotech.views import (
     LeaderboardViewSet,
     MidtransNotificationView,
     ModuleContentViewSet,
+    QuestionViewSet,
     RegisterViewSet,
     SetPasswordViewSet,
     SubmissionViewSet,
     TokenObtainPairViewSet,
     TokenRefreshViewSet,
+    UserAnswerViewSet,
     UserProgressViewSet,
     UserViewSet,
 )
@@ -53,6 +55,8 @@ router.register(r"module", CourseModuleViewSet, basename="module")
 router.register(r"module-content", ModuleContentViewSet, basename="module-content")
 router.register(r"order", CourseOrderViewSet, basename="order")
 router.register(r"assignment", AssignmentViewSet, basename="assignment")
+router.register(r"question", QuestionViewSet, basename="question")
+router.register(r"user-answer", UserAnswerViewSet, basename="user-answer")
 router.register(r"enroll", CourseEnrollmentViewSet, basename="enroll")
 router.register(r"leaderboard", LeaderboardViewSet, basename="leaderboard")
 router.register(r"progress", UserProgressViewSet, basename="progress")

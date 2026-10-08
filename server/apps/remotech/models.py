@@ -181,11 +181,18 @@ class Assignment(CrudModel):
 
 
 class Submission(CrudModel):
+    """Pengumpulan tugas (assignment terisi, berisi tautan) atau hasil quiz
+    (assignment kosong — module diturunkan lewat jawaban `UserAnswer`)."""
+
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    assignment = models.ForeignKey(Assignment, on_delete=models.CASCADE)
-    submission_url = models.URLField()
+    assignment = models.ForeignKey(
+        Assignment, on_delete=models.CASCADE, null=True, blank=True
+    )
+    submission_url = models.URLField(blank=True, default="")
     submit_on = models.DateTimeField(auto_now_add=True)
     score = models.IntegerField(default=0)
+    # Kosong = belum dinilai; diisi username mentor saat grading, atau
+    # "system" untuk quiz yang skornya final tanpa essay.
     reviewed_by = models.CharField(max_length=50, blank=True)
 
 
@@ -263,12 +270,20 @@ class Question(CrudModel):
     module = models.ForeignKey(CourseModule, on_delete=models.CASCADE)
     question_text = models.TextField()
     question_type = models.CharField(max_length=50, choices=QuestionType.choices)
-    explanation = models.TextField()
+    explanation = models.TextField(blank=True)
     sequence = models.BigIntegerField(null=True, blank=True)
+
+    @property
+    def is_essay(self):
+        return self.question_type == self.QuestionType.ESSAI
+
+    @property
+    def options(self):
+        return self.questionoption_set.all()
 
     def save(self, *args, **kwargs):
         if self.sequence is None:
-            max_seq = CourseModule.objects.filter(course=self.module.course).aggregate(
+            max_seq = Question.objects.filter(module=self.module).aggregate(
                 max_sequence=Max("sequence")
             )["max_sequence"]
 
@@ -288,9 +303,9 @@ class QuestionOption(CrudModel):
 
     def save(self, *args, **kwargs):
         if self.sequence is None:
-            max_seq = CourseModule.objects.filter(
-                course=self.question.module.course
-            ).aggregate(max_sequence=Max("sequence"))["max_sequence"]
+            max_seq = QuestionOption.objects.filter(question=self.question).aggregate(
+                max_sequence=Max("sequence")
+            )["max_sequence"]
 
             self.sequence = (max_seq or 0) + 1
 
@@ -301,10 +316,36 @@ class QuestionOption(CrudModel):
 
 
 class UserAnswer(models.Model):
+    """Jawaban user pada submission quiz.
+
+    `score` hanya dipakai untuk soal essay (dinilai mentor lewat
+    grade-essay); soal choices/boolean dinilai dari `question_option.is_correct`
+    sehingga selalu null di sini.
+    """
+
     submission = models.ForeignKey(Submission, on_delete=models.CASCADE)
     question = models.ForeignKey(Question, on_delete=models.CASCADE)
-    question_option = models.ForeignKey(QuestionOption, on_delete=models.CASCADE)
-    answer_text = models.TextField()
+    question_option = models.ForeignKey(
+        QuestionOption, on_delete=models.CASCADE, null=True, blank=True
+    )
+    answer_text = models.TextField(blank=True, default="")
+    score = models.IntegerField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["submission", "question"], name="unique_user_answer_per_question"
+            )
+        ]
+
+    @property
+    def is_correct(self):
+        """Benar/salah untuk pilihan; essay tidak punya kebenaran otomatis."""
+        if self.question.is_essay:
+            return None
+        return (
+            self.question_option_id is not None and self.question_option.is_correct
+        )
 
 
 class SetPasswordToken(models.Model):

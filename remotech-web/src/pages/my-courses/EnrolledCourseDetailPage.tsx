@@ -1,7 +1,5 @@
 import {
   ArrowLeftOutlined,
-  CheckCircleFilled,
-  CheckOutlined,
   ExpandOutlined,
   LinkOutlined,
   PictureOutlined,
@@ -9,7 +7,7 @@ import {
 } from '@ant-design/icons'
 import { Button, Drawer, Empty, Modal, Skeleton, Tabs, Tag, Tooltip } from 'antd'
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 
 import {
   getCourse,
@@ -33,6 +31,7 @@ import type { UserProgress } from '@/types/progress'
 import { isDirectVideo, toEmbedUrl } from '@/utils/video'
 import { AssignmentSubmitPanel } from './AssignmentSubmitPanel'
 import { CurriculumList } from './CurriculumList'
+import { QuizPanel } from './QuizPanel'
 
 const IMAGE_URL = /\.(png|jpe?g|gif|webp|avif|svg)(\?.*)?$/i
 
@@ -50,6 +49,9 @@ interface SelectedPreview {
 export function EnrolledCourseDetailPage() {
   const { id } = useParams<{ id: string }>()
   const courseId = Number(id)
+  // Deep-link: `/my-courses/{id}?module={moduleId}` membuka module tertentu
+  // (dipakai halaman My Assignment). Dibaca saat pratinjau awal di bawah.
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const [course, setCourse] = useState<Course | null>(null)
   const [modules, setModules] = useState<CourseModule[]>([])
@@ -191,12 +193,37 @@ export function EnrolledCourseDetailPage() {
     [modules],
   )
 
-  // Pratinjau awal: konten pertama dari module pertama yang punya konten.
+  // Pratinjau awal: module dari `?module=` (deep-link, mis. dari My Assignment)
+  // bila ada — selain itu konten pertama dari module pertama yang punya konten.
   useEffect(() => {
     if (selected !== null || sortedModules.length === 0) return
     let cancelled = false
+    const targetId = Number(searchParams.get('module'))
 
     void (async () => {
+      const target =
+        Number.isInteger(targetId) && targetId > 0
+          ? sortedModules.find((module) => module.id === targetId)
+          : undefined
+
+      if (target) {
+        let content: ModuleContent | null = null
+        try {
+          const page = await listModuleContents({
+            module: target.id,
+            page_size: 100,
+          })
+          content = page.results[0] ?? null
+        } catch {
+          // panel submit/kuis tidak butuh konten — tetap terbuka dengan content null
+        }
+        if (cancelled) return
+        setSelected({ module: target, content })
+        setDrawerOpen(false)
+        setSearchParams({}, { replace: true })
+        return
+      }
+
       for (const module of sortedModules) {
         let page
         try {
@@ -215,7 +242,7 @@ export function EnrolledCourseDetailPage() {
     return () => {
       cancelled = true
     }
-  }, [sortedModules, selected])
+  }, [sortedModules, selected, searchParams, setSearchParams])
 
   const progressIdByModule = useMemo(() => {
     const map = new Map<number, number>()
@@ -337,7 +364,6 @@ export function EnrolledCourseDetailPage() {
     )
   }
 
-  const selectedDone = selected ? completedIds.has(selected.module.id) : false
   const showFullViewButton =
     selected?.module.module_category === 'text' &&
     !!selected.content?.content_text.trim()
@@ -408,6 +434,14 @@ export function EnrolledCourseDetailPage() {
       )
     }
 
+    if (module.module_category === 'quiz') {
+      return (
+        <div className="h-full overflow-y-auto overscroll-contain bg-white p-4 sm:p-6 md:p-10">
+          <QuizPanel key={module.id} module={module} onSubmitted={refreshProgress} />
+        </div>
+      )
+    }
+
     if (!content) {
       return (
         <div className="flex h-full items-center justify-center p-6 text-center text-sm text-gray-400">
@@ -458,9 +492,7 @@ export function EnrolledCourseDetailPage() {
 
     return (
       <div className="flex h-full items-center justify-center p-6 text-center text-sm text-gray-400">
-        {module.module_category === 'quiz'
-          ? 'Module ini berupa kuis.'
-          : 'Tidak ada isi untuk konten ini.'}
+        Tidak ada isi untuk konten ini.
       </div>
     )
   }
@@ -541,7 +573,7 @@ export function EnrolledCourseDetailPage() {
             {renderPreview()}
           </div>
 
-          <div className="my-1 flex flex-wrap items-start justify-end gap-4 px-4">
+          <div className="py-2 flex flex-wrap items-start justify-end gap-4 px-4 bg-[#111827]">
             {showFullViewButton && (
               <Tooltip title="View Full" placement="topLeft">
                 <Button
@@ -552,17 +584,6 @@ export function EnrolledCourseDetailPage() {
                 </Button>
               </Tooltip>
               
-            )}
-            {selected && selected.module.module_category === 'quiz' && (
-              <Button
-                type={selectedDone ? 'default' : 'primary'}
-                className="w-full sm:w-auto"
-                icon={selectedDone ? <CheckCircleFilled /> : <CheckOutlined />}
-                loading={busyModuleId === selected.module.id}
-                onClick={() => void handleToggleComplete(selected.module)}
-              >
-                {selectedDone ? 'Sudah selesai' : 'Tandai selesai'}
-              </Button>
             )}
           </div>
         </div>

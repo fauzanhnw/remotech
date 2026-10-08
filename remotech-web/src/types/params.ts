@@ -27,6 +27,11 @@ export interface ModuleContentListParams extends PaginationParams {
   module?: number
 }
 
+/** GET /question/ — filter `?module=` (hanya module quiz). */
+export interface QuestionListParams extends PaginationParams {
+  module?: number
+}
+
 /** GET /order/ — filter `?course=`, `?user=`, `?transaction_status=`. */
 export interface OrderListParams extends PaginationParams {
   course?: number
@@ -61,8 +66,13 @@ export interface LeaderboardListParams extends PaginationParams {
   user?: number
 }
 
-/** GET /submission/ — filter `?assignment=`, `?user=`. */
+/**
+ * GET /submission/ — filter `?assignment=`, `?user=`, `?module=`
+ * (tugas dari assignment ataupun hasil quiz), `?graded=true|false`.
+ */
 export interface SubmissionListParams extends PaginationParams {
   assignment?: number
   user?: number
+  module?: number
+  graded?: boolean
 }
