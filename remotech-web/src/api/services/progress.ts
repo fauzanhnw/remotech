@@ -7,6 +7,7 @@ import type {
   CourseProgressSummary,
   UserProgress,
   UserProgressCreate,
+  UserProgressCreateResult,
   WeeklyActivity,
 } from '@/types/progress'
 
@@ -23,13 +24,18 @@ export function listProgress(params?: ProgressListParams): Promise<Paginated<Use
 /**
  * POST /progress/ — tandai module selesai (idempotent, status selalu `finish`).
  * Wajib ter-enroll di course module tersebut.
+ * Response menyertakan `earned_badges` (badge baru, kosong bila tidak ada).
  * Pakai `config.meta.suppressErrorToast` untuk aksi otomatis (tanpa toast).
  */
 export function markModuleComplete(
   module: number,
   config?: AxiosRequestConfig,
-): Promise<UserProgress> {
-  return postJson<UserProgress, UserProgressCreate>('/progress/', { module }, config)
+): Promise<UserProgressCreateResult> {
+  return postJson<UserProgressCreateResult, UserProgressCreate>(
+    '/progress/',
+    { module },
+    config,
+  )
 }
 
 /** DELETE /progress/{id}/ — batalkan tanda selesai (204 tanpa body). */

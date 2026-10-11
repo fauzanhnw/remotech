@@ -14,6 +14,7 @@ from server.apps.remotech.models import (
     Question,
     QuestionOption,
     Submission,
+    UserBadge,
     UserProgress,
 )
 
@@ -92,8 +93,16 @@ class QuestionOptionAdmin(admin.ModelAdmin):
 
 @admin.register(Badge)
 class BadgeAdmin(admin.ModelAdmin):
-    list_display = ("name", "course")
+    list_display = ("name", "course", "rule_type", "icon_name")
+    list_filter = ("rule_type",)
     search_fields = ("name",)
+
+
+@admin.register(UserBadge)
+class UserBadgeAdmin(admin.ModelAdmin):
+    list_display = ("user", "badge", "awarded_by", "earned_at")
+    search_fields = ("user__username", "badge__name", "awarded_by")
+    ordering = ("-earned_at",)
 
 
 @admin.register(UserProgress)

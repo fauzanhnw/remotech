@@ -3,7 +3,11 @@ import type { AxiosRequestConfig } from 'axios'
 import { deleteJson, getJson, patchJson, postJson } from './shared'
 import type { Paginated } from '@/types/api'
 import type { SubmissionListParams } from '@/types/params'
-import type { Submission, SubmissionCreate } from '@/types/submission'
+import type {
+  Submission,
+  SubmissionActionResult,
+  SubmissionCreate,
+} from '@/types/submission'
 
 export type { SubmissionListParams } from '@/types/params'
 
@@ -19,9 +23,18 @@ export function getSubmission(id: number): Promise<Submission> {
   return getJson<Submission>(`/submission/${id}/`)
 }
 
-/** POST /submission/ — wajib isi `user` (backend tidak auto-inject). */
-export function createSubmission(payload: SubmissionCreate): Promise<Submission> {
-  return postJson<Submission, SubmissionCreate>('/submission/', payload)
+/**
+ * POST /submission/ — wajib isi `assignment` + `submission_url`.
+ * Response menyertakan `earned_badges` (badge baru bila submit ini
+ * menyelesaikan course).
+ */
+export function createSubmission(
+  payload: SubmissionCreate,
+): Promise<SubmissionActionResult> {
+  return postJson<SubmissionActionResult, SubmissionCreate>(
+    '/submission/',
+    payload,
+  )
 }
 
 /** PATCH /submission/{id}/ — untuk review skor (`score`, `reviewed_by`). */

@@ -129,7 +129,7 @@ export function LeaderboardPanel({ courseId }: LeaderboardPanelProps) {
   return (
     <div>
       <p className="mb-3 text-sm text-gray-500">
-        {rows.length} peserta berpoin — buka salah satu untuk rincian per module.
+        {rows.length} peserta berpoin, buka salah satu untuk rincian per module.
       </p>
       <Collapse
         ghost

@@ -62,6 +62,7 @@ from server.apps.remotech.serializers import (
     SetPasswordSerializer,
     SubmissionSerializer,
     UserAnswerSerializer,
+    UserBadgeAwardSerializer,
     UserBadgeSerializer,
     UserProgressSerializer,
 )
@@ -71,6 +72,7 @@ from server.apps.remotech.services.auth import (
     reset_password,
     set_password,
 )
+from server.apps.remotech.services.badges import sync_badges
 from server.apps.remotech.services.grading import (
     compute_auto_score,
     count_correct_answers,
@@ -131,14 +133,163 @@ class UserViewSet(viewsets.ViewSet):
         return Response({"message": "Password updated successfully."})
 
 
-class BadgeViewSet(viewsets.ModelViewSet):
-    queryset = Badge.objects.order_by("id")
+class BadgeViewSet(CourseOwnerMixin, viewsets.ModelViewSet):
+    """Definisi badge per course.
+
+    List/retrieve terbuka (public catalog per course); tulis hanya pemilik
+    course. `rule_type` dijaga di serializer — badge `course_complete` dievaluasi
+    otomatis oleh `sync_badges`, `manual` diberi mentor lewat /user-badge/.
+    """
+
+    queryset = Badge.objects.select_related("course").order_by("id")
     serializer_class = BadgeSerializer
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+    filterset_fields = ["course", "rule_type"]
+
+    def get_permissions(self):
+        if self.action in ("list", "retrieve"):
+            return [AllowAny()]
+        return [IsAuthenticated()]
+
+    def get_course(self, instance=None, validated_data=None):
+        if validated_data is not None and "course" in validated_data:
+            return validated_data["course"]
+        return instance.course if instance is not None else None
 
 
 class UserBadgeViewSet(viewsets.ModelViewSet):
-    queryset = UserBadge.objects.order_by("id")
+    """Badge yang dimiliki user.
+
+    - GET  /user-badge/         — baris milik sendiri (superuser: semua), filter `?course=`
+    - GET  /user-badge/me/      — ringkas: badge definition + progress course
+    - POST /user-badge/         — mentor award badge `manual` ke student enrolled
+    - DELETE /user-badge/{id}/  — cabut (pemilik course badge / superuser)
+    """
+
+    queryset = UserBadge.objects.select_related("badge", "badge__course", "user")
     serializer_class = UserBadgeSerializer
+    filterset_fields = ["badge", "user", "badge__course"]
+
+    def get_queryset(self):
+        queryset = super().get_queryset().order_by("-earned_at", "id")
+        user = self.request.user
+        if user.is_superuser:
+            return queryset
+        if self.action in ("destroy", "list"):
+            # Revoke & daftar penerima oleh pemilik course badge.
+            owned_course_ids = Course.objects.filter(user=user).values_list(
+                "id", flat=True
+            )
+            return queryset.filter(
+                Q(user=user) | Q(badge__course_id__in=owned_course_ids)
+            )
+        return queryset.filter(user=user)
+
+    def create(self, request, *args, **kwargs):
+        serializer = UserBadgeAwardSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        badge = serializer.validated_data["badge"]
+        student = serializer.validated_data["user"]
+
+        if badge.rule_type != Badge.RuleType.MANUAL:
+            raise ValidationError(
+                {"badge": ["Hanya badge bertipe manual yang bisa diberi mentor."]}
+            )
+        if badge.course.user_id != request.user.pk:
+            self.permission_denied(
+                request, message="You do not own this course."
+            )
+        if not CourseEnrollment.objects.filter(
+            user=student, course=badge.course
+        ).exists():
+            raise ValidationError(
+                {"user": ["Student belum enroll di course ini."]}
+            )
+
+        user_badge, created = UserBadge.objects.get_or_create(
+            user=student,
+            badge=badge,
+            defaults={"awarded_by": request.user.username[:50]},
+        )
+        if not created:
+            raise ValidationError({"badge": ["Badge sudah pernah diberikan."]})
+        return Response(
+            self.get_serializer(user_badge).data, status=status.HTTP_201_CREATED
+        )
+
+    def update(self, request, *args, **kwargs):
+        self.http_method_not_allowed(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+        self.http_method_not_allowed(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        user_badge = self.get_object()
+        badge = user_badge.badge
+        if not request.user.is_superuser and badge.course.user_id != request.user.pk:
+            self.permission_denied(
+                request, message="You do not own this course."
+            )
+        user_badge.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=False, methods=["get"])
+    def me(self, request):
+        """Badge course yang di-enroll: earned + locked dengan progres.
+
+        Locked = definisi badge pada course yang di-enroll tapi belum dimiliki;
+        `progress` = module selesai / total module pada course badge tersebut
+        (dipakai frontend menampilkan "x/y" pada badge locked).
+        """
+        enrolled_course_ids = set(
+            CourseEnrollment.objects.filter(user=request.user).values_list(
+                "course_id", flat=True
+            )
+        )
+        course_param = request.query_params.get("course")
+        if course_param and str(course_param).isdigit():
+            enrolled_course_ids &= {int(course_param)}
+
+        earned_ids = set(
+            UserBadge.objects.filter(user=request.user).values_list(
+                "badge_id", flat=True
+            )
+        )
+        badges = Badge.objects.filter(
+            course_id__in=enrolled_course_ids
+        ).select_related("course")
+
+        finished_counts = Counter(
+            UserProgress.objects.filter(
+                user=request.user,
+                status=UserProgress.ProgressStatus.FINISH,
+                module__course_id__in=enrolled_course_ids,
+            ).values_list("module__course_id", flat=True)
+        )
+        total_counts = Counter(
+            CourseModule.objects.filter(
+                course_id__in=enrolled_course_ids
+            ).values_list("course_id", flat=True)
+        )
+        payload = []
+        for badge in badges:
+            course_id = badge.course_id
+            payload.append(
+                {
+                    "badge": BadgeSerializer(badge).data,
+                    "earned": badge.pk in earned_ids,
+                    "course": course_id,
+                    "progress": {
+                        "completed": finished_counts.get(course_id, 0),
+                        "total": total_counts.get(course_id, 0),
+                    },
+                }
+            )
+        # Earned dulu, lalu locked (urut nama).
+        payload.sort(
+            key=lambda item: (not item["earned"], item["badge"]["name"])
+        )
+        return Response(payload)
 
 
 class CourseViewSet(AssignUserMixin, viewsets.ModelViewSet):
@@ -326,11 +477,14 @@ class CourseModuleViewSet(CourseOwnerMixin, viewsets.ModelViewSet):
                 "complete_at": timezone.now(),
             },
         )
-        sync_leaderboard(request.user, module.course)
+        _, new_badges = sync_leaderboard(request.user, module.course)
 
         payload = quiz_result_payload(submission, questions, reveal=True)
         payload["completed"] = True
         payload["result"] = quiz_result_summary(submission, questions, module)
+        payload["earned_badges"] = BadgeSerializer(
+            [entry.badge for entry in new_badges], many=True
+        ).data
         return Response(payload)
 
 
@@ -432,7 +586,9 @@ class CourseOrderViewSet(viewsets.ModelViewSet):
 
 
 class CourseEnrollmentViewSet(viewsets.ModelViewSet):
-    queryset = CourseEnrollment.objects.order_by("id")
+    queryset = CourseEnrollment.objects.select_related("user", "course").order_by(
+        "id"
+    )
     serializer_class = CourseEnrollmentSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ["course", "user"]
@@ -445,7 +601,12 @@ class CourseEnrollmentViewSet(viewsets.ModelViewSet):
         user = self.request.user
         if user.is_superuser:
             return queryset
-        return queryset.filter(user=user)
+        # Pemilik course boleh melihat peserta course miliknya (untuk
+        # pemilihan student saat memberi badge manual).
+        owned_course_ids = Course.objects.filter(user=user).values_list(
+            "id", flat=True
+        )
+        return queryset.filter(Q(user=user) | Q(course_id__in=owned_course_ids))
 
     def create(self, request, *args, **kwargs):
         self.http_method_not_allowed(request, *args, **kwargs)
@@ -463,6 +624,12 @@ def sync_leaderboard(user, course):
     Idempoten — aman dipanggil berulang, termasuk siklus batalkan→tandai lagi.
     Module text/video memberi `module.point` penuh; module upload/quiz memberi
     skor submission terakhirnya (0 bila belum ada atau belum dinilai).
+
+    Evaluasi badge otomatis (`sync_badges`) dijalankan di akhir, sehingga
+    setiap jalur mutasi poin ikut mengecek pemberian/cabutan badge.
+
+    Returns:
+        tuple: (leaderboard, list badge yang baru didapat pada panggilan ini)
     """
     finished = UserProgress.objects.filter(
         user=user,
@@ -504,7 +671,9 @@ def sync_leaderboard(user, course):
         if not created and detail.point != point:
             detail.point = point
             detail.save(update_fields=["point"])
-    return leaderboard
+
+    new_badges = sync_badges(user, course)
+    return leaderboard, new_badges
 
 
 class UserProgressViewSet(viewsets.ModelViewSet):
@@ -547,8 +716,12 @@ class UserProgressViewSet(viewsets.ModelViewSet):
                 "complete_at": timezone.now(),
             },
         )
-        sync_leaderboard(request.user, module.course)
-        return Response(self.get_serializer(progress).data, status=status.HTTP_201_CREATED)
+        _, new_badges = sync_leaderboard(request.user, module.course)
+        data = self.get_serializer(progress).data
+        data["earned_badges"] = BadgeSerializer(
+            [entry.badge for entry in new_badges], many=True
+        ).data
+        return Response(data, status=status.HTTP_201_CREATED)
 
     def update(self, request, *args, **kwargs):
         self.http_method_not_allowed(request, *args, **kwargs)
@@ -710,8 +883,15 @@ class ContentViewMarkView(APIView):
                 "complete_at": timezone.now(),
             },
         )
-        sync_leaderboard(request.user, module.course)
-        return Response({"module_completed": True})
+        _, new_badges = sync_leaderboard(request.user, module.course)
+        return Response(
+            {
+                "module_completed": True,
+                "earned_badges": BadgeSerializer(
+                    [entry.badge for entry in new_badges], many=True
+                ).data,
+            }
+        )
 
 
 class ContentViewListView(APIView):
@@ -1011,10 +1191,19 @@ class SubmissionViewSet(viewsets.ModelViewSet):
 
         return queryset
 
+    def create(self, request, *args, **kwargs):
+        self._earned_badges = []
+        response = super().create(request, *args, **kwargs)
+        response.data["earned_badges"] = BadgeSerializer(
+            [entry.badge for entry in self._earned_badges], many=True
+        ).data
+        return response
+
     def perform_create(self, serializer):
         assignment = serializer.validated_data["assignment"]
         module = assignment.course_module
         user = self.request.user
+        self._earned_badges = []
 
         # Satu submission per (assignment, user): submit ulang memperbarui
         # tautan selama belum dinilai.
@@ -1040,7 +1229,7 @@ class SubmissionViewSet(viewsets.ModelViewSet):
                     "complete_at": timezone.now(),
                 },
             )
-            sync_leaderboard(user, module.course)
+            _, self._earned_badges = sync_leaderboard(user, module.course)
 
     def perform_update(self, serializer):
         submission = serializer.instance
@@ -1205,11 +1394,16 @@ class SubmissionViewSet(viewsets.ModelViewSet):
         submission.score = final_score
         submission.reviewed_by = request.user.username[:50]
         submission.save(update_fields=["score", "reviewed_by"])
+        new_badges = []
         if CourseEnrollment.objects.filter(
             user=submission.user, course=module.course
         ).exists():
-            sync_leaderboard(submission.user, module.course)
-        return Response(SubmissionSerializer(submission).data)
+            _, new_badges = sync_leaderboard(submission.user, module.course)
+        data = SubmissionSerializer(submission).data
+        data["earned_badges"] = BadgeSerializer(
+            [entry.badge for entry in new_badges], many=True
+        ).data
+        return Response(data)
 
 
 class UserAnswerViewSet(viewsets.ModelViewSet):

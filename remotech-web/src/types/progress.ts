@@ -1,6 +1,7 @@
 /** Progres belajar per module (ditandai selesai lewat halaman detail). */
 
 import type { IsoDateTime } from './common'
+import type { Badge } from './badge'
 
 /** GET /progress/ — hanya baris milik sendiri. */
 export interface UserProgress {
@@ -13,6 +14,11 @@ export interface UserProgress {
 /** POST /progress/ — body hanya `{ module }`, status diisi backend (`finish`). */
 export interface UserProgressCreate {
   module: number
+}
+
+/** POST /progress/ — baris progres + badge baru yang didapat (jika ada). */
+export interface UserProgressCreateResult extends UserProgress {
+  earned_badges: Badge[]
 }
 
 /** GET /progress/summary/ — ringkasan progres semua course yang di-enroll. */

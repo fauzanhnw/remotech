@@ -3,6 +3,7 @@ import { App as AntApp, Alert, Button, Input, Radio, Skeleton, Tag } from 'antd'
 import { useEffect, useMemo, useState } from 'react'
 
 import {
+  notifyEarnedBadges,
   notifyError,
   notifySuccess,
   startQuiz,
@@ -157,6 +158,7 @@ export function QuizPanel({ module, onSubmitted }: QuizPanelProps) {
           setSession(data)
           setResult(data.result ?? null)
           notifySuccess('Jawaban quiz berhasil dikumpulkan.')
+          notifyEarnedBadges(data.earned_badges)
           onSubmitted()
         } catch (error) {
           notifyError(error)

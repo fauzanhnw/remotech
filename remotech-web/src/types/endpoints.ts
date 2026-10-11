@@ -16,6 +16,7 @@ import type {
   SetPasswordPayload,
   TokenPair,
 } from './auth'
+import type { Badge, BadgeCreate, MyBadgeEntry, UserBadge, UserBadgeAwardPayload } from './badge'
 import type {
   Assignment,
   AssignmentCreate,
@@ -43,6 +44,7 @@ import type {
 } from './order'
 import type {
   AssignmentListParams,
+  BadgeListParams,
   CourseListParams,
   EnrollmentListParams,
   LeaderboardListParams,
@@ -52,16 +54,19 @@ import type {
   ProgressListParams,
   QuestionListParams,
   SubmissionListParams,
+  UserBadgeListParams,
 } from './params'
 import type {
   CourseProgressSummary,
   UserProgress,
   UserProgressCreate,
+  UserProgressCreateResult,
   WeeklyActivity,
 } from './progress'
 import type {
   GradeEssayPayload,
   Submission,
+  SubmissionActionResult,
   SubmissionCreate,
 } from './submission'
 import type {
@@ -141,7 +146,7 @@ export interface ApiEndpoints {
 
   // Progress (ditandai selesai per module lewat halaman detail)
   'GET /progress/': { params?: ProgressListParams; response: Paginated<UserProgress> }
-  'POST /progress/': { body: UserProgressCreate; response: UserProgress }
+  'POST /progress/': { body: UserProgressCreate; response: UserProgressCreateResult }
   'DELETE /progress/{id}/': { response: void }
   'GET /progress/summary/': { response: CourseProgressSummary[] }
   'GET /progress/activity/': { response: WeeklyActivity }
@@ -167,12 +172,15 @@ export interface ApiEndpoints {
     params?: SubmissionListParams
     response: Paginated<Submission>
   }
-  'POST /submission/': { body: SubmissionCreate; response: Submission }
+  'POST /submission/': { body: SubmissionCreate; response: SubmissionActionResult }
   'GET /submission/{id}/': { response: Submission }
   'PATCH /submission/{id}/': { body: Partial<SubmissionCreate>; response: Submission }
   'DELETE /submission/{id}/': { response: void }
   // Penilaian bagian essay quiz (mentor) — total dibatasi poin module.
-  'POST /submission/{id}/grade-essay/': { body: GradeEssayPayload; response: Submission }
+  'POST /submission/{id}/grade-essay/': {
+    body: GradeEssayPayload
+    response: SubmissionActionResult
+  }
 
   // Question (soal quiz — hanya module berkategori quiz)
   'GET /question/': { params?: QuestionListParams; response: Paginated<Question> }
@@ -188,6 +196,23 @@ export interface ApiEndpoints {
   }
   'POST /user-answer/': { body: UserAnswerUpsert; response: UserAnswer }
   'DELETE /user-answer/{id}/': { response: void }
+
+  // Badge (definisi per course — tulis hanya pemilik course)
+  'GET /badge/': { params?: BadgeListParams; response: Paginated<Badge> }
+  'POST /badge/': { body: BadgeCreate | FormData; response: Badge }
+  'GET /badge/{id}/': { response: Badge }
+  'PATCH /badge/{id}/': { body: Partial<BadgeCreate> | FormData; response: Badge }
+  'DELETE /badge/{id}/': { response: void }
+
+  // User badge (kepemilikan: otomatis via sync / manual mentor)
+  'GET /user-badge/': {
+    params?: UserBadgeListParams
+    response: Paginated<UserBadge>
+  }
+  'POST /user-badge/': { body: UserBadgeAwardPayload; response: UserBadge }
+  'GET /user-badge/{id}/': { response: UserBadge }
+  'DELETE /user-badge/{id}/': { response: void }
+  'GET /user-badge/me/': { params?: { course?: number }; response: MyBadgeEntry[] }
 
   // Quiz flow (student): buka/resume → jawab → submit
   'POST /module/{id}/quiz/start/': { body?: never; response: QuizSession }

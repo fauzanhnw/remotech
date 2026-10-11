@@ -1,6 +1,7 @@
 /** Pengumpulan tugas (assignment) dan hasil quiz. */
 
 import type { IsoDateTime } from './common'
+import type { Badge } from './badge'
 
 /**
  * GET /submission/{id}/ — tugas (punya `assignment`) atau hasil quiz
@@ -45,6 +46,11 @@ export interface SubmissionCreate {
   submission_url: string
   score?: number
   reviewed_by?: string
+}
+
+/** POST /submission/ dan POST /submission/{id}/grade-essay/ + badge baru. */
+export interface SubmissionActionResult extends Submission {
+  earned_badges: Badge[]
 }
 
 /** POST /submission/{id}/grade-essay/ — nilai tiap jawaban essay (mentor). */

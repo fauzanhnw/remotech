@@ -107,9 +107,45 @@ class CourseOrder(models.Model):
 
 
 class Badge(models.Model):
+    class RuleType(models.TextChoices):
+        COURSE_COMPLETE = "course_complete", "Course Complete"
+        MANUAL = "manual", "Manual"
+
     course = models.ForeignKey(Course, on_delete=models.CASCADE)
     name = models.CharField(max_length=100)
     description = models.TextField()
+    # Ikon badge: unggahan gambar menang bila diisi; jika tidak, pakai ikon
+    # preset `icon_name`; keduanya kosong = fallback trophy di frontend.
+    icon_image = models.ImageField(
+        upload_to="badges/icons/", blank=True, null=True
+    )
+    icon_name = models.CharField(max_length=50, blank=True, default="")
+    rule_type = models.CharField(
+        max_length=30,
+        choices=RuleType.choices,
+        default=RuleType.MANUAL,
+    )
+
+    def save(self, **kwargs):
+        old_icon = None
+        if self.pk:
+            old_icon = (
+                type(self)
+                .objects.filter(pk=self.pk)
+                .values_list("icon_image", flat=True)
+                .first()
+            )
+
+        super().save(**kwargs)
+
+        new_icon = self.icon_image.name or ""
+        if old_icon and old_icon != new_icon:
+            self.delete_icon_image(old_icon)
+
+    @staticmethod
+    def delete_icon_image(name):
+        if name and default_storage.exists(name):
+            default_storage.delete(name)
 
     def __str__(self):
         return self.name
@@ -119,6 +155,16 @@ class UserBadge(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     badge = models.ForeignKey(Badge, on_delete=models.CASCADE)
     earned_at = models.DateTimeField(auto_now_add=True)
+    # "system" untuk pemberian otomatis (rule_type course_complete);
+    # username mentor untuk pemberian manual.
+    awarded_by = models.CharField(max_length=50, blank=True, default="")
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "badge"], name="unique_user_badge"
+            )
+        ]
 
 
 class CourseModule(CrudModel):

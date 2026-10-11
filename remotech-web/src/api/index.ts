@@ -9,6 +9,7 @@ export {
 } from './errors'
 export {
   notifyApiError,
+  notifyEarnedBadges,
   notifyError,
   notifyInfo,
   notifySuccess,

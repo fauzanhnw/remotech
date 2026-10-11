@@ -21,6 +21,7 @@ from rest_framework.test import APIRequestFactory, APITestCase
 
 from server.apps.remotech.models import (
     Assignment,
+    Badge,
     Course,
     CourseEnrollment,
     CourseModule,
@@ -34,6 +35,7 @@ from server.apps.remotech.models import (
     SetPasswordToken,
     Submission,
     UserAnswer,
+    UserBadge,
     UserProgress,
 )
 from server.apps.remotech.services.auth import (
@@ -3936,3 +3938,340 @@ class EssayQuizGradingTests(APITestCase):
         self.assertEqual(full.json()["score"], 42)
         submission = Submission.objects.get(pk=submission_id)
         self.assertEqual(submission.score, 42)
+
+
+class BadgeTests(APITestCase):
+    """Badge hybrid: otomatis course_complete + manual mentor (/user-badge/)."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user(username="owner", password="secret123")
+        self.student = User.objects.create_user(
+            username="student", password="secret123"
+        )
+        self.other = User.objects.create_user(username="other", password="secret123")
+        self.course = Course.objects.create(user=self.owner, title="Badge Course")
+        self.module = CourseModule.objects.create(course=self.course, title="M1")
+        self.module_2 = CourseModule.objects.create(course=self.course, title="M2")
+        CourseEnrollment.objects.create(course=self.course, user=self.student)
+        self.auto_badge = Badge.objects.create(
+            course=self.course,
+            name="Graduate",
+            description="Selesaikan semua module",
+            rule_type=Badge.RuleType.COURSE_COMPLETE,
+        )
+        self.manual_badge = Badge.objects.create(
+            course=self.course,
+            name="Best Assignment",
+            description="Tugas terbaik",
+            rule_type=Badge.RuleType.MANUAL,
+        )
+
+    def finish(self, module, user=None):
+        user = user or self.student
+        UserProgress.objects.update_or_create(
+            module=module,
+            user=user,
+            defaults={
+                "status": UserProgress.ProgressStatus.FINISH,
+                "complete_at": timezone.now(),
+            },
+        )
+
+    # --- Otomatis (course_complete) ---
+
+    def test_auto_badge_awarded_when_all_modules_finished(self):
+        self.finish(self.module)
+        self.client.force_authenticate(user=self.student)
+        response = self.client.post(
+            "/progress/", {"module": self.module_2.id}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(
+            UserBadge.objects.filter(
+                user=self.student, badge=self.auto_badge, awarded_by="system"
+            ).exists()
+        )
+        earned = response.json()["earned_badges"]
+        self.assertEqual([item["id"] for item in earned], [self.auto_badge.id])
+
+    def test_auto_badge_not_awarded_before_complete(self):
+        self.finish(self.module)
+
+        self.assertFalse(UserBadge.objects.filter(badge=self.auto_badge).exists())
+
+    def test_auto_badge_idempotent(self):
+        self.finish(self.module)
+        self.finish(self.module_2)
+        from server.apps.remotech.services.badges import sync_badges
+
+        first = sync_badges(self.student, self.course)
+        second = sync_badges(self.student, self.course)
+
+        self.assertEqual(len(first), 1)
+        self.assertEqual(second, [])
+        self.assertEqual(
+            UserBadge.objects.filter(user=self.student, badge=self.auto_badge).count(),
+            1,
+        )
+
+    def test_auto_badge_revoked_when_progress_unmarked(self):
+        self.finish(self.module)
+        self.finish(self.module_2)
+        self.client.force_authenticate(user=self.student)
+        self.client.post("/progress/", {"module": self.module_2.id}, format="json")
+        row = UserProgress.objects.get(module=self.module_2, user=self.student)
+
+        self.client.delete(f"/progress/{row.id}/")
+
+        self.assertFalse(UserBadge.objects.filter(badge=self.auto_badge).exists())
+
+    def test_manual_badge_never_auto_awarded(self):
+        self.finish(self.module)
+        self.finish(self.module_2)
+        from server.apps.remotech.services.badges import sync_badges
+
+        sync_badges(self.student, self.course)
+
+        self.assertFalse(UserBadge.objects.filter(badge=self.manual_badge).exists())
+
+    def test_manual_badge_not_revoked_by_sync(self):
+        UserBadge.objects.create(
+            user=self.student, badge=self.manual_badge, awarded_by=self.owner.username
+        )
+        self.finish(self.module)
+        self.finish(self.module_2)
+        from server.apps.remotech.services.badges import sync_badges
+
+        sync_badges(self.student, self.course)
+
+        self.assertTrue(UserBadge.objects.filter(badge=self.manual_badge).exists())
+
+    def test_auto_badge_not_awarded_without_enrollment_flow(self):
+        # sync tetap jalan berdasarkan progress; cukup pastikan user lain
+        # (tanpa progress) tidak menerima badge.
+        self.finish(self.module)
+        self.finish(self.module_2)
+
+        self.assertFalse(
+            UserBadge.objects.filter(user=self.other, badge=self.auto_badge).exists()
+        )
+
+    # --- Endpoint /user-badge/ (award manual mentor) ---
+
+    def test_mentor_awards_manual_badge(self):
+        self.client.force_authenticate(user=self.owner)
+
+        response = self.client.post(
+            "/user-badge/",
+            {"badge": self.manual_badge.id, "user": self.student.id},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        row = UserBadge.objects.get(user=self.student, badge=self.manual_badge)
+        self.assertEqual(row.awarded_by, "owner")
+        self.assertEqual(response.json()["user_name"], "student")
+
+    def test_award_rejects_auto_badge(self):
+        self.client.force_authenticate(user=self.owner)
+
+        response = self.client.post(
+            "/user-badge/",
+            {"badge": self.auto_badge.id, "user": self.student.id},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(UserBadge.objects.filter(badge=self.auto_badge).exists())
+
+    def test_award_rejects_non_owner_mentor(self):
+        self.client.force_authenticate(user=self.other)
+
+        response = self.client.post(
+            "/user-badge/",
+            {"badge": self.manual_badge.id, "user": self.student.id},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_award_rejects_non_enrolled_student(self):
+        self.client.force_authenticate(user=self.owner)
+
+        response = self.client.post(
+            "/user-badge/",
+            {"badge": self.manual_badge.id, "user": self.other.id},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_award_rejects_duplicate(self):
+        UserBadge.objects.create(
+            user=self.student, badge=self.manual_badge, awarded_by="owner"
+        )
+        self.client.force_authenticate(user=self.owner)
+
+        response = self.client.post(
+            "/user-badge/",
+            {"badge": self.manual_badge.id, "user": self.student.id},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            UserBadge.objects.filter(user=self.student, badge=self.manual_badge).count(),
+            1,
+        )
+
+    def test_owner_can_revoke_student_badge(self):
+        row = UserBadge.objects.create(
+            user=self.student, badge=self.manual_badge, awarded_by="owner"
+        )
+        self.client.force_authenticate(user=self.owner)
+
+        response = self.client.delete(f"/user-badge/{row.id}/")
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(UserBadge.objects.filter(id=row.id).exists())
+
+    def test_other_user_cannot_revoke(self):
+        row = UserBadge.objects.create(
+            user=self.student, badge=self.manual_badge, awarded_by="owner"
+        )
+        self.client.force_authenticate(user=self.other)
+
+        response = self.client.delete(f"/user-badge/{row.id}/")
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertTrue(UserBadge.objects.filter(id=row.id).exists())
+
+    def test_update_methods_not_allowed(self):
+        row = UserBadge.objects.create(
+            user=self.student, badge=self.manual_badge, awarded_by="owner"
+        )
+        self.client.force_authenticate(user=self.owner)
+
+        patch_response = self.client.patch(f"/user-badge/{row.id}/", {}, format="json")
+        put_response = self.client.put(f"/user-badge/{row.id}/", {}, format="json")
+
+        self.assertEqual(
+            patch_response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED
+        )
+        self.assertEqual(put_response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    # --- GET /user-badge/me/ ---
+
+    def test_me_lists_earned_and_locked_with_progress(self):
+        self.finish(self.module)
+        self.client.force_authenticate(user=self.student)
+        # Module terakhir lewat API → sync_leaderboard + sync_badges berjalan.
+        self.client.post("/progress/", {"module": self.module_2.id}, format="json")
+
+        response = self.client.get("/user-badge/me/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        rows = {row["badge"]["id"]: row for row in response.json()}
+        self.assertTrue(rows[self.auto_badge.id]["earned"])
+        self.assertFalse(rows[self.manual_badge.id]["earned"])
+        locked = rows[self.manual_badge.id]
+        self.assertEqual(locked["progress"]["completed"], 2)
+        self.assertEqual(locked["progress"]["total"], 2)
+        self.assertEqual(locked["course"], self.course.id)
+
+    def test_me_scoped_to_enrolled_courses(self):
+        stranger_course = Course.objects.create(user=self.owner, title="Other")
+        Badge.objects.create(
+            course=stranger_course, name="Other Badge", description="x"
+        )
+        self.client.force_authenticate(user=self.student)
+
+        response = self.client.get("/user-badge/me/").json()
+
+        self.assertEqual({row["course"] for row in response}, {self.course.id})
+
+    def test_me_filter_by_course(self):
+        self.client.force_authenticate(user=self.student)
+
+        response = self.client.get(f"/user-badge/me/?course={self.course.id}").json()
+        other = Course.objects.create(user=self.owner, title="Nope")
+        filtered_out = self.client.get(f"/user-badge/me/?course={other.id}").json()
+
+        self.assertEqual(len(response), 2)
+        self.assertEqual(filtered_out, [])
+
+    # --- CRUD /badge/ ---
+
+    def test_badge_list_is_public(self):
+        self.client.force_authenticate(user=None)
+
+        response = self.client.get("/badge/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()["count"], 2)
+
+    def test_badge_create_requires_owner(self):
+        self.client.force_authenticate(user=self.other)
+
+        response = self.client.post(
+            "/badge/",
+            {"course": self.course.id, "name": "X", "description": "y"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_badge_owner_can_create_with_preset_icon(self):
+        self.client.force_authenticate(user=self.owner)
+
+        response = self.client.post(
+            "/badge/",
+            {
+                "course": self.course.id,
+                "name": "Fire Badge",
+                "description": "Semangat",
+                "icon_name": "fire",
+                "rule_type": Badge.RuleType.MANUAL,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.json()["icon_name"], "fire")
+        self.assertIsNone(response.json()["icon_image"])
+        self.assertEqual(response.json()["course_title"], "Badge Course")
+
+    def test_badge_owner_can_delete(self):
+        badge = Badge.objects.create(
+            course=self.course, name="Temp", description="x"
+        )
+        self.client.force_authenticate(user=self.owner)
+
+        response = self.client.delete(f"/badge/{badge.id}/")
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+    def test_badge_update_not_owner_forbidden(self):
+        self.client.force_authenticate(user=self.other)
+
+        response = self.client.patch(
+            f"/badge/{self.manual_badge.id}/", {"name": "Hacked"}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    # --- Unique constraint ---
+
+    def test_user_badge_unique_constraint(self):
+        from django.db import IntegrityError, transaction
+
+        UserBadge.objects.create(
+            user=self.student, badge=self.manual_badge, awarded_by="owner"
+        )
+
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                UserBadge.objects.create(
+                    user=self.student, badge=self.manual_badge, awarded_by="owner"
+                )

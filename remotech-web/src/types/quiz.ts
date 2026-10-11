@@ -1,6 +1,7 @@
 /** Soal, opsi, dan jawaban quiz (module berkategori `quiz`). */
 
 import type { IsoDateTime } from './common'
+import type { Badge } from './badge'
 import type { Submission } from './submission'
 
 export type QuestionType = 'choices' | 'boolean' | 'essai'
@@ -98,4 +99,6 @@ export interface QuizSession {
   answers: UserAnswer[]
   completed: boolean
   result?: QuizResult
+  /** Badge baru yang didapat saat submit (tidak dikirim saat start). */
+  earned_badges?: Badge[]
 }

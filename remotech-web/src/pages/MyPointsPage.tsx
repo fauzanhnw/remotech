@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { getMyLeaderboard, notifyError } from '@/api'
+import { BadgeGrid } from '@/components/BadgeGrid'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import type { MyLeaderboard } from '@/types/leaderboard'
 
@@ -151,6 +152,15 @@ export function MyPointsPage() {
           ))}
         </div>
       )}
+
+      <div className="mt-10">
+        <h2 className="mb-1 text-xl font-bold text-[#08060d]">Badge</h2>
+        <p className="mb-4 text-sm text-gray-600">
+          Kumpulkan badge dari course yang kamu ikuti — selesaikan semua module
+          atau raih penghargaan dari mentor.
+        </p>
+        <BadgeGrid showCourse />
+      </div>
     </section>
   )
 }

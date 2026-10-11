@@ -9,6 +9,7 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import type { Course } from '@/types/course'
 import { formatRupiah } from '@/utils/format'
+import { BadgeSection } from './BadgeSection'
 import { EditCourseModal } from './EditCourseModal'
 import { ModuleSection } from './ModuleSection'
 
@@ -190,6 +191,9 @@ export function MentorCourseDetailPage() {
 
       {/* Section 3: kelola module & konten */}
       <ModuleSection courseId={course.id} canManage={isOwner} />
+
+      {/* Section 4: kelola badge course */}
+      <BadgeSection courseId={course.id} canManage={isOwner} />
 
       <EditCourseModal
         open={editOpen}

@@ -1,5 +1,6 @@
 export * from './assignments'
 export * from './auth'
+export * from './badges'
 export * from './contentViews'
 export * from './courses'
 export * from './enrollments'

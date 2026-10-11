@@ -1,6 +1,7 @@
 /** Query parameter list/filter per endpoint (sesuai filterset_fields backend). */
 
 import type { PaginationParams } from './api'
+import type { BadgeRuleType } from './badge'
 import type { OrderStatus } from './order'
 
 /**
@@ -75,4 +76,17 @@ export interface SubmissionListParams extends PaginationParams {
   user?: number
   module?: number
   graded?: boolean
+}
+
+/** GET /badge/ — filter `?course=`, `?rule_type=`. */
+export interface BadgeListParams extends PaginationParams {
+  course?: number
+  rule_type?: BadgeRuleType
+}
+
+/** GET /user-badge/ — filter `?badge=`, `?user=`, `?badge__course=`. */
+export interface UserBadgeListParams extends PaginationParams {
+  badge?: number
+  user?: number
+  badge__course?: number
 }

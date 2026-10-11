@@ -8,6 +8,7 @@ import {
   enrollCourse,
   getCourse,
   isApiError,
+  listBadges,
   listEnrollments,
   listModules,
   notifyError,
@@ -18,6 +19,8 @@ import {
 import { useAuth } from '@/auth/AuthContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { NotFoundPage } from '@/pages/NotFoundPage'
+import { BadgeCard } from '@/components/BadgeCard'
+import type { Badge } from '@/types/badge'
 import type { Course, CourseModule } from '@/types/course'
 import { formatRupiah } from '@/utils/format'
 import { ModuleAccordion } from './courses/ModuleAccordion'
@@ -32,6 +35,7 @@ export function CourseDetailPage() {
 
   const [course, setCourse] = useState<Course | null>(null)
   const [modules, setModules] = useState<CourseModule[]>([])
+  const [badges, setBadges] = useState<Badge[]>([])
   const [enrolled, setEnrolled] = useState(false)
   const [loading, setLoading] = useState(true)
   const [loadFailed, setLoadFailed] = useState(false)
@@ -47,6 +51,7 @@ export function CourseDetailPage() {
     setLoading(true)
     setLoadFailed(false)
     setNotFound(false)
+    setBadges([])
   }
   const [prevUser, setPrevUser] = useState(user)
   if (prevUser !== user) {
@@ -75,6 +80,24 @@ export function CourseDetailPage() {
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [courseId, invalidId])
+
+  // Muat daftar badge course (publik) — gagal diam-diam, section disembunyikan.
+  useEffect(() => {
+    if (invalidId) return
+
+    let cancelled = false
+    listBadges({ course: courseId, page_size: 100 })
+      .then((page) => {
+        if (!cancelled) setBadges(page.results)
+      })
+      .catch(() => {
+        if (!cancelled) setBadges([])
       })
 
     return () => {
@@ -236,6 +259,21 @@ export function CourseDetailPage() {
           {course.description || 'Belum ada deskripsi untuk course ini.'}
         </p>
       </section>
+
+      {/* Section 2b: badge yang bisa didapatkan di course ini */}
+      {badges.length > 0 && (
+        <section className="mx-auto max-w-6xl px-4 pb-10">
+          <h2 className="text-2xl font-bold text-[#08060d]">Badge Course</h2>
+          <p className="mt-1 text-sm text-gray-600">
+            Badge yang bisa kamu dapatkan setelah menyelesaikan course ini.
+          </p>
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {badges.map((badge) => (
+              <BadgeCard key={badge.id} badge={badge} earned={false} />
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Section 3: daftar module */}
       <section className="mx-auto max-w-6xl px-4 pb-16">

@@ -3,6 +3,8 @@ import { notification as fallbackNotification } from 'antd'
 import type { NotificationInstance } from 'antd/es/notification/interface'
 
 import { getFirstMessage, isApiError, toApiError } from './errors'
+import { badgeIconNode } from '@/components/badgeIcons'
+import type { Badge } from '@/types/badge'
 
 let notificationApi: NotificationInstance | null = null
 
@@ -48,6 +50,31 @@ export function notifyError(errorOrMessage: unknown): void {
     text = getFirstMessage(errorOrMessage)
   }
   toast().error({ message: text, duration: 6 })
+}
+
+/**
+ * Toast "Badge baru didapat!" — dipanggil dari hasil aksi yang menyertakan
+ * `earned_badges` (progress, quiz submit, content view, submit tugas).
+ * Senyap bila tidak ada badge baru.
+ */
+export function notifyEarnedBadges(badges: Badge[] | undefined): void {
+  if (!badges?.length) return
+  for (const badge of badges) {
+    toast().success({
+      message: 'Badge baru didapat!',
+      description: `${badge.name} — ${badge.description}`,
+      icon: badge.icon_image ? (
+        <img
+          src={badge.icon_image}
+          alt={badge.name}
+          className="h-6 w-6 rounded-full object-cover"
+        />
+      ) : (
+        badgeIconNode(badge.icon_name)
+      ),
+      duration: 6,
+    })
+  }
 }
 
 export function notifySuccess(content: string): void {

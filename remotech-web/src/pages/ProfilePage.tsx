@@ -1,4 +1,4 @@
-import { LockOutlined, MailOutlined, UserOutlined } from '@ant-design/icons'
+import { LockOutlined, MailOutlined, TrophyOutlined, UserOutlined } from '@ant-design/icons'
 import { Button, Form, Input, Skeleton, Tag } from 'antd'
 import type { FormInstance } from 'antd'
 import { useEffect, useState } from 'react'
@@ -11,6 +11,7 @@ import {
   updateProfile,
 } from '@/api'
 import { useAuth } from '@/auth/AuthContext'
+import { BadgeGrid } from '@/components/BadgeGrid'
 import { usePageTitle } from '@/hooks/usePageTitle'
 
 interface ProfileValues {
@@ -117,6 +118,17 @@ export function ProfilePage() {
         <Tag color={user.is_mentor ? 'purple' : 'blue'} className="mr-0 ml-auto">
           {user.is_mentor ? 'Mentor' : 'Student'}
         </Tag>
+      </div>
+
+      <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+        <div className="mb-4 flex items-center gap-2">
+          <TrophyOutlined className="text-lg text-amber-500" />
+          <h2 className="text-lg font-semibold text-[#08060d] mb-0">Badge</h2>
+        </div>
+        <p className="mb-4 text-sm text-gray-500">
+          Badge yang sudah kamu kumpulkan dari course yang diikuti.
+        </p>
+        <BadgeGrid earnedOnly showCourse />
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

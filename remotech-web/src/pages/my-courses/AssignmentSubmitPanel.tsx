@@ -7,6 +7,7 @@ import {
   createSubmission,
   listAssignments,
   listSubmissions,
+  notifyEarnedBadges,
   notifyError,
   notifySuccess,
   updateSubmission,
@@ -99,10 +100,19 @@ export function AssignmentSubmitPanel({ module, onSubmitted }: AssignmentSubmitP
     setSubmitting(true)
     try {
       const trimmed = url.trim()
-      const saved = submission
-        ? await updateSubmission(submission.id, { submission_url: trimmed })
-        : await createSubmission({ assignment: assignment.id, submission_url: trimmed })
-      setSubmission(saved)
+      if (submission) {
+        const saved = await updateSubmission(submission.id, {
+          submission_url: trimmed,
+        })
+        setSubmission(saved)
+      } else {
+        const saved = await createSubmission({
+          assignment: assignment.id,
+          submission_url: trimmed,
+        })
+        setSubmission(saved)
+        notifyEarnedBadges(saved.earned_badges)
+      }
       setUrl(trimmed)
 
       notifySuccess('Tugas berhasil dikumpulkan.')

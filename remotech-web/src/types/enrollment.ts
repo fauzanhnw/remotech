@@ -12,5 +12,7 @@ export interface CourseEnrollment {
   id: number
   course: Course
   user: number
+  /** Nama lengkap peserta; fallback username (untuk daftar peserta mentor). */
+  user_name: string
   enrolled_at: IsoDateTime
 }

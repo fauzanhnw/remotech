@@ -144,12 +144,12 @@ export function CurriculumList({
     <div>
       <div className="border-b border-gray-200 px-4 py-3">
         <div className="flex items-center justify-between">
-          <p className="font-semibold text-[#08060d]">Kurikulum</p>
+          <p className="font-semibold text-[#08060d]">Module Content</p>
           <p className="text-xs text-gray-500">{modules.length} module</p>
         </div>
         <Progress percent={percent} size="small" strokeWidth={6} className="mt-2 mb-0" />
         <p className="mt-1 text-xs text-gray-500">
-          {completedCount}/{modules.length} module selesai
+          {completedCount}/{modules.length} module complete
         </p>
       </div>
 

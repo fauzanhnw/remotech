@@ -23,6 +23,7 @@ from rest_framework.routers import DefaultRouter
 
 from server.apps.remotech.views import (
     AssignmentViewSet,
+    BadgeViewSet,
     CourseEnrollmentViewSet,
     CourseModuleViewSet,
     CourseOrderViewSet,
@@ -44,6 +45,7 @@ from server.apps.remotech.views import (
     TokenObtainPairViewSet,
     TokenRefreshViewSet,
     UserAnswerViewSet,
+    UserBadgeViewSet,
     UserProgressViewSet,
     UserViewSet,
 )
@@ -62,6 +64,8 @@ router.register(r"leaderboard", LeaderboardViewSet, basename="leaderboard")
 router.register(r"progress", UserProgressViewSet, basename="progress")
 router.register(r"submission", SubmissionViewSet, basename="submission")
 router.register(r"user", UserViewSet, basename="user")
+router.register(r"badge", BadgeViewSet, basename="badge")
+router.register(r"user-badge", UserBadgeViewSet, basename="user-badge")
 
 auth_router = DefaultRouter()
 

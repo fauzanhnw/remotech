@@ -19,11 +19,13 @@ import {
   listProgress,
   markContentViewed,
   markModuleComplete,
+  notifyEarnedBadges,
   notifyError,
   unmarkProgress,
 } from '@/api'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { NotFoundPage } from '@/pages/NotFoundPage'
+import { BadgeGrid } from '@/components/BadgeGrid'
 import { LeaderboardPanel } from '@/components/LeaderboardPanel'
 import type { ModuleContent } from '@/types/content'
 import type { Course, CourseModule } from '@/types/course'
@@ -61,6 +63,8 @@ export function EnrolledCourseDetailPage() {
   const [viewedContentIds, setViewedContentIds] = useState<Set<number>>(new Set())
   const [selected, setSelected] = useState<SelectedPreview | null>(null)
   const [busyModuleId, setBusyModuleId] = useState<number | null>(null)
+  // Nomor ulang untuk memuat ulang grid badge setelah progres berubah.
+  const [badgeReloadKey, setBadgeReloadKey] = useState(0)
 
   const [loading, setLoading] = useState(true)
   const [loadFailed, setLoadFailed] = useState(false)
@@ -274,6 +278,10 @@ export function EnrolledCourseDetailPage() {
           next.add(content.id)
           return next
         })
+        notifyEarnedBadges(result.earned_badges)
+        if (result.earned_badges.length > 0) {
+          setBadgeReloadKey((value) => value + 1)
+        }
         if (result.module_completed) {
           listProgress({ course: courseId, page_size: 100 })
             .then((page) => setProgressRows(page.results))
@@ -296,12 +304,15 @@ export function EnrolledCourseDetailPage() {
       if (isDone && progressId != null) {
         await unmarkProgress(progressId)
         setProgressRows((prev) => prev.filter((row) => row.module !== module.id))
+        setBadgeReloadKey((value) => value + 1)
       } else {
         const row = await markModuleComplete(module.id)
         setProgressRows((prev) => [
           ...prev.filter((item) => item.module !== module.id),
           row,
         ])
+        notifyEarnedBadges(row.earned_badges)
+        setBadgeReloadKey((value) => value + 1)
       }
     } catch (error) {
       notifyError(error)
@@ -329,6 +340,7 @@ export function EnrolledCourseDetailPage() {
       .catch(() => {
         // diabaikan
       })
+    setBadgeReloadKey((value) => value + 1)
   }
 
   const handleToggleCurriculum = () => setDrawerOpen((value) => !value)
@@ -544,6 +556,17 @@ export function EnrolledCourseDetailPage() {
       <p className="mt-4 whitespace-pre-line leading-relaxed text-gray-600">
         {course.description || 'Belum ada deskripsi untuk course ini.'}
       </p>
+
+      <div className="mt-8">
+        <h2 className="text-2xl font-bold text-[#08060d]">Badge</h2>
+        <p className="mt-1 text-sm text-gray-600">
+          Selesaikan semua module atau raih penghargaan dari mentor untuk
+          mengumpulkan badge course ini.
+        </p>
+        <div className="mt-4">
+          <BadgeGrid course={courseId} reloadKey={badgeReloadKey} />
+        </div>
+      </div>
     </div>
   )
 
@@ -584,7 +607,7 @@ export function EnrolledCourseDetailPage() {
             )}
           </div>
 
-          <div className="aspect-video overflow-hidden bg-black w-full min-h-[350px] sm:max-h-[350px] md:max-h-[380px]">
+          <div className="aspect-video overflow-hidden bg-black w-full min-h-[350px] sm:max-h-[350px] md:max-h-[380px] xl:max-h-[400px]">
             {renderPreview()}
           </div>
 

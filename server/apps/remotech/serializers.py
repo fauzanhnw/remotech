@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from django.conf import settings
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
@@ -53,15 +54,68 @@ DOCUMENT_EXTENSIONS = {
 
 
 class BadgeSerializer(serializers.ModelSerializer):
+    """Definisi badge per course.
+
+    `icon_image` boleh diunggah (multipart) dan direpresentasikan sebagai
+    URL absolut media; `icon_name` adalah ikon preset frontend (kosong =
+    fallback trophy). `course_title` hanya untuk kenyamanan tampilan.
+    """
+
+    icon_image = serializers.ImageField(required=False, allow_null=True)
+    course_title = serializers.SerializerMethodField()
+
     class Meta:
         model = Badge
         fields = "__all__"
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        field_file = getattr(instance, "icon_image", None)
+        if field_file and field_file.name:
+            path = f"{settings.MEDIA_URL}{field_file.name}"
+            if not path.startswith("/"):
+                path = f"/{path}"
+            data["icon_image"] = f"{settings.BASE_URL.rstrip('/')}{path}"
+        else:
+            data["icon_image"] = None
+        return data
+
+    def get_course_title(self, obj):
+        course = getattr(obj, "course", None)
+        return getattr(course, "title", "") or ""
+
 
 class UserBadgeSerializer(serializers.ModelSerializer):
+    """Badge yang dimiliki user; `badge_detail` + turunan untuk tampilan."""
+
+    badge_detail = BadgeSerializer(source="badge", read_only=True)
+    course = serializers.SerializerMethodField()
+    course_title = serializers.SerializerMethodField()
+    user_name = serializers.SerializerMethodField()
+
     class Meta:
         model = UserBadge
         fields = "__all__"
+
+    def get_course(self, obj):
+        return getattr(obj.badge, "course_id", None)
+
+    def get_course_title(self, obj):
+        course = getattr(obj.badge, "course", None)
+        return getattr(course, "title", "") or ""
+
+    def get_user_name(self, obj):
+        user = getattr(obj, "user", None)
+        if user is None:
+            return ""
+        return user.get_full_name() or user.username
+
+
+class UserBadgeAwardSerializer(serializers.Serializer):
+    """Mentor memberi badge manual (POST /user-badge/)."""
+
+    badge = serializers.PrimaryKeyRelatedField(queryset=Badge.objects.all())
+    user = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
 
 
 class UserAnswerSerializer(serializers.ModelSerializer):
@@ -374,10 +428,17 @@ class CourseOrderSerializer(serializers.ModelSerializer):
 
 class CourseEnrollmentSerializer(serializers.ModelSerializer):
     course = CourseSerializer(read_only=True)
+    user_name = serializers.SerializerMethodField()
 
     class Meta:
         model = CourseEnrollment
         fields = "__all__"
+
+    def get_user_name(self, obj):
+        user = getattr(obj, "user", None)
+        if user is None:
+            return ""
+        return user.get_full_name() or user.username
 
 
 class EnrollCourseSerializer(serializers.Serializer):
