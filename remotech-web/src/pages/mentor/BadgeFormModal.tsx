@@ -15,6 +15,7 @@ import type { Badge, BadgeRuleType } from '@/types/badge'
 interface BadgeFormValues {
   name: string
   description: string
+  reward?: string
   rule_type: BadgeRuleType
   icon_name?: string
 }
@@ -61,6 +62,7 @@ export function BadgeFormModal({
         form.setFieldsValue({
           name: badge.name,
           description: badge.description,
+          reward: badge.reward || undefined,
           rule_type: badge.rule_type,
           icon_name: badge.icon_name || undefined,
         })
@@ -76,6 +78,7 @@ export function BadgeFormModal({
         const payload = new FormData()
         payload.append('name', values.name.trim())
         payload.append('description', values.description.trim())
+        payload.append('reward', values.reward?.trim() ?? '')
         payload.append('rule_type', values.rule_type)
         payload.append('icon_name', values.icon_name ?? '')
         if (iconFile) payload.append('icon_image', iconFile)
@@ -86,6 +89,7 @@ export function BadgeFormModal({
         payload.append('course', String(courseId))
         payload.append('name', values.name.trim())
         payload.append('description', values.description.trim())
+        payload.append('reward', values.reward?.trim() ?? '')
         payload.append('rule_type', values.rule_type)
         payload.append('icon_name', values.icon_name ?? '')
         payload.append('icon_image', iconFile)
@@ -96,6 +100,7 @@ export function BadgeFormModal({
           course: courseId,
           name: values.name.trim(),
           description: values.description.trim(),
+          reward: values.reward?.trim() ?? '',
           rule_type: values.rule_type,
           icon_name: values.icon_name ?? '',
         })
@@ -150,6 +155,16 @@ export function BadgeFormModal({
           rules={[{ required: true, message: 'Deskripsi wajib diisi' }]}
         >
           <Input.TextArea rows={2} placeholder="Syarat atau makna badge ini" />
+        </Form.Item>
+        <Form.Item
+          label="Reward"
+          name="reward"
+          extra="Hadiah yang didapat bersama badge ini (opsional)."
+        >
+          <Input.TextArea
+            autoSize={{ minRows: 1, maxRows: 4 }}
+            placeholder="Mis. Sertifikat + akses premium 1 bulan"
+          />
         </Form.Item>
         <Form.Item
           label="Tipe"

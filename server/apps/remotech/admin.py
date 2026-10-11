@@ -93,7 +93,7 @@ class QuestionOptionAdmin(admin.ModelAdmin):
 
 @admin.register(Badge)
 class BadgeAdmin(admin.ModelAdmin):
-    list_display = ("name", "course", "rule_type", "icon_name")
+    list_display = ("name", "course", "rule_type", "reward", "icon_name")
     list_filter = ("rule_type",)
     search_fields = ("name",)
 

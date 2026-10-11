@@ -5,7 +5,8 @@ export type BadgeRuleType = 'course_complete' | 'manual'
 
 /**
  * GET /badge/{id}/ — `icon_image` URL absolut media (null bila kosong),
- * `icon_name` ikon preset frontend (kosong = fallback trophy).
+ * `icon_name` ikon preset frontend (kosong = fallback trophy),
+ * `reward` teks hadiah informatif (kosong = tanpa reward).
  */
 export interface Badge {
   id: number
@@ -13,6 +14,8 @@ export interface Badge {
   course_title: string
   name: string
   description: string
+  /** Teks hadiah saat badge didapat; "" bila tidak ada. */
+  reward: string
   icon_image: string | null
   icon_name: string
   rule_type: BadgeRuleType
@@ -23,6 +26,8 @@ export interface BadgeCreate {
   course: number
   name: string
   description: string
+  /** Teks hadiah informatif (opsional). */
+  reward?: string
   icon_image?: File | null
   icon_name?: string
   rule_type?: BadgeRuleType
@@ -61,4 +66,11 @@ export interface MyBadgeEntry {
   earned: boolean
   course: number
   progress: BadgeProgress
+  /** ISO datetime saat badge didapat; null bila masih locked. */
+  earned_at: string | null
+  /**
+   * "system" untuk otomatis; "Nama Lengkap - email" mentor (fallback
+   * email/username) untuk manual; "" bila locked.
+   */
+  awarded_by: string
 }

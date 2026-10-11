@@ -114,6 +114,9 @@ class Badge(models.Model):
     course = models.ForeignKey(Course, on_delete=models.CASCADE)
     name = models.CharField(max_length=100)
     description = models.TextField()
+    # Hadiah informatif saat badge didapat (teks bebas); kosong = tanpa
+    # reward. Tidak memengaruhi poin leaderboard.
+    reward = models.TextField(blank=True, default="")
     # Ikon badge: unggahan gambar menang bila diisi; jika tidak, pakai ikon
     # preset `icon_name`; keduanya kosong = fallback trophy di frontend.
     icon_image = models.ImageField(

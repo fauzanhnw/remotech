@@ -2,6 +2,7 @@ import { Empty, Skeleton } from 'antd'
 import { useEffect, useState } from 'react'
 
 import { BadgeCard } from './BadgeCard'
+import { BadgeDetailModal } from './BadgeDetailModal'
 import { getMyBadges, notifyError } from '@/api'
 import type { MyBadgeEntry } from '@/types/badge'
 
@@ -29,6 +30,8 @@ export function BadgeGrid({
   // Null = belum termuat (menampilkan skeleton); reload mengganti isi tanpa
   // kembali ke skeleton agar tidak berkedip.
   const [entries, setEntries] = useState<MyBadgeEntry[] | null>(null)
+  // Entry yang kartunya diklik (modal detail); null = tertutup.
+  const [detail, setDetail] = useState<MyBadgeEntry | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -77,8 +80,12 @@ export function BadgeGrid({
           earned={entry.earned}
           progress={entry.progress}
           showCourse={showCourse}
+          onClick={() => setDetail(entry)}
         />
       ))}
+      {detail && (
+        <BadgeDetailModal entry={detail} onClose={() => setDetail(null)} />
+      )}
     </div>
   )
 }

@@ -151,12 +151,21 @@ export function BadgeSection({ courseId, canManage }: BadgeSectionProps) {
                   <p className="mt-0.5 line-clamp-2 text-sm text-gray-500">
                     {badge.description}
                   </p>
-                  <Tag
-                    color={badge.rule_type === 'course_complete' ? 'blue' : 'default'}
-                    className="mt-2"
-                  >
-                    {ruleLabel[badge.rule_type] ?? badge.rule_type}
-                  </Tag>
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    <Tag
+                      color={badge.rule_type === 'course_complete' ? 'blue' : 'default'}
+                      className="mr-0"
+                    >
+                      {ruleLabel[badge.rule_type] ?? badge.rule_type}
+                    </Tag>
+                    {badge.reward && (
+                      <Tooltip title={badge.reward}>
+                        <Tag color="gold" className="mr-0 line-clamp-1 max-w-full">
+                          {badge.reward}
+                        </Tag>
+                      </Tooltip>
+                    )}
+                  </div>
                 </div>
               </div>
 

@@ -20,6 +20,7 @@ import { useAuth } from '@/auth/AuthContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { BadgeCard } from '@/components/BadgeCard'
+import { BadgePreviewModal } from '@/components/BadgePreviewModal'
 import type { Badge } from '@/types/badge'
 import type { Course, CourseModule } from '@/types/course'
 import { formatRupiah } from '@/utils/format'
@@ -36,6 +37,8 @@ export function CourseDetailPage() {
   const [course, setCourse] = useState<Course | null>(null)
   const [modules, setModules] = useState<CourseModule[]>([])
   const [badges, setBadges] = useState<Badge[]>([])
+  // Badge yang kartunya diklik (modal preview); null = tertutup.
+  const [badgePreview, setBadgePreview] = useState<Badge | null>(null)
   const [enrolled, setEnrolled] = useState(false)
   const [loading, setLoading] = useState(true)
   const [loadFailed, setLoadFailed] = useState(false)
@@ -52,6 +55,7 @@ export function CourseDetailPage() {
     setLoadFailed(false)
     setNotFound(false)
     setBadges([])
+    setBadgePreview(null)
   }
   const [prevUser, setPrevUser] = useState(user)
   if (prevUser !== user) {
@@ -269,9 +273,20 @@ export function CourseDetailPage() {
           </p>
           <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {badges.map((badge) => (
-              <BadgeCard key={badge.id} badge={badge} earned={false} />
+              <BadgeCard
+                key={badge.id}
+                badge={badge}
+                earned={false}
+                onClick={() => setBadgePreview(badge)}
+              />
             ))}
           </div>
+          {badgePreview && (
+            <BadgePreviewModal
+              badge={badgePreview}
+              onClose={() => setBadgePreview(null)}
+            />
+          )}
         </section>
       )}
 

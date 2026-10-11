@@ -4261,6 +4261,88 @@ class BadgeTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
+    # --- Reward ---
+
+    def test_badge_create_with_reward(self):
+        self.client.force_authenticate(user=self.owner)
+
+        response = self.client.post(
+            "/badge/",
+            {
+                "course": self.course.id,
+                "name": "Reward Badge",
+                "description": "x",
+                "reward": "Sertifikat + akses premium",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.json()["reward"], "Sertifikat + akses premium")
+
+    def test_badge_reward_defaults_to_empty_and_updatable(self):
+        self.assertEqual(self.manual_badge.reward, "")
+
+        self.client.force_authenticate(user=self.owner)
+        response = self.client.patch(
+            f"/badge/{self.manual_badge.id}/",
+            {"reward": "Hadiah baru"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()["reward"], "Hadiah baru")
+
+    # --- /user-badge/me/: earned_at + awarded_by ---
+
+    def test_my_badges_include_earned_at_and_awarded_by(self):
+        self.owner.first_name = "Mentor"
+        self.owner.last_name = "Jago"
+        self.owner.email = "mentor.jago@example.com"
+        self.owner.save()
+        self.client.force_authenticate(user=self.owner)
+        self.client.post(
+            "/user-badge/",
+            {"badge": self.manual_badge.id, "user": self.student.id},
+            format="json",
+        )
+
+        self.client.force_authenticate(user=self.student)
+        response = self.client.get("/user-badge/me/", {"course": self.course.id})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        entries = {item["badge"]["id"]: item for item in response.json()}
+
+        earned = entries[self.manual_badge.id]
+        self.assertTrue(earned["earned"])
+        self.assertIsNotNone(earned["earned_at"])
+        # awarded_by menyimpan username; tampil "Nama Lengkap - email".
+        self.assertEqual(earned["awarded_by"], "Mentor Jago - mentor.jago@example.com")
+
+        locked = entries[self.auto_badge.id]
+        self.assertFalse(locked["earned"])
+        self.assertIsNone(locked["earned_at"])
+        self.assertEqual(locked["awarded_by"], "")
+
+    def test_my_badges_awarded_by_falls_back_without_full_name(self):
+        # Tanpa nama lengkap → tampil email saja.
+        self.owner.email = "owner@example.com"
+        self.owner.save()
+        self.client.force_authenticate(user=self.owner)
+        self.client.post(
+            "/user-badge/",
+            {"badge": self.manual_badge.id, "user": self.student.id},
+            format="json",
+        )
+
+        self.client.force_authenticate(user=self.student)
+        response = self.client.get("/user-badge/me/", {"course": self.course.id})
+
+        earned = {
+            item["badge"]["id"]: item for item in response.json()
+        }[self.manual_badge.id]
+        self.assertEqual(earned["awarded_by"], "owner@example.com")
+
     # --- Unique constraint ---
 
     def test_user_badge_unique_constraint(self):

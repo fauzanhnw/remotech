@@ -3,12 +3,13 @@ from datetime import datetime, time, timedelta, timezone as dt_tz
 from uuid import uuid4
 
 from django.conf import settings
+from django.contrib.auth.models import User
 from django.core.files.storage import default_storage
 from django.db.models import OuterRef, Q, Subquery
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import status, viewsets
+from rest_framework import serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.filters import OrderingFilter, SearchFilter
@@ -157,6 +158,18 @@ class BadgeViewSet(CourseOwnerMixin, viewsets.ModelViewSet):
         return instance.course if instance is not None else None
 
 
+def _mentor_display_name(user):
+    """Tampilan pemberi badge manual: "Nama Lengkap - email".
+
+    `awarded_by` menyimpan username (= email saat registrasi); tampilan di
+    /user-badge/me/ memakai nama lengkap bila ada, fallback email/username.
+    """
+    full_name = user.get_full_name()
+    if full_name and user.email:
+        return f"{full_name} - {user.email}"
+    return full_name or user.email or user.username
+
+
 class UserBadgeViewSet(viewsets.ModelViewSet):
     """Badge yang dimiliki user.
 
@@ -239,7 +252,10 @@ class UserBadgeViewSet(viewsets.ModelViewSet):
 
         Locked = definisi badge pada course yang di-enroll tapi belum dimiliki;
         `progress` = module selesai / total module pada course badge tersebut
-        (dipakai frontend menampilkan "x/y" pada badge locked).
+        (dipakai frontend menampilkan "x/y" pada badge locked). Badge earned
+        menyertakan `earned_at` (ISO) + `awarded_by` ("system" / "Nama Lengkap
+        - email" mentor, fallback email/username); locked mengembalikan
+        `earned_at` null dan `awarded_by` "".
         """
         enrolled_course_ids = set(
             CourseEnrollment.objects.filter(user=request.user).values_list(
@@ -250,11 +266,25 @@ class UserBadgeViewSet(viewsets.ModelViewSet):
         if course_param and str(course_param).isdigit():
             enrolled_course_ids &= {int(course_param)}
 
-        earned_ids = set(
-            UserBadge.objects.filter(user=request.user).values_list(
-                "badge_id", flat=True
+        earned_map = {
+            row["badge_id"]: row
+            for row in UserBadge.objects.filter(user=request.user).values(
+                "badge_id", "earned_at", "awarded_by"
             )
-        )
+        }
+        # awarded_by menyimpan username mentor (= email saat registrasi);
+        # tampilkan "Nama Lengkap - email" (fallback nama / email) agar
+        # tidak sekadar memperlihatkan email.
+        mentor_names = {
+            user.username: _mentor_display_name(user)
+            for user in User.objects.filter(
+                username__in={
+                    row["awarded_by"]
+                    for row in earned_map.values()
+                    if row["awarded_by"] and row["awarded_by"] != "system"
+                }
+            )
+        }
         badges = Badge.objects.filter(
             course_id__in=enrolled_course_ids
         ).select_related("course")
@@ -274,15 +304,28 @@ class UserBadgeViewSet(viewsets.ModelViewSet):
         payload = []
         for badge in badges:
             course_id = badge.course_id
+            owner = earned_map.get(badge.pk)
             payload.append(
                 {
                     "badge": BadgeSerializer(badge).data,
-                    "earned": badge.pk in earned_ids,
+                    "earned": owner is not None,
                     "course": course_id,
                     "progress": {
                         "completed": finished_counts.get(course_id, 0),
                         "total": total_counts.get(course_id, 0),
                     },
+                    "earned_at": (
+                        serializers.DateTimeField().to_representation(
+                            owner["earned_at"]
+                        )
+                        if owner
+                        else None
+                    ),
+                    "awarded_by": (
+                        mentor_names.get(owner["awarded_by"], owner["awarded_by"])
+                        if owner
+                        else ""
+                    ),
                 }
             )
         # Earned dulu, lalu locked (urut nama).
