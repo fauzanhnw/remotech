@@ -22,6 +22,11 @@ interface LeaderboardPanelProps {
    * Tidak diisi = tampilan baca-saja untuk student.
    */
   onGrantBonus?: (row: Leaderboard) => void
+  /**
+   * Opsional — bila diisi, nama peserta jadi bisa diklik untuk membuka
+   * modal profil (nama lengkap, level, badge).
+   */
+  onShowProfile?: (row: Leaderboard) => void
 }
 
 /**
@@ -29,7 +34,11 @@ interface LeaderboardPanelProps {
  * nama, total poin; saat expand: rincian poin per module
  * (GET /leaderboard/{id}/details/, dimuat saat pertama dibuka).
  */
-export function LeaderboardPanel({ courseId, onGrantBonus }: LeaderboardPanelProps) {
+export function LeaderboardPanel({
+  courseId,
+  onGrantBonus,
+  onShowProfile,
+}: LeaderboardPanelProps) {
   const { user } = useAuth()
 
   const [rows, setRows] = useState<Leaderboard[]>([])
@@ -164,9 +173,22 @@ export function LeaderboardPanel({ courseId, onGrantBonus }: LeaderboardPanelPro
                 >
                   {index + 1}
                 </span>
-                <span className="min-w-0 truncate font-medium text-[#08060d]">
-                  {row.user_name}
-                </span>
+                {onShowProfile ? (
+                  <button
+                    type="button"
+                    className="min-w-0 truncate border-0 bg-transparent p-0 text-left font-medium text-[#08060d] hover:text-[#1677ff] hover:underline cursor-pointer"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      onShowProfile(row)
+                    }}
+                  >
+                    {row.user_name}
+                  </button>
+                ) : (
+                  <span className="min-w-0 truncate font-medium text-[#08060d]">
+                    {row.user_name}
+                  </span>
+                )}
                 <Tag color={levelColor(row.level)} className="mr-0">
                   {levelLabel(row.level, row.level_title)}
                 </Tag>

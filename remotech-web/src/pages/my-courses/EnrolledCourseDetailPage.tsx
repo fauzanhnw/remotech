@@ -27,9 +27,11 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { BadgeGrid } from '@/components/BadgeGrid'
 import { LeaderboardPanel } from '@/components/LeaderboardPanel'
+import { ParticipantProfileModal } from '@/components/ParticipantProfileModal'
 import type { ModuleContent } from '@/types/content'
 import type { Course, CourseModule } from '@/types/course'
 import type { CourseEnrollment } from '@/types/enrollment'
+import type { Leaderboard } from '@/types/leaderboard'
 import type { UserProgress } from '@/types/progress'
 import { isDirectVideo, toEmbedUrl } from '@/utils/video'
 import { AssignmentSubmitPanel } from './AssignmentSubmitPanel'
@@ -65,6 +67,9 @@ export function EnrolledCourseDetailPage() {
   const [busyModuleId, setBusyModuleId] = useState<number | null>(null)
   // Nomor ulang untuk memuat ulang grid badge setelah progres berubah.
   const [badgeReloadKey, setBadgeReloadKey] = useState(0)
+
+  // Baris leaderboard peserta yang profilnya sedang dilihat (null = tertutup).
+  const [profileRow, setProfileRow] = useState<Leaderboard | null>(null)
 
   const [loading, setLoading] = useState(true)
   const [loadFailed, setLoadFailed] = useState(false)
@@ -571,7 +576,9 @@ export function EnrolledCourseDetailPage() {
   )
 
   // Papan skor course (tab terpisah — data sendiri, dimuat saat dipilih).
-  const leaderboardContent = <LeaderboardPanel courseId={courseId} />
+  const leaderboardContent = (
+    <LeaderboardPanel courseId={courseId} onShowProfile={setProfileRow} />
+  )
 
   const lowerSectionTabs = isXl
     ? [
@@ -666,6 +673,13 @@ export function EnrolledCourseDetailPage() {
           />
         )}
       </Modal>
+
+      {/* Profil peserta (klik nama di tab leaderboard). */}
+      <ParticipantProfileModal
+        open={profileRow != null}
+        row={profileRow}
+        onClose={() => setProfileRow(null)}
+      />
     </>
   )
 }

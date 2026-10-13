@@ -269,7 +269,7 @@ export function CourseDetailPage() {
         <section className="mx-auto max-w-6xl px-4 pb-10">
           <h2 className="text-2xl font-bold text-[#08060d]">Badge Course</h2>
           <p className="mt-1 text-sm text-gray-600">
-            Badge yang bisa kamu dapatkan setelah menyelesaikan course ini.
+            Badge yang bisa kamu dapatkan pada course ini.
           </p>
           <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {badges.map((badge) => (

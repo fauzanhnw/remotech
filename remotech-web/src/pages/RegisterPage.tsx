@@ -76,7 +76,7 @@ export function RegisterPage() {
           name="full_name"
           rules={[{ required: true, message: 'Full name is required' }]}
         >
-          <Input size="large" placeholder="Budi Santoso" autoComplete="name" />
+          <Input size="large" placeholder="" autoComplete="name" />
         </Form.Item>
 
         <Form.Item

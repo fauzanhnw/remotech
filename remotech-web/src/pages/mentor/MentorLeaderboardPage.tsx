@@ -10,8 +10,10 @@ import {
   notifySuccess,
 } from '@/api'
 import { LeaderboardPanel } from '@/components/LeaderboardPanel'
+import { ParticipantProfileModal } from '@/components/ParticipantProfileModal'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import type { Course } from '@/types/course'
+import type { Leaderboard } from '@/types/leaderboard'
 import type { PointBonus } from '@/types/pointBonus'
 import { fetchAllPages } from '@/utils/paginate'
 import { AddPointBonusModal } from './AddPointBonusModal'
@@ -34,6 +36,8 @@ export function MentorLeaderboardPage() {
   } | null>(null)
   const [bonuses, setBonuses] = useState<PointBonus[]>([])
   const [loadingBonuses, setLoadingBonuses] = useState(false)
+  // Baris leaderboard peserta yang profilnya sedang dilihat (null = tertutup).
+  const [profileRow, setProfileRow] = useState<Leaderboard | null>(null)
   // Naikkan untuk memaksa panel leaderboard & riwayat reload setelah mutasi.
   const [reloadKey, setReloadKey] = useState(0)
 
@@ -161,6 +165,7 @@ export function MentorLeaderboardPage() {
         <LeaderboardPanel
           key={`${selected}-${reloadKey}`}
           courseId={selected}
+          onShowProfile={setProfileRow}
           onGrantBonus={(row) =>
             setBonusTarget({ user: row.user, userName: row.user_name })
           }
@@ -232,6 +237,12 @@ export function MentorLeaderboardPage() {
           onGranted={handleMutated}
         />
       )}
+
+      <ParticipantProfileModal
+        open={profileRow != null}
+        row={profileRow}
+        onClose={() => setProfileRow(null)}
+      />
     </section>
   )
 }

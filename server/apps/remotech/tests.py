@@ -4595,6 +4595,50 @@ class BadgeTests(APITestCase):
         }[self.manual_badge.id]
         self.assertEqual(earned["awarded_by"], "owner@example.com")
 
+    # --- /user-badge/earned/ (badge user lain — modal profil) ---
+
+    def test_earned_returns_peer_badges_with_detail(self):
+        UserBadge.objects.create(
+            user=self.student, badge=self.manual_badge, awarded_by="owner"
+        )
+        # Badge milik user lain tidak boleh ikut terbaca.
+        UserBadge.objects.create(user=self.other, badge=self.auto_badge)
+        self.client.force_authenticate(user=self.other)
+
+        response = self.client.get("/user-badge/earned/", {"user": self.student.id})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        rows = response.json()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["badge_detail"]["name"], "Best Assignment")
+        self.assertIsNotNone(rows[0]["earned_at"])
+
+    def test_earned_readable_by_any_logged_in_user(self):
+        UserBadge.objects.create(
+            user=self.student, badge=self.manual_badge, awarded_by="owner"
+        )
+        # "other" bukan mentor maupun se-course — tetap boleh membaca.
+        self.client.force_authenticate(user=self.other)
+
+        response = self.client.get("/user-badge/earned/", {"user": self.student.id})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.json()), 1)
+
+    def test_earned_rejects_missing_user_param(self):
+        self.client.force_authenticate(user=self.student)
+
+        response = self.client.get("/user-badge/earned/")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_earned_unknown_user_is_404(self):
+        self.client.force_authenticate(user=self.student)
+
+        response = self.client.get("/user-badge/earned/", {"user": 99999})
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
     # --- Unique constraint ---
 
     def test_user_badge_unique_constraint(self):

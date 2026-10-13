@@ -66,6 +66,14 @@ export function awardBadge(payload: UserBadgeAwardPayload): Promise<UserBadge> {
   return postJson<UserBadge, UserBadgeAwardPayload>('/user-badge/', payload)
 }
 
+/**
+ * GET /user-badge/earned/?user= — badge yang sudah didapat user tertentu
+ * (modal profil peserta dari leaderboard). Read-only untuk semua user login.
+ */
+export function getUserEarnedBadges(userId: number): Promise<UserBadge[]> {
+  return getJson<UserBadge[]>('/user-badge/earned/', { params: { user: userId } })
+}
+
 /** DELETE /user-badge/{id}/ — cabut badge (pemilik course / superuser). */
 export function revokeBadge(id: number): Promise<void> {
   return deleteJson(`/user-badge/${id}/`)

@@ -249,6 +249,23 @@ class UserBadgeViewSet(viewsets.ModelViewSet):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=False, methods=["get"])
+    def earned(self, request):
+        """GET /user-badge/earned/?user= — badge yang sudah didapat user tertentu.
+
+        Read-only publik untuk semua user login (modal profil peserta dari
+        leaderboard); tanpa pembatasan queryset `get_queryset` biasa. Semua
+        baris `UserBadge` sudah earned, sehingga tidak ada baris locked.
+        """
+        target_id = request.query_params.get("user")
+        if not target_id or not str(target_id).isdigit():
+            raise ValidationError({"user": ["Query parameter `user` wajib diisi."]})
+        target = get_object_or_404(User, pk=target_id)
+        rows = UserBadge.objects.filter(user=target).select_related(
+            "badge", "badge__course"
+        )
+        return Response(UserBadgeSerializer(rows, many=True).data)
+
+    @action(detail=False, methods=["get"])
     def me(self, request):
         """Badge course yang di-enroll: earned + locked dengan progres.
 
