@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 
 import {
   changePassword,
+  getMyLeaderboard,
   getFieldErrors,
   notifyError,
   notifySuccess,
@@ -13,6 +14,7 @@ import {
 import { useAuth } from '@/auth/AuthContext'
 import { BadgeGrid } from '@/components/BadgeGrid'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { levelColor, levelLabel } from '@/utils/level'
 
 interface ProfileValues {
   first_name: string
@@ -43,6 +45,23 @@ export function ProfilePage() {
   const [passwordForm] = Form.useForm<PasswordValues>()
   const [savingProfile, setSavingProfile] = useState(false)
   const [savingPassword, setSavingPassword] = useState(false)
+  const [level, setLevel] = useState<{ level: number; title: string } | null>(null)
+
+  // Level on-the-fly dari total poin (gagal senyap — kartu tetap tampil).
+  useEffect(() => {
+    if (!user) return
+    let cancelled = false
+    getMyLeaderboard()
+      .then((data) => {
+        if (!cancelled) {
+          setLevel({ level: data.level, title: data.level_title })
+        }
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [user])
 
   // Isi ulang form tiap profil berubah (mis. setelah refreshUser).
   useEffect(() => {
@@ -115,9 +134,16 @@ export function ProfilePage() {
           </p>
           <p className="truncate text-sm text-gray-500">{user.email}</p>
         </div>
-        <Tag color={user.is_mentor ? 'purple' : 'blue'} className="mr-0 ml-auto">
-          {user.is_mentor ? 'Mentor' : 'Student'}
-        </Tag>
+        <div className="ml-auto flex items-center gap-2">
+          {level && (
+            <Tag color={levelColor(level.level)} className="mr-0">
+              {levelLabel(level.level, level.title)}
+            </Tag>
+          )}
+          <Tag color={user.is_mentor ? 'purple' : 'blue'} className="mr-0">
+            {user.is_mentor ? 'Mentor' : 'Student'}
+          </Tag>
+        </div>
       </div>
 
       <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">

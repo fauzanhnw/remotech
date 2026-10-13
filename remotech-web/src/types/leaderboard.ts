@@ -9,6 +9,10 @@ export interface Leaderboard {
   /** Nama lengkap peserta; fallback ke username/email. */
   user_name: string
   total_points: number
+  /** Level on-the-fly dari total poin lintas course (1-based). */
+  level: number
+  /** Nama level: Pemula · Pelajar · Praktisi · Profesional · Ahli · Master. */
+  level_title: string
 }
 
 /** POST /leaderboard/ — backend tidak auto-inject user. */
@@ -32,6 +36,16 @@ export interface MyLeaderboardCourse {
 /** GET /leaderboard/me/ — total poin lintas course (hanya course yang di-enroll). */
 export interface MyLeaderboard {
   total_points: number
+  /** Level on-the-fly dari total_points (1-based). */
+  level: number
+  /** Nama level: Pemula · Pelajar · Praktisi · Profesional · Ahli · Master. */
+  level_title: string
+  /** Nama level berikutnya; null bila sudah level maksimal (Master). */
+  next_level_title: string | null
+  /** Poin yang kurang ke level berikutnya; null bila sudah level maksimal. */
+  points_to_next_level: number | null
+  /** Persen progres menuju level berikutnya (0–100; 100 di level maksimal). */
+  level_progress: number
   /** Urut poin tertinggi; course tanpa poin tetap ikut dengan `rank` null. */
   courses: MyLeaderboardCourse[]
 }

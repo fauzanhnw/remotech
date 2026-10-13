@@ -59,6 +59,8 @@ export interface CourseModule {
   due_at: IsoDateTime | null
   /** Persen poin yang dipotong bila submit melewati tenggat (0–100). */
   late_penalty_percent: number
+  /** Quiz boleh diulang: attempt baru setelah final (hanya kategori quiz). */
+  allow_retake: boolean
   created_at: IsoDateTime
   modified_at: IsoDateTime
 }
@@ -74,4 +76,6 @@ export interface CourseModuleCreate {
   /** ISO datetime; hanya bermakna untuk kategori upload/quiz. */
   due_at?: string | null
   late_penalty_percent?: number
+  /** Quiz saja — default false (satu kali kerja). */
+  allow_retake?: boolean
 }

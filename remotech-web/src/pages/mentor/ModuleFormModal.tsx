@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { DatePicker, Form, Input, InputNumber, Modal, Select } from 'antd'
+import { DatePicker, Form, Input, InputNumber, Modal, Select, Switch } from 'antd'
 import dayjs from 'dayjs'
 import type { Dayjs } from 'dayjs'
 
@@ -19,6 +19,7 @@ interface ModuleFormValues {
   point: number
   due_at?: Dayjs | null
   late_penalty_percent?: number
+  allow_retake?: boolean
 }
 
 interface ModuleFormModalProps {
@@ -54,6 +55,7 @@ export function ModuleFormModal({
   const editing = Boolean(module)
   const category = Form.useWatch('module_category', form)
   const showDueAt = category != null && DUE_AT_CATEGORIES.includes(category)
+  const showAllowRetake = category === 'quiz'
 
   useEffect(() => {
     if (!open) return
@@ -65,6 +67,7 @@ export function ModuleFormModal({
         module_category: module.module_category,
         point: module.point,
         late_penalty_percent: module.late_penalty_percent,
+        allow_retake: module.allow_retake,
         // Backend mengirim ISO string; terima apa adanya (null bila kosong).
         due_at: module.due_at ? dayjs(module.due_at) : null,
       })
@@ -87,6 +90,11 @@ export function ModuleFormModal({
         late_penalty_percent: supportsDueAt
           ? (values.late_penalty_percent ?? 50)
           : undefined,
+        // Retake hanya bermakna untuk quiz; non-quiz selalu kirim false.
+        allow_retake:
+          values.module_category === 'quiz'
+            ? (values.allow_retake ?? false)
+            : false,
       }
       if (module) {
         // sequence & sengaja tidak dikirim: urutan hanya lewat tombol ↑↓.
@@ -142,6 +150,7 @@ export function ModuleFormModal({
           module_category: 'text',
           point: 100,
           late_penalty_percent: 50,
+          allow_retake: false,
         }}
         onFinish={handleSubmit}
       >
@@ -195,6 +204,17 @@ export function ModuleFormModal({
               <InputNumber min={0} max={100} className="w-36" />
             </Form.Item>
           </div>
+        )}
+
+        {showAllowRetake && (
+          <Form.Item
+            label="Boleh Diulang"
+            name="allow_retake"
+            valuePropName="checked"
+            tooltip="Student dapat mengulang quiz setelah nilai keluar; skor terbaru yang dihitung."
+          >
+            <Switch />
+          </Form.Item>
         )}
       </Form>
     </Modal>

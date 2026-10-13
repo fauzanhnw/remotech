@@ -66,6 +66,39 @@ python manage.py migrate
 python manage.py runserver
 ```
 
+API berjalan di `http://localhost:8000/` (browseble API di `/api/` bila mengikuti konfigurasi URL bawaan).
+
+## Frontend (React)
+
+Frontend React 19 + TypeScript + antd + Vite berada di folder `remotech-web/`:
+
+```powershell
+cd remotech-web
+
+# Install dependencies
+npm install
+
+# Development server (Vite, default http://localhost:5173)
+npm run dev
+
+# Build produksi
+npm run build
+
+# Lint
+npm run lint
+```
+
+## Menjalankan Test
+
+```powershell
+# Test backend (Django test runner)
+python manage.py test server.apps.remotech
+
+# Lint backend (ruff)
+poetry run ruff check .
+poetry run ruff format --check .
+```
+
 ## Pengembangan
 
 ```powershell
@@ -84,7 +117,8 @@ poetry export -f requirements.txt -o requirements.txt
 
 ## Tech Stack
 
-- **Backend:** Django 6.0
+- **Backend:** Django 6.0 + Django REST Framework
 - **Database:** PostgreSQL
-- **Frontend:** React *(coming soon)*
-- **Dependency Manager:** Poetry
+- **Frontend:** React 19 + TypeScript + Ant Design + Vite
+- **Dependency Manager:** Poetry (backend), npm (frontend)
+- **Lint:** Ruff (backend), ESLint (frontend)

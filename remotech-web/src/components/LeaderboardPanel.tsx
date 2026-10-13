@@ -5,6 +5,7 @@ import { getLeaderboardDetails, listLeaderboards, notifyError } from '@/api'
 import { useAuth } from '@/auth/AuthContext'
 import type { Leaderboard, LeaderboardDetailEntry } from '@/types/leaderboard'
 import { fetchAllPages } from '@/utils/paginate'
+import { levelColor, levelLabel } from '@/utils/level'
 
 interface DetailState {
   status: 'loading' | 'done' | 'error'
@@ -152,6 +153,9 @@ export function LeaderboardPanel({ courseId }: LeaderboardPanelProps) {
                 <span className="min-w-0 truncate font-medium text-[#08060d]">
                   {row.user_name}
                 </span>
+                <Tag color={levelColor(row.level)} className="mr-0">
+                  {levelLabel(row.level, row.level_title)}
+                </Tag>
                 {row.user === user?.id && (
                   <Tag color="blue" className="mr-0">
                     Kamu

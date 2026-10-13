@@ -32,6 +32,7 @@ from server.apps.remotech.services.grading import (
     penalized_score,
     submission_module,
 )
+from server.apps.remotech.services.levels import level_for_points, level_progress
 from server.apps.remotech.services.module_content import validate_module_content
 from server.apps.remotech.services.richtext import (
     absolutize_media_url,
@@ -460,14 +461,32 @@ class AssignmentSerializer(serializers.ModelSerializer):
 
 
 class LeaderboardSerializer(serializers.ModelSerializer):
-    """Papan skor per course; `course_title`/`user_name` turunan relasi."""
+    """Papan skor per course; `course_title`/`user_name` turunan relasi.
+
+    `level`/`level_title` dihitung dari total poin peserta lintas course
+    (dibulk-fill lewat context `user_totals` oleh viewset; fallback ke
+    poin course ini bila konteks absen).
+    """
 
     course_title = serializers.SerializerMethodField()
     user_name = serializers.SerializerMethodField()
+    level = serializers.SerializerMethodField()
+    level_title = serializers.SerializerMethodField()
 
     class Meta:
         model = Leaderboard
         fields = "__all__"
+
+    def _level(self, obj):
+        totals = self.context.get("user_totals") or {}
+        total = totals.get(obj.user_id, obj.total_points)
+        return level_for_points(total)
+
+    def get_level(self, obj):
+        return self._level(obj)[0]
+
+    def get_level_title(self, obj):
+        return self._level(obj)[1]
 
     def get_course_title(self, obj):
         course = getattr(obj, "course", None)
@@ -507,7 +526,32 @@ class MyLeaderboardSerializer(serializers.Serializer):
     """Ringkasan poin milik sendiri lintas course (GET /leaderboard/me/)."""
 
     total_points = serializers.IntegerField()
+    # Level on-the-fly dari total_points (lihat services.levels).
+    level = serializers.SerializerMethodField()
+    level_title = serializers.SerializerMethodField()
+    # Progres menuju level berikutnya (untuk progress bar UI).
+    next_level_title = serializers.SerializerMethodField()
+    points_to_next_level = serializers.SerializerMethodField()
+    level_progress = serializers.SerializerMethodField()
     courses = MyLeaderboardCourseSerializer(many=True)
+
+    def _level_data(self, obj):
+        return level_progress(obj["total_points"])
+
+    def get_level(self, obj):
+        return self._level_data(obj)[0]
+
+    def get_level_title(self, obj):
+        return self._level_data(obj)[1]
+
+    def get_next_level_title(self, obj):
+        return self._level_data(obj)[2]
+
+    def get_points_to_next_level(self, obj):
+        return self._level_data(obj)[3]
+
+    def get_level_progress(self, obj):
+        return self._level_data(obj)[4]
 
 
 class SubmissionSerializer(serializers.ModelSerializer):
@@ -536,8 +580,9 @@ class SubmissionSerializer(serializers.ModelSerializer):
         model = Submission
         fields = "__all__"
         # user diisi backend dari request; score/reviewed_by untuk mentor (PATCH),
-        # di-reset saat create oleh viewset; is_late di-snapshot backend.
-        read_only_fields = ["user", "is_late"]
+        # di-reset saat create oleh viewset; is_late & submitted_on di-snapshot
+        # backend (upload: saat create; quiz: saat quiz/submit).
+        read_only_fields = ["user", "is_late", "submitted_on"]
 
     def _module_id(self, obj):
         if obj.assignment_id is not None:

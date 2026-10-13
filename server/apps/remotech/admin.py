@@ -71,7 +71,13 @@ class AssignmentAdmin(admin.ModelAdmin):
 
 @admin.register(Submission)
 class SubmissionAdmin(admin.ModelAdmin):
-    list_display = ("user", "assignment", "score", "submit_on", "reviewed_by")
+    list_display = (
+        "user",
+        "assignment",
+        "score",
+        "submitted_on",
+        "reviewed_by",
+    )
     search_fields = ("user__username", "reviewed_by")
 
 

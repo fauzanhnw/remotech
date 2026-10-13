@@ -66,7 +66,7 @@ export function MentorLeaderboardPage() {
         <div>
           <h2 className="text-2xl font-bold text-[#08060d]">Leaderboard</h2>
           <p className="mt-1 text-sm text-gray-600">
-            Peringkat poin peserta — pilih course untuk melihat papan skornya.
+            Peringkat poin peserta, filter berdasarkan course.
           </p>
         </div>
         <Select

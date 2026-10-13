@@ -195,6 +195,10 @@ class CourseModule(CrudModel):
         default=50,
         validators=[MinValueValidator(0), MaxValueValidator(100)],
     )
+    # Quiz boleh diulang: student bisa memulai attempt baru setelah attempt
+    # lama final; skor attempt terbaru yang dipakai leaderboard (latest-wins).
+    # Hanya bermakna untuk kategori quiz.
+    allow_retake = models.BooleanField(default=False)
 
     def save(self, *args, **kwargs):
         if self.sequence is None:
@@ -248,7 +252,10 @@ class Submission(CrudModel):
         Assignment, on_delete=models.CASCADE, null=True, blank=True
     )
     submission_url = models.URLField(blank=True, default="")
-    submit_on = models.DateTimeField(auto_now_add=True)
+    # Waktu pengumpulan final: upload = saat create, quiz = saat quiz/submit.
+    # Snapshot — tidak diubah oleh update URL ulang ataupun retake (attempt
+    # baru = baris baru dengan submitted_on NULL). NULL = masih draft.
+    submitted_on = models.DateTimeField(null=True, blank=True)
     score = models.IntegerField(default=0)
     # Snapshot keterlambatan saat submit pertama (dibanding `module.due_at`);
     # tidak diubah oleh update URL ulang ataupun perubahan tenggat sesudahnya.

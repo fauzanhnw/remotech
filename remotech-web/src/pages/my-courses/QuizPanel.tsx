@@ -1,6 +1,6 @@
 import { CheckCircleFilled, CheckCircleOutlined, ClockCircleOutlined } from '@ant-design/icons'
 import { App as AntApp, Alert, Button, Input, Radio, Skeleton, Tag } from 'antd'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import {
   notifyEarnedBadges,
@@ -44,25 +44,28 @@ export function QuizPanel({ module, onSubmitted }: QuizPanelProps) {
   const [submitting, setSubmitting] = useState(false)
   const [result, setResult] = useState<QuizResult | null>(null)
 
+  const applySession = useCallback((data: QuizSession) => {
+    setSession(data)
+    setResult(data.result ?? null)
+    const map: AnswerMap = {}
+    for (const answer of data.answers) {
+      map[answer.question] = {
+        ...(answer.question_option != null
+          ? { question_option: answer.question_option }
+          : {}),
+        ...(answer.answer_text ? { answer_text: answer.answer_text } : {}),
+      }
+    }
+    setAnswers(map)
+  }, [])
+
   useEffect(() => {
     let cancelled = false
 
     void (async () => {
       try {
         const data = await startQuiz(module.id)
-        if (cancelled) return
-        setSession(data)
-        setResult(data.result ?? null)
-        const map: AnswerMap = {}
-        for (const answer of data.answers) {
-          map[answer.question] = {
-            ...(answer.question_option != null
-              ? { question_option: answer.question_option }
-              : {}),
-            ...(answer.answer_text ? { answer_text: answer.answer_text } : {}),
-          }
-        }
-        setAnswers(map)
+        if (!cancelled) applySession(data)
       } catch (error) {
         if (!cancelled) {
           setLoadFailed(true)
@@ -76,7 +79,7 @@ export function QuizPanel({ module, onSubmitted }: QuizPanelProps) {
     return () => {
       cancelled = true
     }
-  }, [module.id])
+  }, [module.id, applySession])
 
   const questions = useMemo(() => session?.questions ?? [], [session])
   const completed = session?.completed ?? false
@@ -167,8 +170,9 @@ export function QuizPanel({ module, onSubmitted }: QuizPanelProps) {
 
     modal.confirm({
       title: 'Kumpulkan jawaban?',
-      content:
-        `Quiz hanya bisa disubmit satu kali. Jawaban pilihan dinilai otomatis; bagian essay dinilai mentor.${lateWarning}`,
+      content: module.allow_retake
+        ? `Quiz ini bisa diulang. Skor terbaru yang akan dihitung. Jawaban pilihan dinilai otomatis; bagian essay dinilai mentor.${lateWarning}`
+        : `Quiz hanya bisa disubmit satu kali. Setelah dikumpulkan, jawaban tidak bisa diubah. Jawaban pilihan dinilai otomatis; bagian essay dinilai mentor.${lateWarning}`,
       okText: 'Kumpulkan',
       cancelText: 'Periksa Lagi',
       onOk: async () => {
@@ -180,6 +184,29 @@ export function QuizPanel({ module, onSubmitted }: QuizPanelProps) {
           notifySuccess('Jawaban quiz berhasil dikumpulkan.')
           notifyEarnedBadges(data.earned_badges)
           onSubmitted()
+        } catch (error) {
+          notifyError(error)
+        } finally {
+          setSubmitting(false)
+        }
+      },
+    })
+  }
+
+  const handleRetake = () => {
+    modal.confirm({
+      title: 'Mulai percobaan baru?',
+      content:
+        'Nilai attempt sebelumnya tetap tersimpan sebagai riwayat; skor attempt terbaru yang dihitung.',
+      okText: 'Coba Lagi',
+      cancelText: 'Batal',
+      onOk: async () => {
+        setSubmitting(true)
+        try {
+          // Backend membuat draft baru (allow_retake) saat attempt sudah final.
+          const data = await startQuiz(module.id)
+          applySession(data)
+          notifySuccess('Percobaan baru dimulai. Semoga berhasil!')
         } catch (error) {
           notifyError(error)
         } finally {
@@ -244,6 +271,11 @@ export function QuizPanel({ module, onSubmitted }: QuizPanelProps) {
               Dinilai otomatis
             </Tag>
           )}
+          {module.allow_retake && (
+            <Tag color="cyan" className="mr-0">
+              Bisa diulang
+            </Tag>
+          )}
         </div>
 
         {result.pending && (
@@ -253,6 +285,18 @@ export function QuizPanel({ module, onSubmitted }: QuizPanelProps) {
             showIcon
             message="Skor sementara dari bagian pilihan. Skor final menyusul setelah mentor menilai essay."
           />
+        )}
+
+        {module.allow_retake && (
+          <div className="mt-3">
+            <Button
+              type="primary"
+              loading={submitting}
+              onClick={handleRetake}
+            >
+              Coba Lagi
+            </Button>
+          </div>
         )}
 
         <div className="mt-4 space-y-4">
@@ -274,9 +318,14 @@ export function QuizPanel({ module, onSubmitted }: QuizPanelProps) {
       <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Kuis</p>
       <div className="mt-0.5 flex flex-wrap items-center justify-between gap-2">
         <h3 className="m-0 text-lg font-semibold text-[#08060d]">{module.title}</h3>
-        <span className="text-xs text-gray-500">
-          {answeredCount}/{questions.length} terjawab
-        </span>
+        <div className="flex items-center gap-2">
+          <Tag color={module.allow_retake ? 'blue' : 'default'} className="mr-0">
+            {module.allow_retake ? 'Bisa diulang' : 'Sekali kerja'}
+          </Tag>
+          <span className="text-xs text-gray-500">
+            {answeredCount}/{questions.length} terjawab
+          </span>
+        </div>
       </div>
       {module.description && (
         <p className="mt-1 whitespace-pre-line text-sm text-gray-600">{module.description}</p>

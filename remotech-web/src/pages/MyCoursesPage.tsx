@@ -108,7 +108,7 @@ export function MyCoursesPage() {
     <section className="mx-auto max-w px-4 py-10 xl:px-16 md:mx-8">
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-[#08060d]">Enrolled Courses</h1>
-        <p className="mt-2 text-gray-600">Course yang sudah diambil</p>
+        <p className="mt-2 text-gray-600">Daftar course yang sudah diambil</p>
       </div>
 
       <StreakCard />

@@ -1,5 +1,5 @@
 import { ReloadOutlined, TrophyOutlined } from '@ant-design/icons'
-import { Button, Empty, Skeleton } from 'antd'
+import { Button, Empty, Progress, Skeleton, Tag } from 'antd'
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
@@ -7,6 +7,7 @@ import { getMyLeaderboard, notifyError } from '@/api'
 import { BadgeGrid } from '@/components/BadgeGrid'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import type { MyLeaderboard } from '@/types/leaderboard'
+import { levelColor, levelLabel } from '@/utils/level'
 
 /**
  * My Point: total poin dari course yang di-enroll + peringkat per course.
@@ -69,6 +70,7 @@ export function MyPointsPage() {
 
   const courseCount = data.courses.length
   const hasPoints = data.total_points > 0
+  const isMaxLevel = data.next_level_title == null
 
   return (
     <section className="mx-auto max-w px-4 py-10 pb-16 md:mx-8 xl:px-16">
@@ -88,17 +90,49 @@ export function MyPointsPage() {
         </Button>
       </div>
 
-      <div className="mb-6 flex items-center gap-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-amber-50">
-          <TrophyOutlined className="text-2xl text-amber-500" />
-        </span>
-        <div>
-          <p className="text-3xl font-bold leading-none text-[#08060d]">
-            {data.total_points}
-          </p>
-          <p className="mt-2 text-sm text-gray-500">
-            Total poin dari {courseCount} course
-          </p>
+      <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+        <div className="flex items-start gap-4">
+          <span className="mt-1 flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-amber-50">
+            <TrophyOutlined className="text-2xl text-amber-500" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-baseline gap-2">
+              <p className="text-3xl font-bold leading-none text-[#08060d]">
+                {data.total_points}
+              </p>
+              <Tag color={levelColor(data.level)} className="mr-0">
+                {levelLabel(data.level, data.level_title)}
+              </Tag>
+            </div>
+            <p className="mt-2 text-sm text-gray-500">
+              Total poin dari {courseCount} course
+            </p>
+          </div>
+        </div>
+        <div className="mt-4">
+          {isMaxLevel ? (
+            <p className="text-sm font-medium text-amber-600">
+              Level maksimal tercapai — kamu sudah Master!
+            </p>
+          ) : (
+            <>
+              <Progress
+                percent={data.level_progress}
+                strokeColor={{ '0%': '#1677ff', '100%': '#722ed1' }}
+                showInfo={false}
+              />
+              <p className="mt-1 text-sm text-gray-500">
+                {' '}
+                <span className="font-semibold text-[#08060d]">
+                  {data.points_to_next_level}
+                </span>{' '}
+                poin lagi menjuju ke level{' '}
+                <span className="font-semibold text-[#08060d]">
+                  {data.next_level_title}
+                </span>
+              </p>
+            </>
+          )}
         </div>
       </div>
 

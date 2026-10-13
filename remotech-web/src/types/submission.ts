@@ -27,7 +27,11 @@ export interface Submission {
   /** true = sudah final (tugas dinilai mentor / quiz tanpa essay dinilai system). */
   is_graded: boolean
   submission_url: string
-  submit_on: IsoDateTime
+  /**
+   * Waktu pengumpulan final: upload = saat create, quiz = saat quiz/submit.
+   * null = quiz masih draft (belum dikumpulkan).
+   */
+  submitted_on: IsoDateTime | null
   score: number
   /** Snapshot: submit melewati tenggat module saat momen submit pertama. */
   is_late: boolean

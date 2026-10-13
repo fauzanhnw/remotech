@@ -224,11 +224,11 @@ export function AssignmentSubmitPanel({ module, onSubmitted }: AssignmentSubmitP
             )}
           </div>
 
-          {submission && (
+          {submission && submission.submitted_on && (
             <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
               <span>
                 Terkumpul{' '}
-                {new Date(submission.submit_on).toLocaleString('id-ID', {
+                {new Date(submission.submitted_on).toLocaleString('id-ID', {
                   day: 'numeric',
                   month: 'long',
                   year: 'numeric',

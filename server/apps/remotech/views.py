@@ -1,11 +1,12 @@
 from collections import Counter
-from datetime import datetime, time, timedelta, timezone as dt_tz
+from datetime import datetime, time, timedelta
+from datetime import timezone as dt_tz
 from uuid import uuid4
 
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.files.storage import default_storage
-from django.db.models import OuterRef, Q, Subquery
+from django.db.models import OuterRef, Q, Subquery, Sum
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
@@ -26,11 +27,11 @@ from server.apps.remotech.mixins import AssignUserMixin, CourseOwnerMixin
 from server.apps.remotech.models import (
     Assignment,
     Badge,
+    ContentViewed,
     Course,
     CourseEnrollment,
     CourseModule,
     CourseOrder,
-    ContentViewed,
     Leaderboard,
     LeaderboardDetail,
     ModuleContent,
@@ -399,7 +400,9 @@ class CourseModuleViewSet(CourseOwnerMixin, viewsets.ModelViewSet):
         """Buka/resume quiz: draft submission + jawaban yang sudah tersimpan.
 
         Draft kosong diadopsi agar id submission stabil antar start; draft
-        kosong yang tidak terpakai dibuang agar tidak menumpuk.
+        kosong yang tidak terpakai dibuang agar tidak menumpuk. Bila attempt
+        sudah final dan `module.allow_retake`, attempt baru dibuat (baris
+        lama tetap sebagai riwayat; skor terbaru yang dipakai leaderboard).
         """
         module = self.get_object()
         if module.module_category != CourseModule.Category.QUIZ:
@@ -432,11 +435,24 @@ class CourseModuleViewSet(CourseOwnerMixin, viewsets.ModelViewSet):
                 score=0,
                 reviewed_by="",
             )
+        elif submission.submitted_on is not None and module.allow_retake:
+            # Attempt lama sudah final + retake diizinkan → attempt baru.
+            # Baris lama (nilai + jawaban) tetap tersimpan untuk riwayat;
+            # leaderboard memakai attempt terbaru (latest-wins).
+            submission = Submission.objects.create(
+                user=request.user,
+                assignment=None,
+                submission_url="",
+                score=0,
+                reviewed_by="",
+            )
 
-        completed = bool(submission.reviewed_by)
-        payload = quiz_result_payload(submission, questions, reveal=completed)
-        payload["completed"] = completed
-        if completed:
+        final = submission.submitted_on is not None
+        # Kunci jawaban dibuka setelah dinilai final (tanpa essay = "system").
+        graded = bool(submission.reviewed_by)
+        payload = quiz_result_payload(submission, questions, reveal=graded)
+        payload["completed"] = final
+        if final:
             payload["result"] = quiz_result_summary(submission, questions, module)
         return Response(payload)
 
@@ -469,7 +485,7 @@ class CourseModuleViewSet(CourseOwnerMixin, viewsets.ModelViewSet):
             user=request.user,
             assignment__isnull=True,
         )
-        if submission.reviewed_by:
+        if submission.submitted_on is not None:
             raise ValidationError(
                 {"submission": ["Quiz sudah pernah disubmit."]}
             )
@@ -511,8 +527,11 @@ class CourseModuleViewSet(CourseOwnerMixin, viewsets.ModelViewSet):
         is_late = bool(module.due_at and timezone.now() > module.due_at)
         submission.score = auto_score
         submission.is_late = is_late
+        submission.submitted_on = timezone.now()
         submission.reviewed_by = "" if has_essay else "system"
-        submission.save(update_fields=["score", "is_late", "reviewed_by"])
+        submission.save(
+            update_fields=["score", "is_late", "submitted_on", "reviewed_by"]
+        )
 
         UserProgress.objects.update_or_create(
             module=module,
@@ -814,9 +833,10 @@ class UserProgressViewSet(viewsets.ModelViewSet):
 
         Hari aktif = ada konten dibuka (`ContentViewed.viewed_at`), module
         selesai (`UserProgress.complete_at`) atau tugas/quiz dikumpulkan
-        (`Submission.submit_on`) pada hari yang sama (zona WIB). `days` selalu
-        berisi 7 hari terakhir (terakhir = hari ini); `current_streak` boleh
-        berawal dari kemarin bila hari ini belum ada aktivitas.
+        (`Submission.created_at` — momen baris submission dibuat) pada hari
+        yang sama (zona WIB). `days` selalu berisi 7 hari terakhir (terakhir
+        = hari ini); `current_streak` boleh berawal dari kemarin bila hari ini
+        belum ada aktivitas.
         """
         user = request.user
         today = timezone.localtime(timezone.now(), ACTIVITY_TIME_ZONE).date()
@@ -834,8 +854,8 @@ class UserProgressViewSet(viewsets.ModelViewSet):
             .values_list("viewed_at", flat=True),
             UserProgress.objects.filter(user=user, complete_at__gte=window_start)
             .values_list("complete_at", flat=True),
-            Submission.objects.filter(user=user, submit_on__gte=window_start)
-            .values_list("submit_on", flat=True),
+            Submission.objects.filter(user=user, created_at__gte=window_start)
+            .values_list("created_at", flat=True),
         )
         counts = Counter()
         for timestamps in sources:
@@ -1033,6 +1053,39 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
     filter_backends = [DjangoFilterBackend, OrderingFilter]
     filterset_fields = ["course", "user"]
     ordering_fields = ["total_points", "id"]
+
+    def list(self, request, *args, **kwargs):
+        """Bulk-fill `user_totals` (total poin lintas course) untuk level."""
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            totals = self._user_totals(page)
+            serializer = self.get_serializer(
+                page,
+                many=True,
+                context={**self.get_serializer_context(), "user_totals": totals},
+            )
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(
+            queryset,
+            many=True,
+            context={
+                **self.get_serializer_context(),
+                "user_totals": self._user_totals(queryset),
+            },
+        )
+        return Response(serializer.data)
+
+    @staticmethod
+    def _user_totals(queryset):
+        return dict(
+            Leaderboard.objects.filter(
+                user_id__in={row.user_id for row in queryset}
+            )
+            .values("user_id")
+            .annotate(total=Sum("total_points"))
+            .values_list("user_id", "total")
+        )
 
     @action(detail=False, methods=["get"], url_path="me")
     def me(self, request):
@@ -1265,11 +1318,15 @@ class SubmissionViewSet(viewsets.ModelViewSet):
         serializer.instance = existing
         if existing is None:
             is_late = bool(module.due_at and timezone.now() > module.due_at)
-            submission = serializer.save(
-                user=user, score=0, reviewed_by="", is_late=is_late
+            serializer.save(
+                user=user,
+                score=0,
+                reviewed_by="",
+                is_late=is_late,
+                submitted_on=timezone.now(),
             )
         else:
-            submission = serializer.save(user=user, score=0, reviewed_by="")
+            serializer.save(user=user, score=0, reviewed_by="")
 
         if CourseEnrollment.objects.filter(user=user, course=module.course).exists():
             # Submit tugas = otomatis menandai module selesai.
@@ -1480,6 +1537,15 @@ class UserAnswerViewSet(viewsets.ModelViewSet):
             existing = self.get_queryset().filter(
                 submission_id=submission_id, question_id=question_id
             ).first()
+            submission = existing.submission if existing else Submission.objects.filter(
+                pk=submission_id, user=self.request.user
+            ).first()
+            if submission is not None and (
+                submission.submitted_on is not None or submission.reviewed_by
+            ):
+                raise ValidationError(
+                    {"detail": ["Quiz sudah disubmit dan jawaban tidak bisa diubah."]}
+                )
         serializer = self.get_serializer(data=request.data, instance=existing)
         serializer.is_valid(raise_exception=True)
         answer = serializer.save()
@@ -1490,7 +1556,7 @@ class UserAnswerViewSet(viewsets.ModelViewSet):
     def perform_destroy(self, instance):
         if instance.submission.user_id != self.request.user.pk:
             self.permission_denied(self.request, message="Not allowed.")
-        if instance.submission.reviewed_by:
+        if instance.submission.submitted_on is not None or instance.submission.reviewed_by:
             raise ValidationError(
                 {"detail": ["Quiz sudah disubmit dan jawaban tidak bisa dihapus."]}
             )

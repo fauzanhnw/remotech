@@ -3,7 +3,6 @@ import io
 import os
 import tempfile
 from datetime import datetime, time, timedelta
-from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -22,11 +21,11 @@ from rest_framework.test import APIRequestFactory, APITestCase
 from server.apps.remotech.models import (
     Assignment,
     Badge,
+    ContentViewed,
     Course,
     CourseEnrollment,
     CourseModule,
     CourseOrder,
-    ContentViewed,
     Leaderboard,
     LeaderboardDetail,
     ModuleContent,
@@ -48,6 +47,7 @@ from server.apps.remotech.services.grading import (
     penalized_score,
     split_points,
 )
+from server.apps.remotech.services.levels import level_for_points, level_progress
 from server.apps.remotech.services.richtext import (
     extract_media_urls,
     sanitize_richtext,
@@ -2188,7 +2188,7 @@ class ProgressActivityTests(APITestCase):
             submission_url="https://example.com/a",
         )
         Submission.objects.filter(pk=submission.pk).update(
-            submit_on=self.at(self.today - timedelta(days=1))
+            created_at=self.at(self.today - timedelta(days=1))
         )
 
         data = self.activity()
@@ -2582,6 +2582,119 @@ class MyLeaderboardTests(APITestCase):
         self.assertNotIn(
             stranger_course.id, [row["course"] for row in data["courses"]]
         )
+
+
+class LevelTests(SimpleTestCase):
+    """Level on-the-fly dari total poin lintas course (tanpa tabel progres)."""
+
+    def test_boundaries(self):
+        cases = [
+            (0, 1, "Pemula"),
+            (499, 1, "Pemula"),
+            (500, 2, "Pelajar"),
+            (1499, 2, "Pelajar"),
+            (1500, 3, "Praktisi"),
+            (3999, 3, "Praktisi"),
+            (4000, 4, "Profesional"),
+            (9999, 4, "Profesional"),
+            (10000, 5, "Ahli"),
+            (24999, 5, "Ahli"),
+            (25000, 6, "Master"),
+            (99999, 6, "Master"),
+        ]
+        for total, level, title in cases:
+            with self.subTest(total=total):
+                self.assertEqual(level_for_points(total), (level, title))
+
+    def test_progress_mid_tier(self):
+        # 750 poin: Pelajar (500) dengan 250 dari 1000 rentang ke Praktisi.
+        level, title, next_title, points_to_next, percent = level_progress(750)
+
+        self.assertEqual((level, title), (2, "Pelajar"))
+        self.assertEqual(next_title, "Praktisi")
+        self.assertEqual(points_to_next, 750)
+        self.assertEqual(percent, 25)
+
+    def test_progress_at_exact_threshold_is_zero_percent(self):
+        level, title, next_title, points_to_next, percent = level_progress(1500)
+
+        self.assertEqual((level, title), (3, "Praktisi"))
+        self.assertEqual(next_title, "Profesional")
+        self.assertEqual(points_to_next, 2500)
+        self.assertEqual(percent, 0)
+
+    def test_progress_max_level_has_no_next(self):
+        level, title, next_title, points_to_next, percent = level_progress(30000)
+
+        self.assertEqual((level, title), (6, "Master"))
+        self.assertIsNone(next_title)
+        self.assertIsNone(points_to_next)
+        self.assertEqual(percent, 100)
+
+
+class LeaderboardLevelAPITests(APITestCase):
+    """Field level pada /leaderboard/me/ dan /leaderboard/ (list)."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user(username="owner", password="secret123")
+        self.student = User.objects.create_user(
+            username="student", password="secret123"
+        )
+        self.course = Course.objects.create(user=self.owner, title="Course L")
+        self.course_b = Course.objects.create(user=self.owner, title="Course M")
+        CourseEnrollment.objects.create(course=self.course, user=self.student)
+        CourseEnrollment.objects.create(course=self.course_b, user=self.student)
+        self.client.force_authenticate(user=self.student)
+
+    def test_me_reports_level_from_total_points(self):
+        Leaderboard.objects.create(user=self.student, course=self.course, total_points=1620)
+        Leaderboard.objects.create(user=self.student, course=self.course_b, total_points=200)
+
+        data = self.client.get("/leaderboard/me/").json()
+
+        # 1820 poin lintas course → level 3 "Praktisi".
+        self.assertEqual(data["total_points"], 1820)
+        self.assertEqual(data["level"], 3)
+        self.assertEqual(data["level_title"], "Praktisi")
+
+    def test_me_level_zero_points_is_pemula(self):
+        data = self.client.get("/leaderboard/me/").json()
+
+        self.assertEqual(data["level"], 1)
+        self.assertEqual(data["level_title"], "Pemula")
+
+    def test_me_reports_level_progress_fields(self):
+        Leaderboard.objects.create(user=self.student, course=self.course, total_points=750)
+
+        data = self.client.get("/leaderboard/me/").json()
+
+        self.assertEqual(data["next_level_title"], "Praktisi")
+        self.assertEqual(data["points_to_next_level"], 750)
+        self.assertEqual(data["level_progress"], 25)
+
+    def test_me_reports_max_level_without_next(self):
+        Leaderboard.objects.create(user=self.student, course=self.course, total_points=25000)
+
+        data = self.client.get("/leaderboard/me/").json()
+
+        self.assertEqual(data["level_title"], "Master")
+        self.assertIsNone(data["next_level_title"])
+        self.assertIsNone(data["points_to_next_level"])
+        self.assertEqual(data["level_progress"], 100)
+
+    def test_list_includes_level_from_cross_course_total(self):
+        # 1600 poin di course ini + 300 di course lain = 1900 → Praktisi.
+        Leaderboard.objects.create(user=self.student, course=self.course, total_points=1600)
+        Leaderboard.objects.create(user=self.student, course=self.course_b, total_points=300)
+
+        data = self.client.get("/leaderboard/", {"course": self.course.id}).json()
+
+        row = next(
+            item for item in data["results"] if item["user"] == self.student.id
+        )
+        self.assertEqual(row["total_points"], 1600)
+        self.assertEqual(row["level"], 3)
+        self.assertEqual(row["level_title"], "Praktisi")
 
 
 class LeaderboardPointsTests(APITestCase):
@@ -4533,7 +4646,7 @@ class LateDeadlineTests(APITestCase):
         module, assignment = self.make_upload_module(
             due_at=timezone.now() + timedelta(hours=1)
         )
-        created = self.submit_upload(assignment).json()
+        self.submit_upload(assignment).json()
         # Tenggat lewat, lalu student memperbarui tautan (belum dinilai).
         module.due_at = timezone.now() - timedelta(minutes=5)
         module.save(update_fields=["due_at"])
@@ -4602,3 +4715,305 @@ class LateDeadlineTests(APITestCase):
         self.assertFalse(response.json()["submission"]["is_late"])
         leaderboard = Leaderboard.objects.get(user=self.student, course=self.course)
         self.assertEqual(leaderboard.total_points, 100)
+
+
+class QuizFinalityTests(APITestCase):
+    """`submitted_on` sebagai penanda pengumpulan final.
+
+    Upload: terisi saat create. Quiz: terisi saat quiz/submit — draft NULL.
+    Setelah final, resubmit & upsert/hapus jawaban diblokir meski essay
+    belum dinilai (`reviewed_by` masih kosong).
+    """
+
+    def setUp(self):
+        self.owner = User.objects.create_user(username="owner", password="secret123")
+        self.student = User.objects.create_user(
+            username="student", password="secret123"
+        )
+        self.course = Course.objects.create(user=self.owner, title="Course F")
+        CourseEnrollment.objects.create(course=self.course, user=self.student)
+        self.client.force_authenticate(user=self.student)
+
+        self.quiz = CourseModule.objects.create(
+            course=self.course, title="Kuis", module_category="quiz", point=100
+        )
+        self.choice = make_choice_question(self.quiz, "Q1", correct_index=0)
+        self.essay = make_essay_question(self.quiz, "Jelaskan.")
+
+        module = CourseModule.objects.create(
+            course=self.course, title="Tugas", module_category="upload", point=50
+        )
+        self.assignment = Assignment.objects.create(
+            course_module=module, name="Tugas 1", description="d"
+        )
+
+    def start_quiz(self):
+        return self.client.post(
+            f"/module/{self.quiz.id}/quiz/start/", {}, format="json"
+        )
+
+    def answer(self, submission_id, question, **extra):
+        return self.client.post(
+            "/user-answer/",
+            {
+                "submission": submission_id,
+                "question": question.pk,
+                **extra,
+            },
+            format="json",
+        )
+
+    def answer_all(self, submission_id):
+        option = self.choice.questionoption_set.order_by("sequence").first()
+        self.answer(submission_id, self.choice, question_option=option.pk)
+        self.answer(submission_id, self.essay, answer_text="Jawabanku.")
+
+    def submit_quiz(self, submission_id):
+        return self.client.post(
+            f"/module/{self.quiz.id}/quiz/submit/",
+            {"submission": submission_id},
+            format="json",
+        )
+
+    # --- Penanda final ---
+
+    def test_upload_create_sets_submitted_on(self):
+        response = self.client.post(
+            "/submission/",
+            {"assignment": self.assignment.id, "submission_url": "https://x.com/a"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertIsNotNone(response.json()["submitted_on"])
+
+    def test_quiz_draft_has_null_submitted_on(self):
+        data = self.start_quiz().json()
+
+        self.assertIsNone(data["submission"]["submitted_on"])
+        self.assertFalse(data["completed"])
+
+    def test_quiz_submit_sets_submitted_on(self):
+        submission_id = self.start_quiz().json()["submission"]["id"]
+        self.answer_all(submission_id)
+
+        data = self.submit_quiz(submission_id).json()
+
+        self.assertIsNotNone(data["submission"]["submitted_on"])
+
+    # --- One-shot menutup lubang essay pending ---
+
+    def test_essay_quiz_cannot_resubmit_before_grading(self):
+        submission_id = self.start_quiz().json()["submission"]["id"]
+        self.answer_all(submission_id)
+        self.submit_quiz(submission_id)
+        submission = Submission.objects.get(pk=submission_id)
+        self.assertEqual(submission.reviewed_by, "")  # belum dinilai mentor
+
+        response = self.submit_quiz(submission_id)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_answer_upsert_blocked_after_submit(self):
+        submission_id = self.start_quiz().json()["submission"]["id"]
+        self.answer_all(submission_id)
+        self.submit_quiz(submission_id)
+
+        response = self.answer(
+            submission_id,
+            self.choice,
+            question_option=self.choice.questionoption_set.first().pk,
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("tidak bisa diubah", str(response.json()))
+
+    def test_answer_upsert_blocked_after_grading(self):
+        submission_id = self.start_quiz().json()["submission"]["id"]
+        self.answer_all(submission_id)
+        self.submit_quiz(submission_id)
+        Submission.objects.filter(pk=submission_id).update(reviewed_by="owner")
+
+        response = self.answer(
+            submission_id,
+            self.choice,
+            question_option=self.choice.questionoption_set.first().pk,
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_answer_delete_blocked_after_submit(self):
+        submission_id = self.start_quiz().json()["submission"]["id"]
+        self.answer_all(submission_id)
+        self.submit_quiz(submission_id)
+        answer = UserAnswer.objects.get(
+            submission_id=submission_id, question=self.choice
+        )
+
+        response = self.client.delete(f"/user-answer/{answer.pk}/")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertTrue(UserAnswer.objects.filter(pk=answer.pk).exists())
+
+    # --- Draft tetap bisa diedit ---
+
+    def test_draft_answer_upsert_still_allowed(self):
+        submission_id = self.start_quiz().json()["submission"]["id"]
+        option = self.choice.questionoption_set.order_by("sequence").first()
+
+        first = self.answer(submission_id, self.choice, question_option=option.pk)
+        second = self.answer(submission_id, self.choice, question_option=option.pk)
+
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(second.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(
+            UserAnswer.objects.filter(
+                submission_id=submission_id, question=self.choice
+            ).count(),
+            1,
+        )
+
+    # --- Start ulang setelah essay submit menampilkan hasil, bukan draft ---
+
+    def test_start_after_essay_submit_is_completed_pending(self):
+        submission_id = self.start_quiz().json()["submission"]["id"]
+        self.answer_all(submission_id)
+        self.submit_quiz(submission_id)
+
+        data = self.start_quiz().json()
+
+        self.assertTrue(data["completed"])
+        self.assertTrue(data["result"]["pending"])
+        self.assertEqual(data["submission"]["id"], submission_id)
+
+
+class QuizRetakeTests(APITestCase):
+    """Quiz retake (opsional per module): attempt baru setelah final.
+
+    Default satu kali kerja; `allow_retake=True` mengizinkan start ulang
+    yang membuat draft baru. Skor attempt terbaru menang (latest-wins).
+    """
+
+    def setUp(self):
+        self.owner = User.objects.create_user(username="owner", password="secret123")
+        self.student = User.objects.create_user(
+            username="student", password="secret123"
+        )
+        self.course = Course.objects.create(user=self.owner, title="Course R")
+        CourseEnrollment.objects.create(course=self.course, user=self.student)
+        self.client.force_authenticate(user=self.student)
+        self.quiz = CourseModule.objects.create(
+            course=self.course, title="Kuis", module_category="quiz", point=100
+        )
+        self.q1 = make_choice_question(self.quiz, "Q1", correct_index=0)
+        self.q2 = make_choice_question(self.quiz, "Q2", correct_index=0)
+
+    def set_allow_retake(self, value=True):
+        CourseModule.objects.filter(pk=self.quiz.id).update(allow_retake=value)
+
+    def start(self):
+        return self.client.post(
+            f"/module/{self.quiz.id}/quiz/start/", {}, format="json"
+        )
+
+    def answer(self, submission_id, question, correct=True):
+        options = list(question.questionoption_set.order_by("sequence"))
+        option = options[0] if correct else options[-1]
+        return self.client.post(
+            "/user-answer/",
+            {
+                "submission": submission_id,
+                "question": question.pk,
+                "question_option": option.pk,
+            },
+            format="json",
+        )
+
+    def answer_both(self, submission_id, correct=True):
+        self.answer(submission_id, self.q1, correct=correct)
+        self.answer(submission_id, self.q2, correct=correct)
+
+    def submit(self, submission_id):
+        return self.client.post(
+            f"/module/{self.quiz.id}/quiz/submit/",
+            {"submission": submission_id},
+            format="json",
+        )
+
+    def test_default_blocks_retake(self):
+        first = self.start().json()
+        self.answer_both(first["submission"]["id"], correct=True)
+        self.submit(first["submission"]["id"])
+
+        data = self.start().json()
+
+        self.assertTrue(data["completed"])
+        self.assertEqual(data["submission"]["id"], first["submission"]["id"])
+
+    def test_retake_creates_new_draft(self):
+        self.set_allow_retake()
+        first = self.start().json()
+        self.answer_both(first["submission"]["id"], correct=True)
+        self.submit(first["submission"]["id"])
+
+        data = self.start().json()
+
+        self.assertFalse(data["completed"])
+        self.assertNotEqual(data["submission"]["id"], first["submission"]["id"])
+        self.assertIsNone(data["submission"]["submitted_on"])
+        self.assertEqual(data["answers"], [])
+        # Attempt final lama tetap tersimpan sebagai riwayat.
+        old = Submission.objects.get(pk=first["submission"]["id"])
+        self.assertIsNotNone(old.submitted_on)
+        self.assertEqual(old.score, 100)
+
+    def test_retake_draft_resumes_stable_id(self):
+        self.set_allow_retake()
+        first = self.start().json()
+        self.answer_both(first["submission"]["id"], correct=True)
+        self.submit(first["submission"]["id"])
+
+        retake = self.start().json()
+        self.answer(retake["submission"]["id"], self.q1, correct=True)
+        resumed = self.start().json()
+
+        self.assertEqual(resumed["submission"]["id"], retake["submission"]["id"])
+        self.assertEqual(len(resumed["answers"]), 1)
+
+    def test_latest_attempt_wins_leaderboard(self):
+        self.set_allow_retake()
+        first = self.start().json()
+        self.answer_both(first["submission"]["id"], correct=True)
+        self.submit(first["submission"]["id"])
+        leaderboard = Leaderboard.objects.get(user=self.student, course=self.course)
+        self.assertEqual(leaderboard.total_points, 100)
+
+        retake = self.start().json()
+        self.answer_both(retake["submission"]["id"], correct=False)
+        self.submit(retake["submission"]["id"])
+
+        leaderboard.refresh_from_db()
+        self.assertEqual(leaderboard.total_points, 0)
+
+    def test_retake_essay_pending_still_allowed(self):
+        essay = make_essay_question(self.quiz, "Jelaskan.")
+        self.set_allow_retake()
+        first = self.start().json()
+        submission_id = first["submission"]["id"]
+        for question in (self.q1, self.q2):
+            self.answer(submission_id, question, correct=True)
+        self.client.post(
+            "/user-answer/",
+            {
+                "submission": submission_id,
+                "question": essay.pk,
+                "answer_text": "Jawabanku.",
+            },
+            format="json",
+        )
+        self.submit(submission_id)
+
+        data = self.start().json()
+
+        self.assertFalse(data["completed"])
+        self.assertNotEqual(data["submission"]["id"], submission_id)
