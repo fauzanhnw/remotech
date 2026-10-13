@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Form, Input, InputNumber, Modal, Select } from 'antd'
+import { DatePicker, Form, Input, InputNumber, Modal, Select } from 'antd'
+import dayjs from 'dayjs'
+import type { Dayjs } from 'dayjs'
 
 import {
   createModule,
@@ -15,6 +17,8 @@ interface ModuleFormValues {
   description?: string
   module_category: ModuleCategory
   point: number
+  due_at?: Dayjs | null
+  late_penalty_percent?: number
 }
 
 interface ModuleFormModalProps {
@@ -34,7 +38,10 @@ const CATEGORY_OPTIONS = [
   { value: 'quiz', label: 'Quiz' },
 ]
 
-/** Modal create/edit module: judul, deskripsi, kategori, poin. */
+/** Kategori yang mendukung tenggat pengumpulan + penalti keterlambatan. */
+const DUE_AT_CATEGORIES: ModuleCategory[] = ['upload', 'quiz']
+
+/** Modal create/edit module: judul, deskripsi, kategori, poin, tenggat. */
 export function ModuleFormModal({
   open,
   onClose,
@@ -45,6 +52,8 @@ export function ModuleFormModal({
   const [form] = Form.useForm<ModuleFormValues>()
   const [submitting, setSubmitting] = useState(false)
   const editing = Boolean(module)
+  const category = Form.useWatch('module_category', form)
+  const showDueAt = category != null && DUE_AT_CATEGORIES.includes(category)
 
   useEffect(() => {
     if (!open) return
@@ -55,6 +64,9 @@ export function ModuleFormModal({
         description: module.description,
         module_category: module.module_category,
         point: module.point,
+        late_penalty_percent: module.late_penalty_percent,
+        // Backend mengirim ISO string; terima apa adanya (null bila kosong).
+        due_at: module.due_at ? dayjs(module.due_at) : null,
       })
     }
   }, [open, module, form])
@@ -62,15 +74,29 @@ export function ModuleFormModal({
   const handleSubmit = async (values: ModuleFormValues) => {
     setSubmitting(true)
     try {
+      const supportsDueAt =
+        values.module_category != null &&
+        DUE_AT_CATEGORIES.includes(values.module_category)
+      const payload = {
+        title: values.title,
+        description: values.description,
+        module_category: values.module_category,
+        point: values.point,
+        // Tenggat hanya dikirim untuk kategori upload/quiz; konversi ke ISO.
+        due_at: supportsDueAt ? (values.due_at?.toISOString() ?? null) : null,
+        late_penalty_percent: supportsDueAt
+          ? (values.late_penalty_percent ?? 50)
+          : undefined,
+      }
       if (module) {
         // sequence & sengaja tidak dikirim: urutan hanya lewat tombol ↑↓.
-        await updateModule(module.id, values, {
+        await updateModule(module.id, payload, {
           meta: { suppressErrorToast: true },
         })
         notifySuccessAndUpdate('Module berhasil diperbarui.')
       } else {
         await createModule(
-          { ...values, course: courseId },
+          { ...payload, course: courseId },
           { meta: { suppressErrorToast: true } },
         )
         notifySuccessAndUpdate('Module berhasil ditambahkan.')
@@ -112,7 +138,11 @@ export function ModuleFormModal({
         form={form}
         layout="vertical"
         requiredMark={false}
-        initialValues={{ module_category: 'text', point: 100 }}
+        initialValues={{
+          module_category: 'text',
+          point: 100,
+          late_penalty_percent: 50,
+        }}
         onFinish={handleSubmit}
       >
         <Form.Item
@@ -140,6 +170,32 @@ export function ModuleFormModal({
             <InputNumber min={0} className="w-36" />
           </Form.Item>
         </div>
+
+        {showDueAt && (
+          <div className="flex flex-wrap gap-4">
+            <Form.Item
+              label="Tenggat Pengumpulan"
+              name="due_at"
+              tooltip="Opsional — submit setelah tenggat diterima dengan pengurangan poin."
+            >
+              <DatePicker
+                showTime
+                format="DD MMM YYYY HH:mm"
+                placeholder="Tanpa tenggat"
+                className="w-56"
+                disabledDate={(date) => date.isBefore(dayjs().startOf('day'))}
+              />
+            </Form.Item>
+
+            <Form.Item
+              label="Penalti Keterlambatan (%)"
+              name="late_penalty_percent"
+              tooltip="Persen poin yang dipotong bila submit melewati tenggat."
+            >
+              <InputNumber min={0} max={100} className="w-36" />
+            </Form.Item>
+          </div>
+        )}
       </Form>
     </Modal>
   )

@@ -133,6 +133,20 @@ export function GradingModal({ submission, onClose, onSaved }: GradingModalProps
       destroyOnHidden
       width={720}
     >
+      {submission.is_late && (
+        <Alert
+          className="mb-4"
+          type="warning"
+          showIcon
+          message="Pengumpulan telat"
+          description={
+            submission.late_penalty_percent != null
+              ? `Submit melewati tenggat — poin leaderboard berkurang ${submission.late_penalty_percent}%. Skor yang Kamu masukkan tetap nilai mentah.`
+              : 'Submit melewati tenggat — poin leaderboard berkurang sesuai aturan penalti module.'
+          }
+        />
+      )}
+
       {!submission.is_quiz && (
         <div className="space-y-4">
           <div>

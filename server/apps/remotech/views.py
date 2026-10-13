@@ -508,9 +508,11 @@ class CourseModuleViewSet(CourseOwnerMixin, viewsets.ModelViewSet):
         auto_score = compute_auto_score(weights, correct)
         has_essay = weights.essay_count > 0
 
+        is_late = bool(module.due_at and timezone.now() > module.due_at)
         submission.score = auto_score
+        submission.is_late = is_late
         submission.reviewed_by = "" if has_essay else "system"
-        submission.save(update_fields=["score", "reviewed_by"])
+        submission.save(update_fields=["score", "is_late", "reviewed_by"])
 
         UserProgress.objects.update_or_create(
             module=module,
@@ -1249,7 +1251,8 @@ class SubmissionViewSet(viewsets.ModelViewSet):
         self._earned_badges = []
 
         # Satu submission per (assignment, user): submit ulang memperbarui
-        # tautan selama belum dinilai.
+        # tautan selama belum dinilai. `is_late` hanya di-snapshot saat
+        # create pertama; update URL tidak mengubahnya.
         existing = Submission.objects.filter(user=user, assignment=assignment).first()
         if existing is not None and existing.reviewed_by:
             raise ValidationError(
@@ -1260,7 +1263,13 @@ class SubmissionViewSet(viewsets.ModelViewSet):
                 }
             )
         serializer.instance = existing
-        submission = serializer.save(user=user, score=0, reviewed_by="")
+        if existing is None:
+            is_late = bool(module.due_at and timezone.now() > module.due_at)
+            submission = serializer.save(
+                user=user, score=0, reviewed_by="", is_late=is_late
+            )
+        else:
+            submission = serializer.save(user=user, score=0, reviewed_by="")
 
         if CourseEnrollment.objects.filter(user=user, course=module.course).exists():
             # Submit tugas = otomatis menandai module selesai.

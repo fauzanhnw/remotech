@@ -29,6 +29,7 @@ from server.apps.remotech.services.auth import MENTOR_GROUP
 from server.apps.remotech.services.course import convert_to_webp
 from server.apps.remotech.services.grading import (
     derive_submission_module_id,
+    penalized_score,
     submission_module,
 )
 from server.apps.remotech.services.module_content import validate_module_content
@@ -526,13 +527,17 @@ class SubmissionSerializer(serializers.ModelSerializer):
     is_quiz = serializers.SerializerMethodField()
     is_graded = serializers.SerializerMethodField()
     user_name = serializers.SerializerMethodField()
+    # Penalti keterlambatan (soft): skor mentah `score` tetap; poin
+    # leaderboard memakai `effective_score` (lihat services.grading).
+    effective_score = serializers.SerializerMethodField()
+    late_penalty_percent = serializers.SerializerMethodField()
 
     class Meta:
         model = Submission
         fields = "__all__"
         # user diisi backend dari request; score/reviewed_by untuk mentor (PATCH),
-        # di-reset saat create oleh viewset.
-        read_only_fields = ["user"]
+        # di-reset saat create oleh viewset; is_late di-snapshot backend.
+        read_only_fields = ["user", "is_late"]
 
     def _module_id(self, obj):
         if obj.assignment_id is not None:
@@ -606,6 +611,27 @@ class SubmissionSerializer(serializers.ModelSerializer):
 
     def get_user_name(self, obj):
         return obj.user.get_full_name() or obj.user.username
+
+    def _late_module(self, obj):
+        """Module pemilik submission untuk keperluan penalti keterlambatan."""
+        if obj.assignment_id is not None:
+            return obj.assignment.course_module
+        module_id = derive_submission_module_id(obj)
+        if module_id is None:
+            return None
+        return CourseModule.objects.filter(pk=module_id).first()
+
+    def get_effective_score(self, obj):
+        module = self._late_module(obj)
+        return penalized_score(
+            obj.score,
+            obj.is_late,
+            module.late_penalty_percent if module is not None else 0,
+        )
+
+    def get_late_penalty_percent(self, obj):
+        module = self._late_module(obj)
+        return module.late_penalty_percent if module is not None else None
 
     def validate_score(self, value):
         if value < 0:

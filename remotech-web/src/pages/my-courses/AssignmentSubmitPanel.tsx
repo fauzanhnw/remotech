@@ -1,6 +1,6 @@
-import { LinkOutlined, UploadOutlined } from '@ant-design/icons'
-import { Button, Empty, Input, Skeleton, Tag } from 'antd'
-import { useEffect, useState } from 'react'
+import { ClockCircleOutlined, LinkOutlined, UploadOutlined } from '@ant-design/icons'
+import { Alert, Button, Empty, Input, Skeleton, Tag } from 'antd'
+import { useEffect, useMemo, useState } from 'react'
 
 import { useAuth } from '@/auth/AuthContext'
 import {
@@ -12,6 +12,7 @@ import {
   notifySuccess,
   updateSubmission,
 } from '@/api'
+import { useNow } from '@/hooks/useNow'
 import type { Assignment } from '@/types/content'
 import type { CourseModule } from '@/types/course'
 import type { Submission } from '@/types/submission'
@@ -52,6 +53,20 @@ export function AssignmentSubmitPanel({ module, onSubmitted }: AssignmentSubmitP
   const [url, setUrl] = useState('')
   const [urlError, setUrlError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+
+  const dueAt = module.due_at
+  const now = useNow()
+  const isPastDue = dueAt != null && now > new Date(dueAt).getTime()
+  const formattedDueAt = useMemo(() => {
+    if (dueAt == null) return null
+    return new Date(dueAt).toLocaleString('id-ID', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  }, [dueAt])
 
   // Muat assignment module + submission milik sendiri (remount per module via key).
   useEffect(() => {
@@ -136,6 +151,29 @@ export function AssignmentSubmitPanel({ module, onSubmitted }: AssignmentSubmitP
         </p>
       )}
 
+      {formattedDueAt && (
+        <p className="mt-2 flex items-center gap-1.5 text-sm text-gray-600">
+          <ClockCircleOutlined />
+          <span>
+            Tenggat: <span className="font-medium">{formattedDueAt}</span>
+          </span>
+          {isPastDue && (
+            <Tag color="red" className="mr-0">
+              Lewat tenggat
+            </Tag>
+          )}
+        </p>
+      )}
+      {isPastDue && module.late_penalty_percent > 0 && (
+        <Alert
+          className="mt-3"
+          type="warning"
+          showIcon
+          message={`Lewat tenggat — poin berkurang ${module.late_penalty_percent}%`}
+          description="Tugas tetap bisa dikumpulkan, tetapi poin yang masuk leaderboard akan dipotong."
+        />
+      )}
+
       {loading ? (
         <Skeleton className="mt-4" active paragraph={{ rows: 3 }} />
       ) : !assignment ? (
@@ -198,10 +236,18 @@ export function AssignmentSubmitPanel({ module, onSubmitted }: AssignmentSubmitP
                   minute: '2-digit',
                 })}
               </span>
+              {submission.is_late && (
+                <Tag color="red" className="mr-0">
+                  Telat
+                </Tag>
+              )}
               {submission.is_graded ? (
                 <Tag color="green" className="mr-0">
                   Skor: {submission.score}
                   {submission.max_score != null && `/${submission.max_score}`}
+                  {submission.is_late &&
+                    submission.effective_score !== submission.score &&
+                    ` · Efektif: ${submission.effective_score}`}
                 </Tag>
               ) : (
                 <Tag color="orange" className="mr-0">

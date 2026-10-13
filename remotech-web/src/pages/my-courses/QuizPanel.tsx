@@ -1,4 +1,4 @@
-import { CheckCircleFilled, CheckCircleOutlined } from '@ant-design/icons'
+import { CheckCircleFilled, CheckCircleOutlined, ClockCircleOutlined } from '@ant-design/icons'
 import { App as AntApp, Alert, Button, Input, Radio, Skeleton, Tag } from 'antd'
 import { useEffect, useMemo, useState } from 'react'
 
@@ -10,6 +10,7 @@ import {
   submitQuiz,
   upsertAnswer,
 } from '@/api'
+import { useNow } from '@/hooks/useNow'
 import type { CourseModule } from '@/types/course'
 import type { QuizResult, QuizSession, Question, UserAnswer } from '@/types/quiz'
 
@@ -80,6 +81,20 @@ export function QuizPanel({ module, onSubmitted }: QuizPanelProps) {
   const questions = useMemo(() => session?.questions ?? [], [session])
   const completed = session?.completed ?? false
 
+  const dueAt = module.due_at
+  const now = useNow()
+  const isPastDue = dueAt != null && now > new Date(dueAt).getTime()
+  const formattedDueAt = useMemo(() => {
+    if (dueAt == null) return null
+    return new Date(dueAt).toLocaleString('id-ID', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  }, [dueAt])
+
   const answeredCount = useMemo(
     () =>
       questions.filter((question) => {
@@ -145,10 +160,15 @@ export function QuizPanel({ module, onSubmitted }: QuizPanelProps) {
       return
     }
 
+    const lateWarning =
+      isPastDue && module.late_penalty_percent > 0
+        ? ` Pengumpulan melewati tenggat — poin berkurang ${module.late_penalty_percent}%.`
+        : ''
+
     modal.confirm({
       title: 'Kumpulkan jawaban?',
       content:
-        'Quiz hanya bisa disubmit satu kali. Jawaban pilihan dinilai otomatis; bagian essay dinilai mentor.',
+        `Quiz hanya bisa disubmit satu kali. Jawaban pilihan dinilai otomatis; bagian essay dinilai mentor.${lateWarning}`,
       okText: 'Kumpulkan',
       cancelText: 'Periksa Lagi',
       onOk: async () => {
@@ -206,6 +226,11 @@ export function QuizPanel({ module, onSubmitted }: QuizPanelProps) {
               {result.correct}/{result.auto_total}
             </p>
           </div>
+          {session.submission.is_late && (
+            <Tag color="red" className="mr-0">
+              Telat
+            </Tag>
+          )}
           {result.pending ? (
             <Tag color="orange" className="mr-0">
               Menunggu penilaian essay
@@ -255,6 +280,29 @@ export function QuizPanel({ module, onSubmitted }: QuizPanelProps) {
       </div>
       {module.description && (
         <p className="mt-1 whitespace-pre-line text-sm text-gray-600">{module.description}</p>
+      )}
+
+      {formattedDueAt && (
+        <p className="mt-2 flex items-center gap-1.5 text-sm text-gray-600">
+          <ClockCircleOutlined />
+          <span>
+            Tenggat: <span className="font-medium">{formattedDueAt}</span>
+          </span>
+          {isPastDue && (
+            <Tag color="red" className="mr-0">
+              Lewat tenggat
+            </Tag>
+          )}
+        </p>
+      )}
+      {isPastDue && module.late_penalty_percent > 0 && (
+        <Alert
+          className="mt-3"
+          type="warning"
+          showIcon
+          message={`Lewat tenggat — poin berkurang ${module.late_penalty_percent}%`}
+          description="Quiz tetap bisa disubmit, tetapi poin yang masuk leaderboard akan dipotong."
+        />
       )}
 
       <div className="mt-4 space-y-6">

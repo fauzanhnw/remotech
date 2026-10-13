@@ -43,7 +43,11 @@ from server.apps.remotech.services.auth import (
     PARTICIPANT_GROUP,
     register_user,
 )
-from server.apps.remotech.services.grading import compute_auto_score, split_points
+from server.apps.remotech.services.grading import (
+    compute_auto_score,
+    penalized_score,
+    split_points,
+)
 from server.apps.remotech.services.richtext import (
     extract_media_urls,
     sanitize_richtext,
@@ -4357,3 +4361,244 @@ class BadgeTests(APITestCase):
                 UserBadge.objects.create(
                     user=self.student, badge=self.manual_badge, awarded_by="owner"
                 )
+
+
+class LateDeadlineTests(APITestCase):
+    """Tenggat pengumpulan (CD6) + penalti keterlambatan lembut (CD8).
+
+    Submit telat selalu diterima; `Submission.is_late` di-snapshot saat
+    momen submit pertama; poin leaderboard memakai skor efektif
+    (skor mentah tetap utuh untuk penilaian mentor).
+    """
+
+    def setUp(self):
+        self.owner = User.objects.create_user(username="owner", password="secret123")
+        self.student = User.objects.create_user(
+            username="student", password="secret123"
+        )
+        self.course = Course.objects.create(user=self.owner, title="Course D")
+        CourseEnrollment.objects.create(course=self.course, user=self.student)
+        self.client.force_authenticate(user=self.student)
+
+    def make_upload_module(self, due_at=None, point=100, penalty=50):
+        module = CourseModule.objects.create(
+            course=self.course,
+            title="Tugas",
+            module_category="upload",
+            point=point,
+            due_at=due_at,
+            late_penalty_percent=penalty,
+        )
+        assignment = Assignment.objects.create(
+            course_module=module, name="Tugas 1", description="d"
+        )
+        return module, assignment
+
+    def make_quiz_module(self, due_at=None, point=100, penalty=50):
+        module = CourseModule.objects.create(
+            course=self.course,
+            title="Kuis",
+            module_category="quiz",
+            point=point,
+            due_at=due_at,
+            late_penalty_percent=penalty,
+        )
+        make_choice_question(module, "Q1", correct_index=0)
+        return module
+
+    def submit_upload(self, assignment, url="https://example.com/hasil.pdf"):
+        return self.client.post(
+            "/submission/",
+            {"assignment": assignment.id, "submission_url": url},
+            format="json",
+        )
+
+    def submit_quiz(self, module):
+        start = self.client.post(f"/module/{module.id}/quiz/start/", {}, format="json")
+        submission_id = start.json()["submission"]["id"]
+        question = module.question_set.first()
+        option = question.questionoption_set.order_by("sequence").first()
+        self.client.post(
+            "/user-answer/",
+            {"submission": submission_id, "question": question.pk, "question_option": option.pk},
+            format="json",
+        )
+        return self.client.post(
+            f"/module/{module.id}/quiz/submit/",
+            {"submission": submission_id},
+            format="json",
+        )
+
+    # --- Unit: helper penalti ---
+
+    def test_penalized_score_helper(self):
+        self.assertEqual(penalized_score(100, False, 50), 100)
+        self.assertEqual(penalized_score(100, True, 0), 100)
+        self.assertEqual(penalized_score(100, True, 100), 0)
+        self.assertEqual(penalized_score(80, True, 50), 40)
+        self.assertEqual(penalized_score(80, False, 50), 80)
+
+    # --- Upload: snapshot is_late + poin leaderboard ---
+
+    def test_upload_on_time_is_not_late(self):
+        module, assignment = self.make_upload_module(
+            due_at=timezone.now() + timedelta(hours=1)
+        )
+
+        data = self.submit_upload(assignment).json()
+
+        self.assertFalse(data["is_late"])
+        self.assertEqual(data["effective_score"], 0)
+        self.assertEqual(data["late_penalty_percent"], 50)
+
+    def test_upload_without_due_at_is_not_late(self):
+        module, assignment = self.make_upload_module(due_at=None)
+
+        data = self.submit_upload(assignment).json()
+
+        self.assertFalse(data["is_late"])
+
+    def test_upload_after_due_at_is_marked_late(self):
+        module, assignment = self.make_upload_module(
+            due_at=timezone.now() - timedelta(minutes=5)
+        )
+
+        data = self.submit_upload(assignment).json()
+
+        self.assertTrue(data["is_late"])
+
+    def test_late_upload_leaderboard_uses_penalized_score(self):
+        module, assignment = self.make_upload_module(
+            due_at=timezone.now() - timedelta(minutes=5), point=100, penalty=50
+        )
+        self.submit_upload(assignment)
+        self.client.force_authenticate(user=self.owner)
+        self.client.patch(
+            f"/submission/{Submission.objects.get(assignment=assignment).id}/",
+            {"score": 80},
+            format="json",
+        )
+
+        leaderboard = Leaderboard.objects.get(user=self.student, course=self.course)
+        self.assertEqual(leaderboard.total_points, 40)  # 80 * (100-50) / 100
+        detail = LeaderboardDetail.objects.get(leaderboard=leaderboard)
+        self.assertEqual(detail.point, 40)
+
+    def test_on_time_upload_leaderboard_full_points(self):
+        module, assignment = self.make_upload_module(
+            due_at=timezone.now() + timedelta(hours=1), point=100, penalty=50
+        )
+        self.submit_upload(assignment)
+        self.client.force_authenticate(user=self.owner)
+        self.client.patch(
+            f"/submission/{Submission.objects.get(assignment=assignment).id}/",
+            {"score": 80},
+            format="json",
+        )
+
+        leaderboard = Leaderboard.objects.get(user=self.student, course=self.course)
+        self.assertEqual(leaderboard.total_points, 80)
+
+    def test_penalty_zero_late_still_full_points(self):
+        module, assignment = self.make_upload_module(
+            due_at=timezone.now() - timedelta(minutes=5), point=100, penalty=0
+        )
+        self.submit_upload(assignment)
+        self.client.force_authenticate(user=self.owner)
+        self.client.patch(
+            f"/submission/{Submission.objects.get(assignment=assignment).id}/",
+            {"score": 80},
+            format="json",
+        )
+
+        leaderboard = Leaderboard.objects.get(user=self.student, course=self.course)
+        self.assertEqual(leaderboard.total_points, 80)
+
+    def test_penalty_hundred_late_gets_zero_points(self):
+        module, assignment = self.make_upload_module(
+            due_at=timezone.now() - timedelta(minutes=5), point=100, penalty=100
+        )
+        self.submit_upload(assignment)
+        self.client.force_authenticate(user=self.owner)
+        self.client.patch(
+            f"/submission/{Submission.objects.get(assignment=assignment).id}/",
+            {"score": 80},
+            format="json",
+        )
+
+        leaderboard = Leaderboard.objects.get(user=self.student, course=self.course)
+        self.assertEqual(leaderboard.total_points, 0)
+
+    def test_is_late_snapshot_kept_on_url_resubmit(self):
+        module, assignment = self.make_upload_module(
+            due_at=timezone.now() + timedelta(hours=1)
+        )
+        created = self.submit_upload(assignment).json()
+        # Tenggat lewat, lalu student memperbarui tautan (belum dinilai).
+        module.due_at = timezone.now() - timedelta(minutes=5)
+        module.save(update_fields=["due_at"])
+
+        response = self.submit_upload(assignment, url="https://example.com/v2.pdf")
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertFalse(response.json()["is_late"])  # snapshot submit pertama
+
+    def test_is_late_is_read_only_for_client(self):
+        module, assignment = self.make_upload_module(due_at=None)
+
+        data = self.submit_upload(assignment).json()
+
+        # Kiriman `is_late` dari client diabaikan backend.
+        self.assertFalse(data["is_late"])
+
+    def test_effective_score_in_submission_response(self):
+        module, assignment = self.make_upload_module(
+            due_at=timezone.now() - timedelta(minutes=5), point=100, penalty=50
+        )
+        self.submit_upload(assignment)
+        self.client.force_authenticate(user=self.owner)
+        submission_id = Submission.objects.get(assignment=assignment).id
+        self.client.patch(f"/submission/{submission_id}/", {"score": 80}, format="json")
+
+        self.client.force_authenticate(user=self.student)
+        data = self.client.get(f"/submission/{submission_id}/").json()
+
+        self.assertEqual(data["score"], 80)
+        self.assertEqual(data["effective_score"], 40)
+        self.assertEqual(data["late_penalty_percent"], 50)
+        self.assertTrue(data["is_late"])
+
+    # --- Quiz: is_late + penalti ---
+
+    def test_quiz_after_due_at_is_late_and_penalized(self):
+        module = self.make_quiz_module(
+            due_at=timezone.now() - timedelta(minutes=5), point=100, penalty=50
+        )
+
+        response = self.submit_quiz(module)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.json()["submission"]["is_late"])
+        # 1 dari 1 soal benar = 100 poin mentah, terpenalti 50% ? 50.
+        leaderboard = Leaderboard.objects.get(user=self.student, course=self.course)
+        self.assertEqual(leaderboard.total_points, 50)
+
+    def test_quiz_on_time_full_points(self):
+        module = self.make_quiz_module(
+            due_at=timezone.now() + timedelta(hours=1), point=100, penalty=50
+        )
+
+        response = self.submit_quiz(module)
+
+        self.assertFalse(response.json()["submission"]["is_late"])
+        leaderboard = Leaderboard.objects.get(user=self.student, course=self.course)
+        self.assertEqual(leaderboard.total_points, 100)
+
+    def test_quiz_without_due_at_full_points(self):
+        module = self.make_quiz_module(due_at=None, point=100, penalty=50)
+
+        response = self.submit_quiz(module)
+
+        self.assertFalse(response.json()["submission"]["is_late"])
+        leaderboard = Leaderboard.objects.get(user=self.student, course=self.course)
+        self.assertEqual(leaderboard.total_points, 100)

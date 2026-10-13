@@ -29,6 +29,12 @@ export interface Submission {
   submission_url: string
   submit_on: IsoDateTime
   score: number
+  /** Snapshot: submit melewati tenggat module saat momen submit pertama. */
+  is_late: boolean
+  /** Skor setelah penalti keterlambatan — nilai yang mengalir ke leaderboard. */
+  effective_score: number
+  /** Persen penalti tenggat module (null bila module tidak bisa diturunkan). */
+  late_penalty_percent: number | null
   /** "" = tugas belum dinilai / quiz essay menunggu; "system"/username mentor. */
   reviewed_by: string
   created_at: IsoDateTime

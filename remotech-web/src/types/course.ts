@@ -55,6 +55,10 @@ export interface CourseModule {
   module_category: ModuleCategory
   sequence: number | null
   point: number
+  /** Tenggat pengumpulan (kategori upload/quiz); null = tanpa tenggat. */
+  due_at: IsoDateTime | null
+  /** Persen poin yang dipotong bila submit melewati tenggat (0–100). */
+  late_penalty_percent: number
   created_at: IsoDateTime
   modified_at: IsoDateTime
 }
@@ -67,4 +71,7 @@ export interface CourseModuleCreate {
   module_category?: ModuleCategory
   sequence?: number | null
   point?: number
+  /** ISO datetime; hanya bermakna untuk kategori upload/quiz. */
+  due_at?: string | null
+  late_penalty_percent?: number
 }

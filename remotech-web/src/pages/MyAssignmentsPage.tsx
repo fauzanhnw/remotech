@@ -1,4 +1,4 @@
-import { ReloadOutlined, SearchOutlined } from '@ant-design/icons'
+import { ClockCircleOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons'
 import { Button, Empty, Input, Select, Skeleton, Space, Tag, Tooltip } from 'antd'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
@@ -35,6 +35,12 @@ interface AssignmentItem {
   status: Status
   score: number | null
   maxScore: number | null
+  /** Tenggat module; null = tanpa tenggat. */
+  dueAt: string | null
+  /** Snapshot keterlambatan pada submission (false bila belum submit). */
+  isLate: boolean
+  /** Poin efektif setelah penalti (null bila belum submit). */
+  effectiveScore: number | null
 }
 
 const STATUS_META: Record<Status, { label: string; className: string }> = {
@@ -52,6 +58,17 @@ const ACTION_LABEL: Record<Status, string> = {
 }
 
 const STATUS_RANK: Record<Status, number> = { todo: 0, doing: 1, pending: 2, graded: 3 }
+
+function formatDueAt(value: string | null): string | null {
+  if (value == null) return null
+  return new Date(value).toLocaleString('id-ID', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
 
 /**
  * Susun daftar penugasan dari data sweep:
@@ -106,6 +123,9 @@ function buildItems(
       status,
       score: submission?.score ?? null,
       maxScore: submission?.max_score ?? null,
+      dueAt: module.due_at,
+      isLate: submission?.is_late ?? false,
+      effectiveScore: submission?.effective_score ?? null,
     })
   }
 
@@ -319,7 +339,19 @@ export function MyAssignmentsPage() {
                 >
                   {STATUS_META[item.status].label}
                 </span>
+                {item.isLate && (
+                  <Tag color="red" className="mr-0">
+                    Terlambat
+                  </Tag>
+                )}
               </div>
+
+              {item.dueAt && (
+                <p className="mt-2 flex items-center gap-1 text-xs text-gray-500">
+                  <ClockCircleOutlined />
+                  <span>Tenggat: {formatDueAt(item.dueAt)}</span>
+                </p>
+              )}
 
               <div className="mt-auto flex items-center justify-between pt-4">
                 <span className="text-xs font-medium text-blue-600 group-hover:underline">
@@ -329,6 +361,13 @@ export function MyAssignmentsPage() {
                   <span className="text-xs font-semibold text-emerald-600">
                     Skor: {item.score}
                     {item.maxScore != null && `/${item.maxScore}`}
+                    {item.isLate &&
+                      item.effectiveScore != null &&
+                      item.effectiveScore !== item.score && (
+                        <span className="ml-1 font-medium text-red-500">
+                          · Efektif: {item.effectiveScore}
+                        </span>
+                      )}
                   </span>
                 )}
               </div>

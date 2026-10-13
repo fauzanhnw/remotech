@@ -1,5 +1,6 @@
 from django.contrib.auth.models import User
 from django.core.files.storage import default_storage
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.db.models import Max, Q
 from django.utils import timezone
@@ -185,6 +186,15 @@ class CourseModule(CrudModel):
     )
     sequence = models.BigIntegerField(null=True, blank=True)
     point = models.IntegerField(default=100)
+    # Tenggat pengumpulan (hanya bermakna untuk kategori upload & quiz).
+    # Kosong = tanpa tenggat; submit telat diterima dengan penalti poin.
+    due_at = models.DateTimeField(null=True, blank=True)
+    # Persen poin yang dipotong bila submit melewati `due_at` (0 = tanpa
+    # penalti, 100 = telat mendapat nol poin).
+    late_penalty_percent = models.PositiveSmallIntegerField(
+        default=50,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+    )
 
     def save(self, *args, **kwargs):
         if self.sequence is None:
@@ -240,6 +250,9 @@ class Submission(CrudModel):
     submission_url = models.URLField(blank=True, default="")
     submit_on = models.DateTimeField(auto_now_add=True)
     score = models.IntegerField(default=0)
+    # Snapshot keterlambatan saat submit pertama (dibanding `module.due_at`);
+    # tidak diubah oleh update URL ulang ataupun perubahan tenggat sesudahnya.
+    is_late = models.BooleanField(default=False)
     # Kosong = belum dinilai; diisi username mentor saat grading, atau
     # "system" untuk quiz yang skornya final tanpa essay.
     reviewed_by = models.CharField(max_length=50, blank=True)

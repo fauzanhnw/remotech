@@ -50,6 +50,18 @@ def compute_auto_score(weights: QuizWeights, correct_count: int) -> int:
     return round(weights.auto_max * correct_count / weights.auto_count)
 
 
+def penalized_score(score, is_late, penalty_percent):
+    """Poin efektif leaderboard setelah penalti keterlambatan (soft).
+
+    Skor mentah submission tidak diubah — hanya poin yang mengalir ke
+    leaderboard yang dikurangi. `is_late` adalah snapshot saat submit
+    pertama; penalti 0 berarti telat tetap mendapat poin penuh.
+    """
+    if not is_late or not penalty_percent:
+        return score
+    return round(score * (100 - penalty_percent) / 100)
+
+
 def derive_submission_module_id(submission: Submission) -> int | None:
     """Module milik submission (upload: dari assignment; quiz: dari jawaban).
 
@@ -93,7 +105,8 @@ def quiz_submission_scores(user) -> dict[int, int]:
     """Map `module_id -> skor` dari seluruh submission quiz milik user.
 
     Baris paling baru per module yang dipakai; module yang belum bisa
-    diturunkan (draft tanpa jawaban) diabaikan.
+    diturunkan (draft tanpa jawaban) diabaikan. Skor yang dikembalikan
+    sudah skor efektif (penalti keterlambatan bila submission telat).
     """
     module_by_submission = {}
     for submission_id, module_id in UserAnswer.objects.filter(
@@ -107,27 +120,45 @@ def quiz_submission_scores(user) -> dict[int, int]:
     rows = (
         Submission.objects.filter(user=user, assignment__isnull=True)
         .order_by("-id")
-        .values_list("id", "score")
+        .values_list("id", "score", "is_late")
     )
-    for submission_id, score in rows:
+    latest = {}
+    for submission_id, score, is_late in rows:
         module_id = module_by_submission.get(submission_id)
-        if module_id is not None and module_id not in scores:
-            scores[module_id] = score
+        if module_id is not None and module_id not in latest:
+            latest[module_id] = (score, is_late)
+    if not latest:
+        return scores
+    penalties = dict(
+        CourseModule.objects.filter(id__in=latest).values_list(
+            "id", "late_penalty_percent"
+        )
+    )
+    for module_id, (score, is_late) in latest.items():
+        scores[module_id] = penalized_score(
+            score, is_late, penalties.get(module_id, 0)
+        )
     return scores
 
 
 def upload_submission_scores(user) -> dict[int, int]:
     """Map `module_id -> skor` dari submission tugas (upload) milik user.
 
-    Baris paling baru per module yang dipakai.
+    Baris paling baru per module yang dipakai. Skor yang dikembalikan
+    sudah skor efektif (penalti keterlambatan bila submission telat).
     """
     scores: dict[int, int] = {}
     rows = (
         Submission.objects.filter(user=user, assignment__isnull=False)
         .order_by("-id")
-        .values_list("assignment__course_module_id", "score")
+        .values_list(
+            "assignment__course_module_id",
+            "score",
+            "is_late",
+            "assignment__course_module__late_penalty_percent",
+        )
     )
-    for module_id, score in rows:
+    for module_id, score, is_late, penalty_percent in rows:
         if module_id is not None and module_id not in scores:
-            scores[module_id] = score
+            scores[module_id] = penalized_score(score, is_late, penalty_percent)
     return scores
