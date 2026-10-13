@@ -20,8 +20,8 @@ export const hero = {
   eyebrow: 'REMOTE CIRCLE COMMUNITY',
   title: 'Pelajari Remote Working Melalui Remote Challenge',
   subtitle:
-    'Inkubator intensif dari Remote Circle dengan modul terstruktur, tugas praktis, dan papan peringkat berbasis gamifikasi yang membuatmu terus bergerak.',
-  tagline: 'Ikuti tantangan. Selesaikan. Dapatkan pekerjaan.',
+    'Bergabunglah dengan Remote Circle dalam tantangan belajar bersama: modul terstruktur, tugas praktis, dan papan peringkat yang menggerakkan seluruh komunitas.',
+  tagline: 'Ikuti tantangan. Selesaikan. Maju bersama komunitas.',
   ctaLabel: 'Mulai Sekarang',
 }
 
@@ -53,7 +53,8 @@ export const features = {
     {
       icon: 'gamification',
       title: 'Progres Berbasis Gamifikasi',
-      description: 'Dapatkan poin di setiap modul yang selesai, naik di papan peringkat, dan kumpulkan badge.',
+      description:
+        'Dapatkan poin di setiap modul yang selesai, naik di papan peringkat, dan kumpulkan badge — setiap langkahmu menambah capaian Remote Circle.',
     },
   ] satisfies FeatureCard[],
 }
@@ -77,7 +78,7 @@ export const faqs: FaqItem[] = [
   {
     question: 'Bagaimana poin dan papan peringkat bekerja?',
     answer:
-      'Kamu mendapatkan poin setiap kali menyelesaikan modul atau tugas. Poin tercatat di riwayat progresmu dan diranking di papan peringkat, sehingga kamu bisa melihat posisimu dibanding peserta lain secara real-time.',
+      'Kamu mendapatkan poin setiap kali menyelesaikan modul atau tugas. Poin tercatat di riwayat progresmu dan diranking di papan peringkat, sehingga kamu bisa melihat posisimu dibanding peserta lain secara real-time — satu papan peringkat yang kamu isi bersama peserta Remote Circle lainnya.',
   },
   {question: "Apakah semua course sepenuhnya gratis?",
     answer: "Tidak. Beberapa course memang sepenuhnya gratis, namun ada course yang berbayar."

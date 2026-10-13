@@ -52,7 +52,7 @@ from server.apps.remotech.services.richtext import (
     extract_media_urls,
     sanitize_richtext,
 )
-from server.apps.remotech.views import ACTIVITY_TIME_ZONE
+from server.apps.remotech.views import ACTIVITY_TIME_ZONE, shuffle_quiz_payload
 from server.pagination import StandardPagination
 
 TEST_MEDIA_ROOT = tempfile.mkdtemp(prefix="remotech-test-media-")
@@ -3943,6 +3943,71 @@ class QuizFlowTests(APITestCase):
         self.assertEqual(
             Submission.objects.filter(user=self.student, assignment=None).count(), 1
         )
+
+    def quiz_order(self, data):
+        """Urutan soal + opsi pada payload quiz (tuple hashable untuk set)."""
+        return tuple(
+            (question["id"], tuple(option["id"] for option in question["options"]))
+            for question in data["questions"]
+        )
+
+    def test_quiz_order_stable_within_attempt(self):
+        first = self.start().json()
+        second = self.start().json()
+
+        self.assertEqual(self.quiz_order(first), self.quiz_order(second))
+
+    def test_shuffle_keeps_all_questions_and_options(self):
+        data = self.start().json()
+
+        self.assertEqual(
+            sorted(question["id"] for question in data["questions"]),
+            sorted([self.q1.pk, self.q2.pk, self.q3.pk, self.q4.pk]),
+        )
+        for question in data["questions"]:
+            expected = set(
+                QuestionOption.objects.filter(question_id=question["id"]).values_list(
+                    "id", flat=True
+                )
+            )
+            self.assertEqual({option["id"] for option in question["options"]}, expected)
+
+    def test_shuffle_is_deterministic_per_seed(self):
+        def make_payload():
+            return {
+                "questions": [
+                    {
+                        "id": index,
+                        "options": [{"id": index * 10 + j} for j in range(2)],
+                    }
+                    for index in range(10)
+                ]
+            }
+
+        first = self.quiz_order(shuffle_quiz_payload(make_payload(), "quiz:1"))
+        again = self.quiz_order(shuffle_quiz_payload(make_payload(), "quiz:1"))
+        across_seeds = {
+            self.quiz_order(shuffle_quiz_payload(make_payload(), f"quiz:{seed}"))
+            for seed in range(1, 5)
+        }
+
+        self.assertEqual(first, again)
+        self.assertGreater(len(across_seeds), 1)
+
+    def test_retake_uses_different_order(self):
+        CourseModule.objects.filter(pk=self.quiz.id).update(allow_retake=True)
+        orders = set()
+
+        for _ in range(4):
+            data = self.start().json()
+            orders.add(self.quiz_order(data))
+            submission_id = data["submission"]["id"]
+            for question in (self.q1, self.q2, self.q3, self.q4):
+                self.answer(submission_id, question, option=self.correct_option(question))
+            self.submit(submission_id)
+
+        self.assertGreater(len(orders), 1)
+
 
 
 class EssayQuizGradingTests(APITestCase):

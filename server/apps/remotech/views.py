@@ -1,3 +1,4 @@
+import random
 from collections import Counter
 from datetime import datetime, time, timedelta
 from datetime import timezone as dt_tz
@@ -469,6 +470,7 @@ class CourseModuleViewSet(CourseOwnerMixin, viewsets.ModelViewSet):
         # Kunci jawaban dibuka setelah dinilai final (tanpa essay = "system").
         graded = bool(submission.reviewed_by)
         payload = quiz_result_payload(submission, questions, reveal=graded)
+        shuffle_quiz_payload(payload, f"quiz:{submission.pk}")
         payload["completed"] = final
         if final:
             payload["result"] = quiz_result_summary(submission, questions, module)
@@ -562,6 +564,7 @@ class CourseModuleViewSet(CourseOwnerMixin, viewsets.ModelViewSet):
         _, new_badges = sync_leaderboard(request.user, module.course)
 
         payload = quiz_result_payload(submission, questions, reveal=True)
+        shuffle_quiz_payload(payload, f"quiz:{submission.pk}")
         payload["completed"] = True
         payload["result"] = quiz_result_summary(submission, questions, module)
         payload["earned_badges"] = BadgeSerializer(
@@ -1308,6 +1311,22 @@ def quiz_result_payload(submission, questions, reveal):
             UserAnswer.objects.filter(submission=submission), many=True
         ).data,
     }
+
+
+def shuffle_quiz_payload(payload, seed):
+    """Acak urutan soal & opsi pada payload quiz (deterministik per seed).
+
+    Seed = id submission supaya urutan stabil selama mengerjakan/resume dan
+    berubah pada retake (submission baru). Grading tidak terpengaruh karena
+    dinilai lewat id, bukan urutan.
+    """
+    rng = random.Random(seed)
+    rng.shuffle(payload["questions"])
+    for question in payload["questions"]:
+        options = question.get("options")
+        if options:
+            rng.shuffle(options)
+    return payload
 
 
 def quiz_result_summary(submission, questions, module):
