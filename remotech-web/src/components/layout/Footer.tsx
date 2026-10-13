@@ -2,6 +2,9 @@ import { MailOutlined } from '@ant-design/icons'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 
+import { useAuth } from '@/auth/AuthContext'
+import { getPrimaryNavItems } from './navItems'
+
 interface FooterLink {
   key: string
   label: string
@@ -25,13 +28,16 @@ const FOOTER_CONTACTS: FooterContact[] = [
   },
 ]
 
-const FOOTER_NAV: FooterLink[] = [
-  { key: 'home', label: 'Home', to: '/' },
-  { key: 'courses', label: 'Courses', to: '/courses' },
-]
-
 /** Footer gelap tiga kolom (brand, navigasi, kontak) + baris hak cipta. */
 export function Footer() {
+  const { isAuthenticated, user } = useAuth()
+
+  // Sinkron dengan menu navbar; Home manual karena tidak ada di primaryNavItems.
+  const footerNav: FooterLink[] = [
+    { key: 'home', label: 'Home', to: '/' },
+    ...getPrimaryNavItems(isAuthenticated, user?.is_mentor ?? false),
+  ]
+
   return (
     <footer className="border-t border-white/10 bg-[#08060d] text-sm text-gray-400">
       <div className="mx-auto max-w-7xl px-4 py-10 md:px-10">
@@ -48,7 +54,7 @@ export function Footer() {
               Navigasi
             </p>
             <ul className="mt-3 list-none space-y-2 p-0">
-              {FOOTER_NAV.map((item) => (
+              {footerNav.map((item) => (
                 <li key={item.key}>
                   <Link
                     to={item.to}
