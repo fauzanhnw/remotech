@@ -2697,6 +2697,141 @@ class LeaderboardLevelAPITests(APITestCase):
         self.assertEqual(row["level_title"], "Praktisi")
 
 
+class PointBonusTests(APITestCase):
+    """Bonus poin manual mentor (POST/GET/DELETE /point-bonus/)."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user(
+            username="mentor.owner", password="secret123"
+        )
+        self.student = User.objects.create_user(
+            username="student", password="secret123"
+        )
+        self.other_mentor = User.objects.create_user(
+            username="mentor.other", password="secret123"
+        )
+        self.course = Course.objects.create(user=self.owner, title="Course B")
+        self.module = CourseModule.objects.create(
+            course=self.course, title="M1", point=150
+        )
+        CourseEnrollment.objects.create(course=self.course, user=self.student)
+        self.client.force_authenticate(user=self.owner)
+
+    def grant(self, **overrides):
+        payload = {
+            "course": self.course.id,
+            "user": self.student.id,
+            "point": 50,
+            "description": "Kerja bagus",
+        }
+        payload.update(overrides)
+        return self.client.post("/point-bonus/", payload, format="json")
+
+    def test_mentor_grants_bonus(self):
+        response = self.grant()
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        data = response.json()
+        self.assertEqual(data["point"], 50)
+        self.assertEqual(data["description"], "Kerja bagus")
+        self.assertEqual(data["awarded_by"], "mentor.owner")
+        self.assertEqual(data["user_name"], "student")
+        self.assertEqual(data["course_title"], "Course B")
+
+        leaderboard = Leaderboard.objects.get(user=self.student, course=self.course)
+        self.assertEqual(leaderboard.total_points, 50)
+        detail = LeaderboardDetail.objects.get(pk=data["id"])
+        self.assertTrue(detail.is_manual)
+        self.assertIsNone(detail.module)
+
+    def test_grant_creates_leaderboard_row_when_none_exists(self):
+        response = self.grant()
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        leaderboard = Leaderboard.objects.get(user=self.student, course=self.course)
+        self.assertEqual(leaderboard.total_points, 50)
+
+    def test_grant_rejects_non_owner(self):
+        self.client.force_authenticate(user=self.other_mentor)
+
+        response = self.grant()
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_grant_rejects_non_enrolled_student(self):
+        outsider = User.objects.create_user(username="outsider", password="s1")
+
+        response = self.grant(user=outsider.id)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        attrs = [error["attr"] for error in response.json()["errors"]]
+        self.assertIn("user", attrs)
+
+    def test_grant_rejects_zero_point(self):
+        response = self.grant(point=0)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        attrs = [error["attr"] for error in response.json()["errors"]]
+        self.assertIn("point", attrs)
+
+    def test_grant_rejects_blank_description(self):
+        response = self.grant(description="")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        attrs = [error["attr"] for error in response.json()["errors"]]
+        self.assertIn("description", attrs)
+
+    def test_bonus_survives_module_completion_sync(self):
+        bonus_id = self.grant().json()["id"]
+        self.client.force_authenticate(user=self.student)
+        self.client.post("/progress/", {"module": self.module.id}, format="json")
+
+        leaderboard = Leaderboard.objects.get(user=self.student, course=self.course)
+        self.assertEqual(leaderboard.total_points, 200)  # 150 modul + 50 bonus
+        self.assertTrue(LeaderboardDetail.objects.filter(pk=bonus_id).exists())
+        self.assertEqual(
+            LeaderboardDetail.objects.filter(leaderboard=leaderboard).count(), 2
+        )
+
+    def test_delete_bonus_reduces_total(self):
+        bonus_id = self.grant().json()["id"]
+
+        response = self.client.delete(f"/point-bonus/{bonus_id}/")
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        leaderboard = Leaderboard.objects.get(user=self.student, course=self.course)
+        self.assertEqual(leaderboard.total_points, 0)
+        self.assertFalse(LeaderboardDetail.objects.filter(pk=bonus_id).exists())
+
+    def test_list_scoped_to_owned_course(self):
+        self.grant()
+        other_course = Course.objects.create(user=self.other_mentor, title="Else")
+        other_student = User.objects.create_user(username="s2", password="s1")
+        CourseEnrollment.objects.create(course=other_course, user=other_student)
+        Leaderboard.objects.create(user=other_student, course=other_course)
+        LeaderboardDetail.objects.create(
+            leaderboard=Leaderboard.objects.get(user=other_student, course=other_course),
+            module=None,
+            is_manual=True,
+            description="Bonus lain",
+            point=999,
+            awarded_by="mentor.other",
+        )
+
+        data = self.client.get("/point-bonus/").json()
+
+        self.assertEqual(data["count"], 1)
+        self.assertEqual(data["results"][0]["course"], self.course.id)
+
+    def test_delete_rejects_non_owner(self):
+        bonus_id = self.grant().json()["id"]
+        self.client.force_authenticate(user=self.other_mentor)
+
+        response = self.client.delete(f"/point-bonus/{bonus_id}/")
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
 class LeaderboardPointsTests(APITestCase):
     """Poin module diselesaikan → akumulasi ke tabel leaderboard (per course)."""
 

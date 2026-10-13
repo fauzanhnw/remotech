@@ -10,6 +10,7 @@ from server.apps.remotech.models import (
     CourseModule,
     CourseOrder,
     Leaderboard,
+    LeaderboardDetail,
     ModuleContent,
     Question,
     QuestionOption,
@@ -142,6 +143,13 @@ class CourseOrderAdmin(admin.ModelAdmin):
 class LeaderboardAdmin(admin.ModelAdmin):
     list_display = ("user", "course", "total_points")
     search_fields = ("user__username",)
+
+
+@admin.register(LeaderboardDetail)
+class LeaderboardDetailAdmin(admin.ModelAdmin):
+    list_display = ("leaderboard", "module", "description", "point", "is_manual", "awarded_by")
+    list_filter = ("is_manual",)
+    search_fields = ("description", "awarded_by", "leaderboard__user__username")
 
 
 admin.site.unregister(User)

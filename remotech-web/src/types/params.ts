@@ -90,3 +90,9 @@ export interface UserBadgeListParams extends PaginationParams {
   user?: number
   badge__course?: number
 }
+
+/** GET /point-bonus/ — filter `?course=`, `?user=` (hanya pemilik course). */
+export interface PointBonusListParams extends PaginationParams {
+  course?: number
+  user?: number
+}

@@ -1,15 +1,25 @@
-import { Empty, Select, Skeleton } from 'antd'
-import { useEffect, useMemo, useState } from 'react'
+import { PlusCircleOutlined, ReloadOutlined } from '@ant-design/icons'
+import { Button, Empty, Popconfirm, Select, Skeleton, Tag } from 'antd'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
-import { listMyCourses, notifyError } from '@/api'
+import {
+  deletePointBonus,
+  listMyCourses,
+  listPointBonuses,
+  notifyError,
+  notifySuccess,
+} from '@/api'
 import { LeaderboardPanel } from '@/components/LeaderboardPanel'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import type { Course } from '@/types/course'
+import type { PointBonus } from '@/types/pointBonus'
 import { fetchAllPages } from '@/utils/paginate'
+import { AddPointBonusModal } from './AddPointBonusModal'
 
 /**
  * Leaderboard mentor: pilih salah satu course milik mentor lewat filter,
  * lalu tampilkan papan skor course itu (collapse per peserta + rincian poin).
+ * Mentor bisa memberi & mencabut bonus poin manual per course.
  */
 export function MentorLeaderboardPage() {
   usePageTitle('Leaderboard')
@@ -17,6 +27,28 @@ export function MentorLeaderboardPage() {
   const [courses, setCourses] = useState<Course[]>([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<number | null>(null)
+  // null = modal tertutup; user terisi bila dibuka dari baris leaderboard.
+  const [bonusTarget, setBonusTarget] = useState<{
+    user?: number
+    userName?: string
+  } | null>(null)
+  const [bonuses, setBonuses] = useState<PointBonus[]>([])
+  const [loadingBonuses, setLoadingBonuses] = useState(false)
+  // Naikkan untuk memaksa panel leaderboard & riwayat reload setelah mutasi.
+  const [reloadKey, setReloadKey] = useState(0)
+
+  // Tampilkan skeleton saat ganti course / reload (pola render-time adjustment).
+  const [prevBonusQuery, setPrevBonusQuery] = useState({
+    selected,
+    reloadKey,
+  })
+  if (
+    prevBonusQuery.selected !== selected ||
+    prevBonusQuery.reloadKey !== reloadKey
+  ) {
+    setPrevBonusQuery({ selected, reloadKey })
+    setLoadingBonuses(true)
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -38,6 +70,40 @@ export function MentorLeaderboardPage() {
       cancelled = true
     }
   }, [])
+
+  useEffect(() => {
+    if (selected == null) return
+    let cancelled = false
+
+    fetchAllPages((params) => listPointBonuses({ ...params, course: selected }))
+      .then((items) => {
+        if (!cancelled) setBonuses(items)
+      })
+      .catch((error) => {
+        if (!cancelled) notifyError(error)
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingBonuses(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [selected, reloadKey])
+
+  const handleMutated = useCallback(() => {
+    setReloadKey((value) => value + 1)
+  }, [])
+
+  const handleDelete = async (id: number) => {
+    try {
+      await deletePointBonus(id)
+      notifySuccess('Bonus poin dicabut.')
+      handleMutated()
+    } catch (error) {
+      notifyError(error)
+    }
+  }
 
   const options = useMemo(
     () => courses.map((course) => ({ value: course.id, label: course.title })),
@@ -69,18 +135,103 @@ export function MentorLeaderboardPage() {
             Peringkat poin peserta, filter berdasarkan course.
           </p>
         </div>
-        <Select
-          value={selected}
-          onChange={setSelected}
-          options={options}
-          placeholder="Pilih course"
-          style={{ width: 260 }}
-          showSearch
-          optionFilterProp="label"
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          {selected != null && (
+            <Button
+              type="primary"
+              icon={<PlusCircleOutlined />}
+              onClick={() => setBonusTarget({})}
+            >
+              Tambah Poin Manual
+            </Button>
+          )}
+          <Select
+            value={selected}
+            onChange={setSelected}
+            options={options}
+            placeholder="Pilih course"
+            style={{ width: 260 }}
+            showSearch
+            optionFilterProp="label"
+          />
+        </div>
       </div>
 
-      {selected != null && <LeaderboardPanel key={selected} courseId={selected} />}
+      {selected != null && (
+        <LeaderboardPanel
+          key={`${selected}-${reloadKey}`}
+          courseId={selected}
+          onGrantBonus={(row) =>
+            setBonusTarget({ user: row.user, userName: row.user_name })
+          }
+        />
+      )}
+
+      {selected != null && (
+        <div className="mt-8">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-[#08060d]">
+              Riwayat Poin Manual
+            </h3>
+            <Button
+              icon={<ReloadOutlined />}
+              size="small"
+              onClick={handleMutated}
+            >
+              Refresh
+            </Button>
+          </div>
+          {loadingBonuses ? (
+            <Skeleton active paragraph={{ rows: 3 }} />
+          ) : bonuses.length === 0 ? (
+            <Empty
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description="Belum ada bonus poin manual di course ini."
+            />
+          ) : (
+            <ul className="divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white">
+              {bonuses.map((bonus) => (
+                <li
+                  key={bonus.id}
+                  className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-[#08060d]">
+                      {bonus.user_name}
+                      <Tag color="green" className="ml-2 mr-0">
+                        +{bonus.point} poin
+                      </Tag>
+                    </p>
+                    <p className="mt-0.5 truncate text-sm text-gray-500">
+                      {bonus.description} · oleh {bonus.awarded_by}
+                    </p>
+                  </div>
+                  <Popconfirm
+                    title="Cabut bonus poin ini?"
+                    okText="Cabut"
+                    cancelText="Batal"
+                    onConfirm={() => void handleDelete(bonus.id)}
+                  >
+                    <Button danger size="small">
+                      Cabut
+                    </Button>
+                  </Popconfirm>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {selected != null && (
+        <AddPointBonusModal
+          open={bonusTarget != null}
+          courseId={selected}
+          initialUser={bonusTarget?.user}
+          onClose={() => setBonusTarget(null)}
+          onGranted={handleMutated}
+        />
+      )}
     </section>
   )
 }

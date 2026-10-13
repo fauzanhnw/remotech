@@ -503,12 +503,31 @@ class LeaderboardDetailSerializer(serializers.ModelSerializer):
     """Rincian poin satu baris leaderboard per module (GET /leaderboard/{id}/details/).
 
     `description` diisi judul module saat `sync_leaderboard`, jadi tidak perlu
-    join ulang ke module untuk menampilkan teksnya.
+    join ulang ke module untuk menampilkan teksnya. Baris bonus manual mentor
+    (`is_manual`, module NULL) memakai `description` sebagai alasan bonus.
     """
 
     class Meta:
         model = LeaderboardDetail
-        fields = ["id", "module", "description", "point"]
+        fields = ["id", "module", "description", "point", "is_manual", "awarded_by"]
+
+
+class PointBonusSerializer(serializers.Serializer):
+    """Bonus poin manual mentor ke student enrolled (POST/GET /point-bonus/).
+
+    Baris disimpan sebagai `LeaderboardDetail` `is_manual` + module NULL pada
+    leaderboard (user, course) target; `user`/`course` di sini adalah PK —
+    bukan kolom database (diturunkan dari relasi leaderboard).
+    """
+
+    id = serializers.IntegerField(read_only=True)
+    user = serializers.IntegerField()
+    user_name = serializers.CharField(read_only=True)
+    course = serializers.IntegerField()
+    course_title = serializers.CharField(read_only=True)
+    point = serializers.IntegerField(min_value=1)
+    description = serializers.CharField(max_length=255)
+    awarded_by = serializers.CharField(read_only=True)
 
 
 class MyLeaderboardCourseSerializer(serializers.Serializer):

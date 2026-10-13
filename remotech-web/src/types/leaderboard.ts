@@ -54,7 +54,11 @@ export interface MyLeaderboard {
 export interface LeaderboardDetailEntry {
   id: number
   module: number | null
-  /** Judul module (diisi saat sinkronisasi poin). */
+  /** Judul module (diisi saat sinkronisasi poin) atau alasan bonus manual. */
   description: string
   point: number
+  /** True untuk baris bonus manual mentor (module null — bukan hasil sync). */
+  is_manual: boolean
+  /** Username mentor pemberi bonus (kosong untuk baris hasil sync module). */
+  awarded_by: string
 }

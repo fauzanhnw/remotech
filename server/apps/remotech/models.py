@@ -285,6 +285,11 @@ class LeaderboardDetail(models.Model):
     )
     description = models.CharField(max_length=255, blank=True)
     point = models.IntegerField(default=0)
+    # Baris bonus manual mentor: module NULL + is_manual True — bukan hasil
+    # recompute progress, sehingga dilindungi dari delete di sync_leaderboard.
+    is_manual = models.BooleanField(default=False)
+    # Username mentor pemberi bonus (kosong untuk baris hasil sync module).
+    awarded_by = models.CharField(max_length=50, blank=True, default="")
 
     class Meta:
         constraints = [

@@ -1,4 +1,5 @@
-import { Collapse, Empty, Skeleton, Tag } from 'antd'
+import { Button, Collapse, Empty, Skeleton, Tag } from 'antd'
+import { PlusCircleOutlined } from '@ant-design/icons'
 import { useEffect, useState, type Key } from 'react'
 
 import { getLeaderboardDetails, listLeaderboards, notifyError } from '@/api'
@@ -15,6 +16,12 @@ interface DetailState {
 interface LeaderboardPanelProps {
   /** Course yang poinnya ditampilkan (satu course per panel). */
   courseId: number
+  /**
+   * Opsional — dipakai mentor: bila diisi, tiap baris peserta mendapat
+   * tombol "Beri Poin" yang memanggil callback ini (tanpa membuka collapse).
+   * Tidak diisi = tampilan baca-saja untuk student.
+   */
+  onGrantBonus?: (row: Leaderboard) => void
 }
 
 /**
@@ -22,7 +29,7 @@ interface LeaderboardPanelProps {
  * nama, total poin; saat expand: rincian poin per module
  * (GET /leaderboard/{id}/details/, dimuat saat pertama dibuka).
  */
-export function LeaderboardPanel({ courseId }: LeaderboardPanelProps) {
+export function LeaderboardPanel({ courseId, onGrantBonus }: LeaderboardPanelProps) {
   const { user } = useAuth()
 
   const [rows, setRows] = useState<Leaderboard[]>([])
@@ -105,8 +112,15 @@ export function LeaderboardPanel({ courseId }: LeaderboardPanelProps) {
             key={item.id}
             className="flex items-center justify-between gap-3 py-2"
           >
-            <span className="min-w-0 truncate text-sm text-gray-700">
-              {item.description || 'Module'}
+            <span className="flex min-w-0 items-center gap-2">
+              {item.is_manual && (
+                <Tag color="green" className="mr-0 shrink-0">
+                  Bonus
+                </Tag>
+              )}
+              <span className="min-w-0 truncate text-sm text-gray-700">
+                {item.description || 'Module'}
+              </span>
             </span>
             <span className="shrink-0 text-sm font-semibold text-amber-600">
               +{item.point}
@@ -162,8 +176,22 @@ export function LeaderboardPanel({ courseId }: LeaderboardPanelProps) {
                   </Tag>
                 )}
               </span>
-              <span className="shrink-0 text-sm font-semibold text-[#08060d]">
-                {row.total_points} poin
+              <span className="flex shrink-0 items-center gap-2">
+                <span className="text-sm font-semibold text-[#08060d]">
+                  {row.total_points} poin
+                </span>
+                {onGrantBonus && (
+                  <Button
+                    size="small"
+                    icon={<PlusCircleOutlined />}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      onGrantBonus(row)
+                    }}
+                  >
+                    Beri Poin
+                  </Button>
+                )}
               </span>
             </div>
           ),

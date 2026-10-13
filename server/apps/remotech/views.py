@@ -58,6 +58,7 @@ from server.apps.remotech.serializers import (
     LeaderboardSerializer,
     ModuleContentSerializer,
     MyLeaderboardSerializer,
+    PointBonusSerializer,
     ProfileUpdateSerializer,
     QuestionSerializer,
     RegisterSerializer,
@@ -688,6 +689,8 @@ def sync_leaderboard(user, course):
     Idempoten — aman dipanggil berulang, termasuk siklus batalkan→tandai lagi.
     Module text/video memberi `module.point` penuh; module upload/quiz memberi
     skor submission terakhirnya (0 bila belum ada atau belum dinilai).
+    Baris bonus manual mentor (`is_manual`, module NULL) tidak dihapus dan
+    poinnya dijumlahkan ke total.
 
     Evaluasi badge otomatis (`sync_badges`) dijalankan di akhir, sehingga
     setiap jalur mutasi poin ikut mengecek pemberian/cabutan badge.
@@ -718,11 +721,20 @@ def sync_leaderboard(user, course):
     leaderboard, _ = Leaderboard.objects.get_or_create(
         user=user, course=course, defaults={"total_points": total_points}
     )
+
+    # Baris bonus manual mentor (module NULL + is_manual) dilindungi dari
+    # delete/recompute — poinnya ikut dijumlahkan ke total.
+    manual_points = sum(
+        LeaderboardDetail.objects.filter(
+            leaderboard=leaderboard, is_manual=True
+        ).values_list("point", flat=True)
+    )
+    total_points += manual_points
     if leaderboard.total_points != total_points:
         leaderboard.total_points = total_points
         leaderboard.save(update_fields=["total_points"])
 
-    LeaderboardDetail.objects.filter(leaderboard=leaderboard).exclude(
+    LeaderboardDetail.objects.filter(leaderboard=leaderboard, module__isnull=False).exclude(
         module_id__in=finished_ids
     ).delete()
     for module_id, point in points_by_module.items():
@@ -1142,9 +1154,106 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         """GET /leaderboard/{id}/details/ — rincian poin per module satu peserta."""
         leaderboard = self.get_object()
         rows = LeaderboardDetail.objects.filter(leaderboard=leaderboard).order_by(
-            "module__sequence", "id"
+            "is_manual", "module__sequence", "id"
         )
         return Response(LeaderboardDetailSerializer(rows, many=True).data)
+
+
+class PointBonusViewSet(viewsets.GenericViewSet):
+    """Bonus poin manual mentor ke student enrolled (`/point-bonus/`).
+
+    Baris disimpan sebagai `LeaderboardDetail` `is_manual` + module NULL pada
+    leaderboard (user, course) target; total poin + level + badge ikut
+    ter-update lewat `sync_leaderboard`.
+
+    - GET  /point-bonus/?course=  — riwayat bonus (hanya pemilik course)
+    - POST /point-bonus/          — beri bonus {course, user, point, description}
+    - DELETE /point-bonus/{id}/   — cabut bonus + re-sync
+    """
+
+    queryset = LeaderboardDetail.objects.filter(is_manual=True)
+    serializer_class = PointBonusSerializer
+
+    def get_queryset(self):
+        queryset = (
+            self.queryset.select_related("leaderboard__user", "leaderboard__course")
+            .order_by("-id")
+        )
+        user = self.request.user
+        if not user.is_superuser:
+            owned_course_ids = Course.objects.filter(user=user).values_list(
+                "id", flat=True
+            )
+            queryset = queryset.filter(leaderboard__course_id__in=owned_course_ids)
+        course = self.request.query_params.get("course")
+        if course:
+            queryset = queryset.filter(leaderboard__course_id=course)
+        target_user = self.request.query_params.get("user")
+        if target_user:
+            queryset = queryset.filter(leaderboard__user_id=target_user)
+        return queryset
+
+    @staticmethod
+    def _payload(detail):
+        leaderboard = detail.leaderboard
+        student = leaderboard.user
+        return {
+            "id": detail.id,
+            "user": student.pk,
+            "user_name": (
+                student.get_full_name() or student.email or student.username
+            ),
+            "course": leaderboard.course_id,
+            "course_title": leaderboard.course.title,
+            "point": detail.point,
+            "description": detail.description,
+            "awarded_by": detail.awarded_by,
+        }
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        serializer = self.get_serializer(
+            [self._payload(detail) for detail in page], many=True
+        )
+        return self.get_paginated_response(serializer.data)
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        course = get_object_or_404(Course, pk=serializer.validated_data["course"])
+        if course.user_id != request.user.pk:
+            self.permission_denied(request, message="You do not own this course.")
+        student = get_object_or_404(User, pk=serializer.validated_data["user"])
+        if not CourseEnrollment.objects.filter(
+            user=student, course=course
+        ).exists():
+            raise ValidationError(
+                {"user": ["Student belum enroll di course ini."]}
+            )
+
+        leaderboard, _ = Leaderboard.objects.get_or_create(
+            user=student, course=course
+        )
+        detail = LeaderboardDetail.objects.create(
+            leaderboard=leaderboard,
+            module=None,
+            is_manual=True,
+            description=serializer.validated_data["description"],
+            point=serializer.validated_data["point"],
+            awarded_by=request.user.username[:50],
+        )
+        sync_leaderboard(student, course)
+        return Response(self._payload(detail), status=status.HTTP_201_CREATED)
+
+    def destroy(self, request, *args, **kwargs):
+        detail = self.get_object()
+        leaderboard = detail.leaderboard
+        if not request.user.is_superuser and leaderboard.course.user_id != request.user.pk:
+            self.permission_denied(request, message="You do not own this course.")
+        detail.delete()
+        sync_leaderboard(leaderboard.user, leaderboard.course)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 def find_quiz_submission(user, module):
