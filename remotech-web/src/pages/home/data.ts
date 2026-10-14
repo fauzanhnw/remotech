@@ -68,7 +68,7 @@ export const features = {
       icon: 'gamification',
       title: 'Progres Berbasis Gamifikasi',
       description:
-        'Dapatkan poin di setiap modul yang selesai, naik di papan peringkat, dan kumpulkan badge — setiap langkahmu menambah capaian Remote Circle.',
+        'Dapatkan poin di setiap modul yang selesai, naik di papan peringkat, dan kumpulkan badge. Setiap langkahmu menambah capaian Remote Circle.',
     },
   ] satisfies FeatureCard[],
 }
@@ -92,7 +92,7 @@ export const faqs: FaqItem[] = [
   {
     question: 'Bagaimana poin dan papan peringkat bekerja?',
     answer:
-      'Kamu mendapatkan poin setiap kali menyelesaikan modul atau tugas. Poin tercatat di riwayat progresmu dan diranking di papan peringkat, sehingga kamu bisa melihat posisimu dibanding peserta lain secara real-time — satu papan peringkat yang kamu isi bersama peserta Remote Circle lainnya.',
+      'Kamu mendapatkan poin setiap kali menyelesaikan modul atau tugas. Poin tercatat di riwayat progresmu dan diranking di papan peringkat, sehingga kamu bisa melihat posisimu dibanding peserta lain secara real-time. Satu papan peringkat yang kamu isi bersama peserta Remote Circle lainnya.',
   },
   {question: "Apakah semua course sepenuhnya gratis?",
     answer: "Tidak. Beberapa course memang sepenuhnya gratis, namun ada course yang berbayar."
