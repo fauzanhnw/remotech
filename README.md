@@ -127,89 +127,59 @@ poetry run pip freeze > requirements.txt
 
 ## Deploy ke VPS (Ubuntu 24.04)
 
-Arsitektur: Nginx menyajikan frontend (React) di domain utama dan mem-proxy API Django (Gunicorn) di subdomain `api.`, dengan PostgreSQL lokal.
+Arsitektur: Nginx menyajikan frontend (React) di domain utama dan mem-proxy API Django (Gunicorn) di subdomain `api.`, dengan PostgreSQL lokal. Script bootstrap ada di folder [`deploy/`](deploy/).
 
-### 1. Siapkan server
-
-```bash
-apt update && apt upgrade -y
-adduser deploy && usermod -aG sudo deploy
-apt install ufw nginx postgresql python3.12 python3.12-venv python3-pip git -y
-ufw allow OpenSSH && ufw allow 80/tcp && ufw allow 443/tcp && ufw enable
-
-# Swap 2GB (wajib untuk VPS 1GB RAM)
-fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
-echo '/swapfile none swap sw 0 0' >> /etc/fstab
-```
-
-Buat database PostgreSQL:
+### 1. Setup server + backend (sekali jalan di VPS)
 
 ```bash
-sudo -u postgres psql
-```
-```sql
-CREATE DATABASE remotech;
-CREATE USER remotech_user WITH PASSWORD '<password-kuat>';
-ALTER ROLE remotech_user SET client_encoding TO 'utf8';
-ALTER ROLE remotech_user SET default_transaction_isolation TO 'read committed';
-GRANT ALL PRIVILEGES ON DATABASE remotech TO remotech_user;
-\q
+# sebagai root
+curl -fsSL https://raw.githubusercontent.com/fauzanhnw/remotech/main/deploy/setup-server.sh -o setup-server.sh
+sudo bash setup-server.sh
+
+curl -fsSL https://raw.githubusercontent.com/fauzanhnw/remotech/main/deploy/setup-backend.sh -o setup-backend.sh
+sudo bash setup-backend.sh
 ```
 
-### 2. Deploy backend
+`setup-server.sh`: swap, firewall, paket, database PostgreSQL + tuning.
+`setup-backend.sh`: clone repo `main`, venv, `config/.env` (interaktif), migrate, superuser, service Gunicorn.
 
-```bash
-su - deploy
-git clone <repo-url> && cd remotech
-python3.12 -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
+> Prasyarat: push branch `main` ke GitHub sebelum `setup-backend.sh` (script clone dari sana).
 
-# Buat config/.env (lihat config/env.example), lalu:
-python manage.py migrate
-python manage.py createsuperuser
-python manage.py collectstatic --noinput
-```
-
-Jalankan dengan Gunicorn via systemd — buat `/etc/systemd/system/remotech.service`:
-
-```ini
-[Unit]
-Description=Remotech Django API
-After=network.target postgresql.service
-
-[Service]
-User=deploy
-Group=www-data
-WorkingDirectory=/home/deploy/remotech
-ExecStart=/home/deploy/remotech/venv/bin/gunicorn server.wsgi:application --bind 127.0.0.1:8000 --workers 2
-Restart=on-failure
-
-[Install]
-WantedBy=multi-user.target
-```
-
-```bash
-sudo systemctl daemon-reload && sudo systemctl enable --now remotech
-```
-
-### 3. Deploy frontend
+### 2. Deploy frontend (dari PC)
 
 ```powershell
-cd remotech-web
-# .env: VITE_API_BASE_URL=https://api.<domain>, VITE_MIDTRANS_CLIENT_KEY=...
-npm run build
-scp -r dist/* deploy@<ip-vps>:/tmp/dist/
+# set remotech-web/.env: VITE_API_BASE_URL=https://api.<domain>, VITE_MIDTRANS_CLIENT_KEY=...
+.\deploy\upload-frontend.ps1 -VpsIp <ip-vps>
 ```
 
-Di VPS:
+Lalu di VPS:
+```bash
+sudo mkdir -p /var/www/remotech
+sudo cp -r /tmp/dist/* /var/www/remotech/
+sudo chown -R deploy:www-data /var/www/remotech
+sudo chmod -R o+rX /var/www/remotech
+```
+
+### 3. Nginx, DNS, dan SSL
+
+- DNS: A record `@` dan `api` → IP VPS
+- Nginx:
+  ```bash
+  sudo cp /home/deploy/remotech/deploy/nginx.conf /etc/nginx/sites-available/remotech
+  sudo rm -f /etc/nginx/sites-enabled/default
+  sudo ln -s /etc/nginx/sites-available/remotech /etc/nginx/sites-enabled/
+  sudo nginx -t && sudo systemctl reload nginx
+  ```
+- SSL: `sudo apt install -y certbot python3-certbot-nginx && sudo certbot --nginx -d <domain> -d www.<domain> -d api.<domain>`
+- Referensi `.env` produksi: [`deploy/env.production.example`](deploy/env.production.example)
+
+### Update deploy
 
 ```bash
-sudo mkdir -p /var/www/remotech && sudo cp -r /tmp/dist/* /var/www/remotech/
+# di VPS
+cd /home/deploy/remotech && sudo -u deploy git pull
+sudo -u deploy venv/bin/pip install -r requirements.txt
+sudo -u deploy venv/bin/python manage.py migrate --noinput
+sudo systemctl restart remotech
+# frontend: build & upload ulang (langkah 2)
 ```
-
-### 4. Nginx, DNS, dan SSL
-
-- A record `@` dan `api` → IP VPS di panel DNS
-- Config Nginx: domain utama serve `/var/www/remotech` (fallback `index.html`), subdomain `api` proxy ke `127.0.0.1:8000`, plus alias `/static/` (STATIC_ROOT) dan `/media/` (MEDIA_ROOT)
-- SSL: `sudo certbot --nginx -d <domain> -d api.<domain>`
-- Production: set `DEBUG=false`, `SECRET_KEY` baru, `ALLOWED_HOSTS=api.<domain>` di `config/.env`, lalu `sudo systemctl restart remotech`

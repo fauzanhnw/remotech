@@ -1,0 +1,14 @@
+[Unit]
+Description=Remotech Django API
+After=network.target postgresql.service
+
+[Service]
+User=deploy
+Group=www-data
+WorkingDirectory=/home/deploy/remotech
+ExecStart=/home/deploy/remotech/venv/bin/gunicorn server.wsgi:application --bind 127.0.0.1:8000 --workers 2
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

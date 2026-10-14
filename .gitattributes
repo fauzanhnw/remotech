@@ -1,0 +1,4 @@
+# Shell scripts must stay LF (breaks on Linux with CRLF)
+*.sh text eol=lf
+deploy/remotech.service text eol=lf
+deploy/nginx.conf text eol=lf
