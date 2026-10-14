@@ -101,13 +101,13 @@ export function ModuleFormModal({
         await updateModule(module.id, payload, {
           meta: { suppressErrorToast: true },
         })
-        notifySuccessAndUpdate('Module berhasil diperbarui.')
+        notifySuccessAndUpdate('Module updated.')
       } else {
         await createModule(
           { ...payload, course: courseId },
           { meta: { suppressErrorToast: true } },
         )
-        notifySuccessAndUpdate('Module berhasil ditambahkan.')
+        notifySuccessAndUpdate('Module added.')
       }
     } catch (error) {
       const fieldErrors = Object.entries(getFieldErrors(error))
@@ -136,7 +136,7 @@ export function ModuleFormModal({
     <Modal
       open={open}
       title={editing ? 'Edit Module' : 'Add Module'}
-      okText={editing ? 'Simpan' : 'Tambah'}
+      okText={editing ? 'Save' : 'Add'}
       confirmLoading={submitting}
       onCancel={onClose}
       onOk={() => form.submit()}
@@ -159,11 +159,11 @@ export function ModuleFormModal({
           name="title"
           rules={[{ required: true, message: 'Title is required' }]}
         >
-          <Input placeholder="Judul module" maxLength={255} />
+          <Input placeholder="Module title" maxLength={255} />
         </Form.Item>
 
         <Form.Item label="Description" name="description">
-          <Input.TextArea rows={3} placeholder="Deskripsi singkat module" />
+          <Input.TextArea rows={3} placeholder="Short module description" />
         </Form.Item>
 
         <div className="flex flex-wrap gap-4">
@@ -183,23 +183,23 @@ export function ModuleFormModal({
         {showDueAt && (
           <div className="flex flex-wrap gap-4">
             <Form.Item
-              label="Tenggat Pengumpulan"
+              label="Submission Deadline"
               name="due_at"
-              tooltip="Opsional — submit setelah tenggat diterima dengan pengurangan poin."
+              tooltip="Optional — submissions after the deadline are accepted with a point deduction."
             >
               <DatePicker
                 showTime
                 format="DD MMM YYYY HH:mm"
-                placeholder="Tanpa tenggat"
+                placeholder="No deadline"
                 className="w-56"
                 disabledDate={(date) => date.isBefore(dayjs().startOf('day'))}
               />
             </Form.Item>
 
             <Form.Item
-              label="Penalti Keterlambatan (%)"
+              label="Late Penalty (%)"
               name="late_penalty_percent"
-              tooltip="Persen poin yang dipotong bila submit melewati tenggat."
+              tooltip="Percentage of points deducted when submitted past the deadline."
             >
               <InputNumber min={0} max={100} className="w-36" />
             </Form.Item>
@@ -208,10 +208,10 @@ export function ModuleFormModal({
 
         {showAllowRetake && (
           <Form.Item
-            label="Boleh Diulang"
+            label="Allow Retake"
             name="allow_retake"
             valuePropName="checked"
-            tooltip="Student dapat mengulang quiz setelah nilai keluar; skor terbaru yang dihitung."
+            tooltip="Students can retake the quiz after the grade is out; the latest score counts."
           >
             <Switch />
           </Form.Item>

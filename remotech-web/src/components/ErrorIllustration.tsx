@@ -8,7 +8,7 @@ export function ErrorIllustration({ code }: ErrorIllustrationProps) {
     <svg
       viewBox="0 0 160 160"
       role="img"
-      aria-label={`Ilustrasi error ${code}`}
+      aria-label={`Error illustration ${code}`}
       className="mx-auto mt-6 h-32 w-32"
     >
       <circle cx="80" cy="80" r="76" fill="#eaf2ff" />

@@ -92,14 +92,14 @@ export function GradingModal({ submission, onClose, onSaved }: GradingModalProps
           { answers },
           { meta: { suppressErrorToast: true } },
         )
-        notifySuccess('Penilaian essay tersimpan.')
+        notifySuccess('Essay grading saved.')
       } else {
         await updateSubmission(
           submission.id,
           { score: uploadScore ?? 0 },
           { meta: { suppressErrorToast: true } },
         )
-        notifySuccess('Skor tugas tersimpan.')
+        notifySuccess('Assignment score saved.')
       }
       onSaved()
     } catch (error) {
@@ -114,11 +114,11 @@ export function GradingModal({ submission, onClose, onSaved }: GradingModalProps
       open
       title={
         submission.is_quiz
-          ? `Nilai Kuis — ${submission.module_title || 'Quiz'}`
-          : `Nilai Tugas — ${submission.module_title || ''}`
+          ? `Grade Quiz — ${submission.module_title || 'Quiz'}`
+          : `Grade Assignment — ${submission.module_title || ''}`
       }
-      okText="Simpan Penilaian"
-      cancelText="Batal"
+      okText="Save Grading"
+      cancelText="Cancel"
       confirmLoading={saving}
       okButtonProps={{
         disabled:
@@ -138,11 +138,11 @@ export function GradingModal({ submission, onClose, onSaved }: GradingModalProps
           className="mb-4"
           type="warning"
           showIcon
-          message="Pengumpulan telat"
+          message="Late submission"
           description={
             submission.late_penalty_percent != null
-              ? `Submit melewati tenggat — poin leaderboard berkurang ${submission.late_penalty_percent}%. Skor yang Kamu masukkan tetap nilai mentah.`
-              : 'Submit melewati tenggat — poin leaderboard berkurang sesuai aturan penalti module.'
+              ? `Submitted past the deadline — leaderboard points reduced by ${submission.late_penalty_percent}%. The score you enter remains the raw score.`
+              : 'Submitted past the deadline — leaderboard points reduced according to the module penalty rules.'
           }
         />
       )}
@@ -154,7 +154,7 @@ export function GradingModal({ submission, onClose, onSaved }: GradingModalProps
             <p className="text-sm text-gray-600">{submission.user_name}</p>
           </div>
           <div>
-            <p className="text-sm font-medium text-gray-700">Tautan yang dikumpulkan</p>
+            <p className="text-sm font-medium text-gray-700">Submitted link</p>
             {submission.submission_url ? (
               <a
                 href={submission.submission_url}
@@ -165,12 +165,12 @@ export function GradingModal({ submission, onClose, onSaved }: GradingModalProps
                 {submission.submission_url}
               </a>
             ) : (
-              <p className="text-sm text-gray-500">Belum ada tautan.</p>
+              <p className="text-sm text-gray-500">No link yet.</p>
             )}
           </div>
           <div>
             <p className="mb-1 text-sm font-medium text-gray-700">
-              Skor (maksimal {submission.max_score ?? '-'})
+              Score (maximum {submission.max_score ?? '-'})
             </p>
             <InputNumber
               min={0}
@@ -195,7 +195,7 @@ export function GradingModal({ submission, onClose, onSaved }: GradingModalProps
             <Alert
               type="warning"
               showIcon
-              message="Belum ada jawaban masuk — student belum mengerjakan quiz ini."
+              message="No answers yet — the student has not attempted this quiz."
             />
           ) : quizLoading ? (
             <Skeleton active paragraph={{ rows: 4 }} />
@@ -203,20 +203,20 @@ export function GradingModal({ submission, onClose, onSaved }: GradingModalProps
             <Alert
               type="info"
               showIcon
-              message="Quiz ini dinilai otomatis dari jawaban pilihan — tidak ada soal essay."
+              message="This quiz is auto-graded from the choice answers — there are no essay questions."
             />
           ) : !quizComplete ? (
             <Alert
               type="warning"
               showIcon
-              message="Quiz belum disubmit student — jawaban belum lengkap, belum bisa dinilai."
+              message="The student has not submitted the quiz yet — the answers are incomplete and cannot be graded."
             />
           ) : (
             <>
               <p className="text-sm text-gray-500">
-                Bagian pilihan dinilai otomatis ({submission.score} poin saat ini);
-                nilai bagian essay di bawah — total maksimal{' '}
-                {submission.max_score ?? '-'} poin.
+                The choice section is auto-graded ({submission.score} points so
+                far); grade the essay section below — maximum total{' '}
+                {submission.max_score ?? '-'} points.
               </p>
               <ul className="list-none space-y-4 p-0">
                 {essayQuestions.map((question, index) => {
@@ -232,12 +232,12 @@ export function GradingModal({ submission, onClose, onSaved }: GradingModalProps
                       <p className="mt-2 whitespace-pre-line rounded bg-gray-50 p-2 text-sm text-gray-700">
                         {answer?.answer_text?.trim() || (
                           <span className="italic text-gray-400">
-                            (jawaban kosong)
+                            (empty answer)
                           </span>
                         )}
                       </p>
                       <div className="mt-2 flex items-center gap-3">
-                        <span className="text-sm text-gray-600">Skor essay:</span>
+                        <span className="text-sm text-gray-600">Essay score:</span>
                         <InputNumber
                           min={0}
                           max={submission.max_score ?? undefined}

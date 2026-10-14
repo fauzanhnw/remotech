@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { getWeeklyActivity } from '@/api'
 import type { WeeklyActivity } from '@/types/progress'
 
-const WEEKDAY_LABELS = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min']
+const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 const EMPTY_ACTIVITY: WeeklyActivity = {
   days: [],
@@ -75,28 +75,28 @@ export function StreakCard() {
           <p className="text-2xl font-bold leading-none text-[#08060d]">
             {loading ? '–' : activity.current_streak}
             <span className="ml-2 text-sm font-medium text-gray-500">
-              Hari Beruntun
+              Day Streak
             </span>
           </p>
           <p className="mt-2 text-xs text-gray-500">
             {loading
-              ? 'Memuat aktivitas belajar...'
-              : `${activity.week_active_count}/7 hari aktif minggu ini · Rekor ${activity.best_streak} hari`}
+              ? 'Loading study activity...'
+              : `${activity.week_active_count}/7 active days this week · Best streak ${activity.best_streak} days`}
           </p>
         </div>
       </div>
 
       <div className="flex flex-col items-start gap-1.5 sm:items-end">
-        <span className="text-xs text-gray-400">7 hari terakhir</span>
+        <span className="text-xs text-gray-400">Last 7 days</span>
         <div
           className="flex items-end gap-2"
           role="img"
-          aria-label={`Grafik aktivitas 7 hari terakhir, ${activity.week_active_count} hari aktif`}
+          aria-label={`7-day activity chart, ${activity.week_active_count} active days`}
         >
           {displayDays.map((day) => (
             <div key={day.key} className="flex flex-col items-center gap-1.5">
               <span
-                title={day.active ? `${day.count} aktivitas` : 'Tidak ada aktivitas'}
+                title={day.active ? `${day.count} activities` : 'No activity'}
                 className={`block h-4 w-4 rounded-full ${
                   day.active ? 'bg-orange-500' : 'bg-gray-200'
                 }${day.isToday ? ' ring-2 ring-orange-300 ring-offset-1' : ''}`}

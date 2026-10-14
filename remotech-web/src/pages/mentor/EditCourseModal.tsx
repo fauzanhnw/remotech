@@ -83,7 +83,7 @@ export function EditCourseModal({ open, onClose, onSaved, course }: EditCourseMo
     setSubmitting(true)
     try {
       await updateCourse(course.id, payload, { meta: { suppressErrorToast: true } })
-      notifySuccess('Course berhasil diperbarui.')
+      notifySuccess('Course updated.')
       onSaved()
       onClose()
     } catch (error) {
@@ -107,7 +107,7 @@ export function EditCourseModal({ open, onClose, onSaved, course }: EditCourseMo
     <Modal
       open={open}
       title="Edit Course"
-      okText="Simpan"
+      okText="Save"
       confirmLoading={submitting}
       onCancel={onClose}
       onOk={() => form.submit()}
@@ -124,11 +124,11 @@ export function EditCourseModal({ open, onClose, onSaved, course }: EditCourseMo
           name="title"
           rules={[{ required: true, message: 'Title is required' }]}
         >
-          <Input placeholder="Judul course" maxLength={200} />
+          <Input placeholder="Course title" maxLength={200} />
         </Form.Item>
 
         <Form.Item label="Description" name="description">
-          <Input.TextArea rows={4} placeholder="Deskripsi singkat course" />
+          <Input.TextArea rows={4} placeholder="Short course description" />
         </Form.Item>
 
         <Form.Item
@@ -136,7 +136,7 @@ export function EditCourseModal({ open, onClose, onSaved, course }: EditCourseMo
           name="price"
           rules={[{ required: true, message: 'Price is required' }]}
         >
-          <InputNumber min={0} step={10000} placeholder="0 = gratis" className="w-full" />
+          <InputNumber min={0} step={10000} placeholder="0 = free" className="w-full" />
         </Form.Item>
 
         <Form.Item
@@ -144,7 +144,7 @@ export function EditCourseModal({ open, onClose, onSaved, course }: EditCourseMo
           name="thumbnail"
           valuePropName="fileList"
           getValueFromEvent={toFileList}
-          extra="Klik X pada pratinjau untuk menghapus thumbnail."
+          extra="Click X on the preview to remove the thumbnail."
         >
           <Upload
             accept="image/*"
@@ -161,7 +161,7 @@ export function EditCourseModal({ open, onClose, onSaved, course }: EditCourseMo
             label="Publish"
             name="is_publish"
             valuePropName="checked"
-            extra="Tampil di katalog publik."
+            extra="Shown in the public catalog."
           >
             <Switch />
           </Form.Item>
@@ -170,7 +170,7 @@ export function EditCourseModal({ open, onClose, onSaved, course }: EditCourseMo
             label="Open for enrollment"
             name="is_open"
             valuePropName="checked"
-            extra="Penerimaan pembelian baru."
+            extra="Accepting new purchases."
           >
             <Switch />
           </Form.Item>

@@ -209,7 +209,7 @@ class UserBadgeViewSet(viewsets.ModelViewSet):
 
         if badge.rule_type != Badge.RuleType.MANUAL:
             raise ValidationError(
-                {"badge": ["Hanya badge bertipe manual yang bisa diberi mentor."]}
+                {"badge": ["Only manual-type badges can be awarded by a mentor."]}
             )
         if badge.course.user_id != request.user.pk:
             self.permission_denied(
@@ -219,7 +219,7 @@ class UserBadgeViewSet(viewsets.ModelViewSet):
             user=student, course=badge.course
         ).exists():
             raise ValidationError(
-                {"user": ["Student belum enroll di course ini."]}
+                {"user": ["Student is not enrolled in this course."]}
             )
 
         user_badge, created = UserBadge.objects.get_or_create(
@@ -228,7 +228,7 @@ class UserBadgeViewSet(viewsets.ModelViewSet):
             defaults={"awarded_by": request.user.username[:50]},
         )
         if not created:
-            raise ValidationError({"badge": ["Badge sudah pernah diberikan."]})
+            raise ValidationError({"badge": ["Badge has already been awarded."]})
         return Response(
             self.get_serializer(user_badge).data, status=status.HTTP_201_CREATED
         )
@@ -259,7 +259,7 @@ class UserBadgeViewSet(viewsets.ModelViewSet):
         """
         target_id = request.query_params.get("user")
         if not target_id or not str(target_id).isdigit():
-            raise ValidationError({"user": ["Query parameter `user` wajib diisi."]})
+            raise ValidationError({"user": ["Query parameter `user` is required."]})
         target = get_object_or_404(User, pk=target_id)
         rows = UserBadge.objects.filter(user=target).select_related(
             "badge", "badge__course"
@@ -425,7 +425,7 @@ class CourseModuleViewSet(CourseOwnerMixin, viewsets.ModelViewSet):
         """
         module = self.get_object()
         if module.module_category != CourseModule.Category.QUIZ:
-            raise ValidationError({"module": ["Bukan module quiz."]})
+            raise ValidationError({"module": ["Not a quiz module."]})
         if not CourseEnrollment.objects.filter(
             user=request.user, course=module.course
         ).exists():
@@ -439,7 +439,7 @@ class CourseModuleViewSet(CourseOwnerMixin, viewsets.ModelViewSet):
             )
         )
         if not questions:
-            raise ValidationError({"module": ["Quiz belum memiliki soal."]})
+            raise ValidationError({"module": ["Quiz does not have any questions yet."]})
 
         submission, empty_drafts = find_quiz_submission(request.user, module)
         if empty_drafts:
@@ -486,7 +486,7 @@ class CourseModuleViewSet(CourseOwnerMixin, viewsets.ModelViewSet):
         """
         module = self.get_object()
         if module.module_category != CourseModule.Category.QUIZ:
-            raise ValidationError({"module": ["Bukan module quiz."]})
+            raise ValidationError({"module": ["Not a quiz module."]})
         if not CourseEnrollment.objects.filter(
             user=request.user, course=module.course
         ).exists():
@@ -507,12 +507,12 @@ class CourseModuleViewSet(CourseOwnerMixin, viewsets.ModelViewSet):
         )
         if submission.submitted_on is not None:
             raise ValidationError(
-                {"submission": ["Quiz sudah pernah disubmit."]}
+                {"submission": ["Quiz has already been submitted."]}
             )
         module_id = derive_submission_module_id(submission)
         if module_id is not None and module_id != module.pk:
             raise ValidationError(
-                {"submission": ["Submission ini bukan untuk module tersebut."]}
+                {"submission": ["This submission is not for that module."]}
             )
 
         questions = list(
@@ -521,7 +521,7 @@ class CourseModuleViewSet(CourseOwnerMixin, viewsets.ModelViewSet):
             )
         )
         if not questions:
-            raise ValidationError({"module": ["Quiz belum memiliki soal."]})
+            raise ValidationError({"module": ["Quiz does not have any questions yet."]})
 
         answered_ids = set(
             UserAnswer.objects.filter(submission=submission).values_list(
@@ -533,8 +533,8 @@ class CourseModuleViewSet(CourseOwnerMixin, viewsets.ModelViewSet):
             raise ValidationError(
                 {
                     "answers": [
-                        "Lengkapi semua jawaban sebelum mengumpulkan quiz. "
-                        f"Masih ada {len(missing)} soal yang belum dijawab."
+                        "Complete all answers before submitting the quiz. "
+                        f"There are still {len(missing)} unanswered questions."
                     ]
                 }
             )
@@ -799,8 +799,8 @@ class UserProgressViewSet(viewsets.ModelViewSet):
             raise ValidationError(
                 {
                     "module": [
-                        "Module upload/quiz diselesaikan lewat pengumpulan "
-                        "tugas atau pengerjaan quiz, bukan penandaan manual."
+                        "Upload/quiz modules are completed through assignment "
+                        "submission or quiz completion, not manual marking."
                     ]
                 }
             )
@@ -1070,7 +1070,7 @@ class QuestionViewSet(CourseOwnerMixin, viewsets.ModelViewSet):
     def perform_destroy(self, instance):
         if UserAnswer.objects.filter(question__module=instance.module).exists():
             raise ValidationError(
-                {"detail": ["Quiz sudah ada pengerjaan — soal tidak bisa dihapus."]}
+                {"detail": ["Quiz already has submissions — questions cannot be deleted."]}
             )
         super().perform_destroy(instance)
 
@@ -1249,7 +1249,7 @@ class PointBonusViewSet(viewsets.GenericViewSet):
             user=student, course=course
         ).exists():
             raise ValidationError(
-                {"user": ["Student belum enroll di course ini."]}
+                {"user": ["Student is not enrolled in this course."]}
             )
 
         leaderboard, _ = Leaderboard.objects.get_or_create(
@@ -1456,7 +1456,7 @@ class SubmissionViewSet(viewsets.ModelViewSet):
             raise ValidationError(
                 {
                     "assignment": [
-                        "Tugas sudah dinilai dan tidak bisa dikumpulkan ulang."
+                        "Assignment has already been graded and cannot be resubmitted."
                     ]
                 }
             )
@@ -1501,14 +1501,14 @@ class SubmissionViewSet(viewsets.ModelViewSet):
                 raise ValidationError(
                     {
                         "detail": [
-                            "Saat menilai, hanya score dan reviewed_by "
-                            "yang boleh diubah."
+                            "When grading, only score and reviewed_by "
+                            "may be changed."
                         ]
                     }
                 )
             if submission.assignment_id is None:
                 raise ValidationError(
-                    {"detail": ["Submission quiz dinilai lewat grade-essay."]}
+                    {"detail": ["Quiz submissions are graded via grade-essay."]}
                 )
             serializer.save(reviewed_by=user.username[:50])
             sync_leaderboard(submission.user, module.course)
@@ -1521,15 +1521,15 @@ class SubmissionViewSet(viewsets.ModelViewSet):
             )
         if fields - {"submission_url"}:
             raise ValidationError(
-                {"detail": ["Hanya submission_url yang bisa diperbarui."]}
+                {"detail": ["Only submission_url can be updated."]}
             )
         if submission.reviewed_by:
             raise ValidationError(
-                {"detail": ["Submission sudah dinilai dan tidak bisa diubah."]}
+                {"detail": ["Submission has already been graded and cannot be changed."]}
             )
         if submission.assignment_id is None:
             raise ValidationError(
-                {"detail": ["Submission quiz tidak bisa diubah manual."]}
+                {"detail": ["Quiz submissions cannot be edited manually."]}
             )
         serializer.save()
 
@@ -1551,13 +1551,13 @@ class SubmissionViewSet(viewsets.ModelViewSet):
         submission = self.get_object()
         if submission.assignment_id is not None:
             raise ValidationError(
-                {"detail": ["Submission tugas dinilai lewat PATCH score."]}
+                {"detail": ["Assignment submissions are graded via PATCH score."]}
             )
 
         module = submission_module(submission)
         if module is None:
             raise ValidationError(
-                {"detail": ["Submission quiz belum memiliki jawaban."]}
+                {"detail": ["Quiz submission does not have any answers yet."]}
             )
         if module.course.user_id != request.user.pk:
             self.permission_denied(request, message="You do not own this course.")
@@ -1565,14 +1565,14 @@ class SubmissionViewSet(viewsets.ModelViewSet):
         items = request.data.get("answers")
         if not isinstance(items, list) or not items:
             raise ValidationError(
-                {"answers": ["Setidaknya satu jawaban essay harus dinilai."]}
+                {"answers": ["At least one essay answer must be graded."]}
             )
 
         questions = list(module.question_set.all())
         weights = split_points(module, questions)
         if weights.essay_count == 0:
             raise ValidationError(
-                {"answers": ["Module ini tidak memiliki soal essay."]}
+                {"answers": ["This module does not have any essay questions."]}
             )
 
         answered_ids = set(
@@ -1582,13 +1582,13 @@ class SubmissionViewSet(viewsets.ModelViewSet):
         )
         if not {question.pk for question in questions}.issubset(answered_ids):
             raise ValidationError(
-                {"detail": ["Quiz belum disubmit, tidak bisa dinilai."]}
+                {"detail": ["Quiz has not been submitted yet and cannot be graded."]}
             )
         if not UserProgress.objects.filter(
             module=module, user=submission.user
         ).exists():
             raise ValidationError(
-                {"detail": ["Quiz belum disubmit, tidak bisa dinilai."]}
+                {"detail": ["Quiz has not been submitted yet and cannot be graded."]}
             )
 
         essay_answers = {
@@ -1602,7 +1602,7 @@ class SubmissionViewSet(viewsets.ModelViewSet):
         for item in items:
             if not isinstance(item, dict):
                 raise ValidationError(
-                    {"answers": ["Format data penilaian tidak valid."]}
+                    {"answers": ["Invalid grading data format."]}
                 )
             answer_id = item.get("id")
             score = item.get("score")
@@ -1610,24 +1610,24 @@ class SubmissionViewSet(viewsets.ModelViewSet):
                 raise ValidationError(
                     {
                         "answers": [
-                            "Hanya jawaban essay milik submission ini yang "
-                            "bisa dinilai."
+                            "Only essay answers belonging to this submission "
+                            "can be graded."
                         ]
                     }
                 )
             if answer_id in graded:
                 raise ValidationError(
-                    {"answers": ["Terdapat jawaban ganda dalam data penilaian."]}
+                    {"answers": ["Duplicate answers found in the grading data."]}
                 )
             if isinstance(score, bool) or not isinstance(score, int) or score < 0:
                 raise ValidationError(
-                    {"answers": ["Nilai harus bilangan bulat lebih besar atau sama dengan 0."]}
+                    {"answers": ["Score must be an integer greater than or equal to 0."]}
                 )
             graded[answer_id] = score
 
         if set(graded) != set(essay_answers):
             raise ValidationError(
-                {"answers": ["Semua jawaban essay harus dinilai."]}
+                {"answers": ["All essay answers must be graded."]}
             )
 
         auto_score = compute_auto_score(
@@ -1638,7 +1638,7 @@ class SubmissionViewSet(viewsets.ModelViewSet):
             raise ValidationError(
                 {
                     "answers": [
-                        f"Total nilai melebihi poin maksimal module ({module.point})."
+                        f"Total score exceeds the module's maximum points ({module.point})."
                     ]
                 }
             )
@@ -1689,7 +1689,7 @@ class UserAnswerViewSet(viewsets.ModelViewSet):
                 submission.submitted_on is not None or submission.reviewed_by
             ):
                 raise ValidationError(
-                    {"detail": ["Quiz sudah disubmit dan jawaban tidak bisa diubah."]}
+                    {"detail": ["Quiz has already been submitted and answers cannot be changed."]}
                 )
         serializer = self.get_serializer(data=request.data, instance=existing)
         serializer.is_valid(raise_exception=True)
@@ -1703,7 +1703,7 @@ class UserAnswerViewSet(viewsets.ModelViewSet):
             self.permission_denied(self.request, message="Not allowed.")
         if instance.submission.submitted_on is not None or instance.submission.reviewed_by:
             raise ValidationError(
-                {"detail": ["Quiz sudah disubmit dan jawaban tidak bisa dihapus."]}
+                {"detail": ["Quiz has already been submitted and answers cannot be deleted."]}
             )
         instance.delete()
 

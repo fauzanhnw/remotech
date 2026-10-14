@@ -365,9 +365,9 @@ export function EnrolledCourseDetailPage() {
   if (notEnrolled) {
     return (
       <section className="mx-auto max-w-7xl px-4 py-16 md:mx-8 xl:px-16">
-        <Empty description="Kamu belum enroll course ini.">
+        <Empty description="You haven't enrolled in this course yet.">
           <Link to="/courses" className="inline-flex">
-            <Button type="primary">Jelajahi Katalog</Button>
+            <Button type="primary">Browse Catalog</Button>
           </Link>
         </Empty>
       </section>
@@ -377,7 +377,7 @@ export function EnrolledCourseDetailPage() {
   if (loadFailed || !course) {
     return (
       <section className="mx-auto max-w-7xl px-4 py-16 md:mx-8 xl:px-16">
-        <Empty description="Gagal memuat course. Silakan coba lagi." />
+        <Empty description="Failed to load the course. Please try again." />
       </section>
     )
   }
@@ -412,7 +412,7 @@ export function EnrolledCourseDetailPage() {
       ) : (
         <div className="flex h-full flex-col items-center justify-center gap-3 text-gray-500">
           <PictureOutlined className="text-5xl" />
-          <p className="text-sm">Pratinjau konten belum tersedia.</p>
+          <p className="text-sm">Content preview is not available yet.</p>
         </div>
       )
     }
@@ -445,7 +445,7 @@ export function EnrolledCourseDetailPage() {
               rel="noreferrer"
               className="mt-4 inline-flex items-center gap-2 text-sm text-blue-600 no-underline hover:underline"
             >
-              <LinkOutlined /> Lampiran dari mentor
+              <LinkOutlined /> Attachment from mentor
             </a>
           )}
         </div>
@@ -463,7 +463,7 @@ export function EnrolledCourseDetailPage() {
     if (!content) {
       return (
         <div className="flex h-full items-center justify-center p-6 text-center text-sm text-gray-400">
-          Tidak ada isi untuk konten ini.
+          There is no content to display for this item.
         </div>
       )
     }
@@ -475,7 +475,7 @@ export function EnrolledCourseDetailPage() {
       if (embed) {
         return (
           <iframe
-            title="Video pembelajaran"
+            title="Learning video"
             src={embed}
             allowFullScreen
             className="h-full w-full border-0"
@@ -485,7 +485,7 @@ export function EnrolledCourseDetailPage() {
       if (isDirectVideo(url)) {
         return <video src={url} controls playsInline className="h-full w-full bg-black" />
       }
-      return renderLinkCard(url, 'Buka video')
+      return renderLinkCard(url, 'Open video')
     }
 
     if (content.content_text.trim()) {
@@ -504,13 +504,13 @@ export function EnrolledCourseDetailPage() {
       }
       return renderLinkCard(
         url,
-        module.module_category === 'video' ? 'Buka video' : 'Buka dokumen',
+        module.module_category === 'video' ? 'Open video' : 'Open document',
       )
     }
 
     return (
       <div className="flex h-full items-center justify-center p-6 text-center text-sm text-gray-400">
-        Tidak ada isi untuk konten ini.
+        No content for this item yet.
       </div>
     )
   }
@@ -548,7 +548,7 @@ export function EnrolledCourseDetailPage() {
         {enrollment && (
           <Tag>
             Enrolled at{' '}
-            {new Date(enrollment.enrolled_at).toLocaleDateString('id-ID', {
+            {new Date(enrollment.enrolled_at).toLocaleDateString('en-US', {
               day: 'numeric',
               month: 'long',
               year: 'numeric',
@@ -557,16 +557,16 @@ export function EnrolledCourseDetailPage() {
         )}
       </div>
 
-      <h2 className="mt-6 text-2xl font-bold text-[#08060d]">Deskripsi</h2>
+      <h2 className="mt-6 text-2xl font-bold text-[#08060d]">Description</h2>
       <p className="mt-4 whitespace-pre-line leading-relaxed text-gray-600">
-        {course.description || 'Belum ada deskripsi untuk course ini.'}
+        {course.description || 'There is no description for this course yet.'}
       </p>
 
       <div className="mt-8">
         <h2 className="text-2xl font-bold text-[#08060d]">Badge</h2>
         <p className="mt-1 text-sm text-gray-600">
-          Selesaikan semua module atau raih penghargaan dari mentor untuk
-          mengumpulkan badge course ini.
+          Complete all modules or earn awards from the mentor to collect
+          the badges for this course.
         </p>
         <div className="mt-4">
           <BadgeGrid course={courseId} reloadKey={badgeReloadKey} />
@@ -582,12 +582,12 @@ export function EnrolledCourseDetailPage() {
 
   const lowerSectionTabs = isXl
     ? [
-        { key: 'overview', label: 'Gambaran Umum', children: overviewContent },
+        { key: 'overview', label: 'Overview', children: overviewContent },
         { key: 'leaderboard', label: 'Leaderboard', children: leaderboardContent },
       ]
     : [
-        { key: 'kurikulum', label: 'Kurikulum', children: curriculumList },
-        { key: 'overview', label: 'Gambaran Umum', children: overviewContent },
+        { key: 'kurikulum', label: 'Curriculum', children: curriculumList },
+        { key: 'overview', label: 'Overview', children: overviewContent },
         { key: 'leaderboard', label: 'Leaderboard', children: leaderboardContent },
       ]
 

@@ -89,7 +89,7 @@ export function QuizPanel({ module, onSubmitted }: QuizPanelProps) {
   const isPastDue = dueAt != null && now > new Date(dueAt).getTime()
   const formattedDueAt = useMemo(() => {
     if (dueAt == null) return null
-    return new Date(dueAt).toLocaleString('id-ID', {
+    return new Date(dueAt).toLocaleString('en-US', {
       day: 'numeric',
       month: 'long',
       year: 'numeric',
@@ -157,31 +157,31 @@ export function QuizPanel({ module, onSubmitted }: QuizPanelProps) {
 
     if (missing > 0) {
       modal.warning({
-        title: 'Lengkapi semua jawaban',
-        content: `Masih ada ${missing} soal yang belum dijawab. Semua soal wajib dijawab sebelum mengumpulkan.`,
+        title: 'Complete all answers',
+        content: `There are still ${missing} unanswered questions. All questions must be answered before submitting.`,
       })
       return
     }
 
     const lateWarning =
       isPastDue && module.late_penalty_percent > 0
-        ? ` Pengumpulan melewati tenggat — poin berkurang ${module.late_penalty_percent}%.`
+        ? ` Submission is past the deadline — points reduced by ${module.late_penalty_percent}%.`
         : ''
 
     modal.confirm({
-      title: 'Kumpulkan jawaban?',
+      title: 'Submit answers?',
       content: module.allow_retake
-        ? `Quiz ini bisa diulang. Skor terbaru yang akan dihitung. Jawaban pilihan dinilai otomatis; bagian essay dinilai mentor.${lateWarning}`
-        : `Quiz hanya bisa disubmit satu kali. Setelah dikumpulkan, jawaban tidak bisa diubah. Jawaban pilihan dinilai otomatis; bagian essay dinilai mentor.${lateWarning}`,
-      okText: 'Kumpulkan',
-      cancelText: 'Periksa Lagi',
+        ? `This quiz can be retaken; the latest score will be counted. Choice answers are auto-graded; the essay section is mentor-graded.${lateWarning}`
+        : `This quiz can only be submitted once. After submission, answers cannot be changed. Choice answers are auto-graded; the essay section is mentor-graded.${lateWarning}`,
+      okText: 'Submit',
+      cancelText: 'Review Again',
       onOk: async () => {
         setSubmitting(true)
         try {
           const data = await submitQuiz(module.id, session.submission.id)
           setSession(data)
           setResult(data.result ?? null)
-          notifySuccess('Jawaban quiz berhasil dikumpulkan.')
+          notifySuccess('Quiz answers submitted successfully.')
           notifyEarnedBadges(data.earned_badges)
           onSubmitted()
         } catch (error) {
@@ -195,18 +195,18 @@ export function QuizPanel({ module, onSubmitted }: QuizPanelProps) {
 
   const handleRetake = () => {
     modal.confirm({
-      title: 'Mulai percobaan baru?',
+      title: 'Start a new attempt?',
       content:
-        'Nilai attempt sebelumnya tetap tersimpan sebagai riwayat; skor attempt terbaru yang dihitung.',
-      okText: 'Coba Lagi',
-      cancelText: 'Batal',
+        'Previous attempt scores are kept as history; the latest attempt score will be counted.',
+      okText: 'Try Again',
+      cancelText: 'Cancel',
       onOk: async () => {
         setSubmitting(true)
         try {
           // Backend membuat draft baru (allow_retake) saat attempt sudah final.
           const data = await startQuiz(module.id)
           applySession(data)
-          notifySuccess('Percobaan baru dimulai. Semoga berhasil!')
+          notifySuccess('New attempt started. Good luck!')
         } catch (error) {
           notifyError(error)
         } finally {
@@ -225,8 +225,8 @@ export function QuizPanel({ module, onSubmitted }: QuizPanelProps) {
       <Alert
         type="error"
         showIcon
-        message="Quiz tidak bisa dimuat"
-        description="Pastikan kamu terdaftar pada course ini dan quiz sudah memiliki soal."
+        message="Quiz couldn't be loaded"
+        description="Make sure you are enrolled in this course and the quiz already has questions."
       />
     )
   }
@@ -234,12 +234,12 @@ export function QuizPanel({ module, onSubmitted }: QuizPanelProps) {
   if (completed && result) {
     return (
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Kuis</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Quiz</p>
         <h3 className="mt-0.5 text-lg font-semibold text-[#08060d]">{module.title}</h3>
 
         <div className="mt-4 flex flex-wrap items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
           <div>
-            <p className="text-xs text-gray-500">Skor</p>
+            <p className="text-xs text-gray-500">Score</p>
             <p className="text-2xl font-bold text-[#08060d]">
               {result.score}
               <span className="text-base font-medium text-gray-500">
@@ -248,32 +248,32 @@ export function QuizPanel({ module, onSubmitted }: QuizPanelProps) {
             </p>
           </div>
           <div>
-            <p className="text-xs text-gray-500">Jawaban benar</p>
+            <p className="text-xs text-gray-500">Correct answers</p>
             <p className="text-lg font-semibold text-[#08060d]">
               {result.correct}/{result.auto_total}
             </p>
           </div>
           {session.submission.is_late && (
             <Tag color="red" className="mr-0">
-              Telat
+              Late
             </Tag>
           )}
           {result.pending ? (
             <Tag color="orange" className="mr-0">
-              Menunggu penilaian essay
+              Pending essay grading
             </Tag>
           ) : result.essay_count > 0 ? (
             <Tag color="green" className="mr-0">
-              Selesai dinilai mentor
+              Fully graded by mentor
             </Tag>
           ) : (
             <Tag color="blue" className="mr-0">
-              Dinilai otomatis
+              Auto-graded
             </Tag>
           )}
           {module.allow_retake && (
             <Tag color="cyan" className="mr-0">
-              Bisa diulang
+              Retake allowed
             </Tag>
           )}
         </div>
@@ -283,7 +283,7 @@ export function QuizPanel({ module, onSubmitted }: QuizPanelProps) {
             className="mt-3"
             type="info"
             showIcon
-            message="Skor sementara dari bagian pilihan. Skor final menyusul setelah mentor menilai essay."
+            message="Provisional score from the choice section. Final score will follow after the mentor grades the essay."
           />
         )}
 
@@ -294,7 +294,7 @@ export function QuizPanel({ module, onSubmitted }: QuizPanelProps) {
               loading={submitting}
               onClick={handleRetake}
             >
-              Coba Lagi
+              Try Again
             </Button>
           </div>
         )}
@@ -315,15 +315,15 @@ export function QuizPanel({ module, onSubmitted }: QuizPanelProps) {
 
   return (
     <div>
-      <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Kuis</p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Quiz</p>
       <div className="mt-0.5 flex flex-wrap items-center justify-between gap-2">
         <h3 className="m-0 text-lg font-semibold text-[#08060d]">{module.title}</h3>
         <div className="flex items-center gap-2">
           <Tag color={module.allow_retake ? 'blue' : 'default'} className="mr-0">
-            {module.allow_retake ? 'Bisa diulang' : 'Sekali kerja'}
+            {module.allow_retake ? 'Retake allowed' : 'Single attempt'}
           </Tag>
           <span className="text-xs text-gray-500">
-            {answeredCount}/{questions.length} terjawab
+            {answeredCount}/{questions.length} answered
           </span>
         </div>
       </div>
@@ -335,11 +335,11 @@ export function QuizPanel({ module, onSubmitted }: QuizPanelProps) {
         <p className="mt-2 flex items-center gap-1.5 text-sm text-gray-600">
           <ClockCircleOutlined />
           <span>
-            Tenggat: <span className="font-medium">{formattedDueAt}</span>
+            Deadline: <span className="font-medium">{formattedDueAt}</span>
           </span>
           {isPastDue && (
             <Tag color="red" className="mr-0">
-              Lewat tenggat
+              Past deadline
             </Tag>
           )}
         </p>
@@ -349,8 +349,8 @@ export function QuizPanel({ module, onSubmitted }: QuizPanelProps) {
           className="mt-3"
           type="warning"
           showIcon
-          message={`Lewat tenggat — poin berkurang ${module.late_penalty_percent}%`}
-          description="Quiz tetap bisa disubmit, tetapi poin yang masuk leaderboard akan dipotong."
+          message={`Past deadline — points reduced by ${module.late_penalty_percent}%`}
+          description="The quiz can still be submitted, but points going to the leaderboard will be reduced."
         />
       )}
 
@@ -366,7 +366,7 @@ export function QuizPanel({ module, onSubmitted }: QuizPanelProps) {
                   <span className="mr-1 text-gray-400">{index + 1}.</span>
                   {question.question_text}
                   <span className="ml-2 text-xs font-normal text-gray-400">
-                    (essay{saving ? ' — menyimpan...' : ''})
+                    (essay{saving ? ' — saving...' : ''})
                   </span>
                 </p>
                 <Input.TextArea
@@ -375,7 +375,7 @@ export function QuizPanel({ module, onSubmitted }: QuizPanelProps) {
                   value={answer?.answer_text ?? ''}
                   onChange={(event) => handleEssayChange(question, event.target.value)}
                   onBlur={() => handleEssayBlur(question)}
-                  placeholder="Tulis jawabanmu di sini..."
+                  placeholder="Write your answer here..."
                 />
               </div>
             )
@@ -386,7 +386,7 @@ export function QuizPanel({ module, onSubmitted }: QuizPanelProps) {
               <p className="text-sm font-medium text-[#08060d]">
                 <span className="mr-1 text-gray-400">{index + 1}.</span>
                 {question.question_text}
-                {saving && <span className="ml-2 text-xs font-normal text-gray-400">— menyimpan...</span>}
+                {saving && <span className="ml-2 text-xs font-normal text-gray-400">— saving...</span>}
               </p>
               <Radio.Group
                 className="mt-2 flex flex-col gap-2"
@@ -409,8 +409,8 @@ export function QuizPanel({ module, onSubmitted }: QuizPanelProps) {
       <div className="sticky bottom-0 mt-6 flex items-center justify-between gap-3 border-t border-gray-200 bg-white pt-3">
         <span className="text-xs text-gray-500">
           {answeredCount === questions.length
-            ? 'Semua soal sudah terjawab.'
-            : `${questions.length - answeredCount} soal belum dijawab.`}
+            ? 'All questions have been answered.'
+            : `${questions.length - answeredCount} questions not yet answered.`}
         </span>
         <Button
           type="primary"
@@ -419,7 +419,7 @@ export function QuizPanel({ module, onSubmitted }: QuizPanelProps) {
           disabled={savingIds.size > 0}
           onClick={handleSubmit}
         >
-          Kumpulkan Jawaban
+          Submit Answers
         </Button>
       </div>
     </div>
@@ -451,11 +451,11 @@ function QuestionReview({
         <div className="mt-2 space-y-1">
           <p className="whitespace-pre-line rounded bg-gray-50 p-2 text-sm text-gray-700">
             {answer?.answer_text?.trim() || (
-              <span className="italic text-gray-400">(jawaban kosong)</span>
+              <span className="italic text-gray-400">(empty answer)</span>
             )}
           </p>
           {answer?.score != null && (
-            <p className="text-xs text-gray-500">Skor essay: {answer.score}</p>
+            <p className="text-xs text-gray-500">Essay score: {answer.score}</p>
           )}
         </div>
       ) : (
@@ -478,8 +478,8 @@ function QuestionReview({
                   <span className="inline-block w-4" />
                 )}
                 <span>{option.option_text}</span>
-                {chosen && <Tag className="mr-0">Jawabanmu</Tag>}
-                {correct && <Tag color="green" className="mr-0">Benar</Tag>}
+                {chosen && <Tag className="mr-0">Your answer</Tag>}
+                {correct && <Tag color="green" className="mr-0">Correct</Tag>}
               </li>
             )
           })}
@@ -488,7 +488,7 @@ function QuestionReview({
 
       {question.explanation && (
         <p className="mt-2 border-t border-gray-100 pt-2 text-xs text-gray-500">
-          Pembahasan: {question.explanation}
+          Explanation: {question.explanation}
         </p>
       )}
     </div>

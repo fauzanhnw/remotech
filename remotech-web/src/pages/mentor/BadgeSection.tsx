@@ -74,7 +74,7 @@ export function BadgeSection({ courseId, canManage }: BadgeSectionProps) {
   const handleDelete = async (badge: Badge) => {
     try {
       await deleteBadge(badge.id)
-      notifySuccess('Badge berhasil dihapus.')
+      notifySuccess('Badge deleted.')
       reload()
     } catch (error) {
       notifyError(error)
@@ -84,7 +84,7 @@ export function BadgeSection({ courseId, canManage }: BadgeSectionProps) {
   const handleRevoke = async (row: UserBadge) => {
     try {
       await revokeBadge(row.id)
-      notifySuccess('Badge berhasil dicabut.')
+      notifySuccess('Badge revoked.')
       reload()
     } catch (error) {
       notifyError(error)
@@ -92,7 +92,7 @@ export function BadgeSection({ courseId, canManage }: BadgeSectionProps) {
   }
 
   const ruleLabel: Record<string, string> = {
-    course_complete: 'Otomatis',
+    course_complete: 'Automatic',
     manual: 'Manual',
   }
 
@@ -102,8 +102,8 @@ export function BadgeSection({ courseId, canManage }: BadgeSectionProps) {
         <div>
           <h2 className="text-2xl font-bold text-[#08060d]">Badge</h2>
           <p className="mt-1 text-sm text-gray-600">
-            Badge otomatis diberi sistem saat semua module selesai; badge manual
-            diberi ke student enrolled.
+            Automatic badges are awarded by the system when all modules are
+            complete; manual badges are awarded to enrolled students.
           </p>
         </div>
         {canManage && (
@@ -112,7 +112,7 @@ export function BadgeSection({ courseId, canManage }: BadgeSectionProps) {
             icon={<PlusOutlined />}
             onClick={() => setFormModal({ open: true, badge: null })}
           >
-            Buat Badge
+            Create Badge
           </Button>
         )}
       </div>
@@ -120,10 +120,10 @@ export function BadgeSection({ courseId, canManage }: BadgeSectionProps) {
       {badges === null ? (
         <Skeleton active paragraph={{ rows: 4 }} />
       ) : badges.length === 0 ? (
-        <Empty description="Belum ada badge untuk course ini." className="py-10">
+        <Empty description="No badges for this course yet." className="py-10">
           {canManage && (
             <Button type="primary" onClick={() => setFormModal({ open: true, badge: null })}>
-              Buat Badge Pertama
+              Create First Badge
             </Button>
           )}
         </Empty>
@@ -172,7 +172,7 @@ export function BadgeSection({ courseId, canManage }: BadgeSectionProps) {
               {(holders[badge.id]?.length ?? 0) > 0 && (
                 <div className="border-t border-gray-100 pt-2">
                   <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-                    Penerima ({holders[badge.id].length})
+                    Recipients ({holders[badge.id].length})
                   </p>
                   <ul className="mt-1 space-y-1">
                     {holders[badge.id].map((row) => (
@@ -185,27 +185,27 @@ export function BadgeSection({ courseId, canManage }: BadgeSectionProps) {
                           <Tooltip
                             title={
                               row.awarded_by === 'system'
-                                ? 'Otomatis (sistem)'
-                                : `Diberi mentor: ${row.awarded_by}`
+                                ? 'Automatic (system)'
+                                : `Awarded by mentor: ${row.awarded_by}`
                             }
                           >
                             <Tag
                               color={row.awarded_by === 'system' ? 'green' : 'purple'}
                               className="mr-0"
                             >
-                              {row.awarded_by === 'system' ? 'Sistem' : 'Mentor'}
+                              {row.awarded_by === 'system' ? 'System' : 'Mentor'}
                             </Tag>
                           </Tooltip>
                           {canManage && row.awarded_by !== 'system' && (
                             <Popconfirm
-                              title="Cabut badge ini?"
-                              okText="Cabut"
+                              title="Revoke this badge?"
+                              okText="Revoke"
                               okButtonProps={{ danger: true }}
-                              cancelText="Batal"
+                              cancelText="Cancel"
                               onConfirm={() => void handleRevoke(row)}
                             >
                               <Button size="small" danger type="text">
-                                Cabut
+                                Revoke
                               </Button>
                             </Popconfirm>
                           )}
@@ -223,7 +223,7 @@ export function BadgeSection({ courseId, canManage }: BadgeSectionProps) {
                     icon={<GiftOutlined />}
                     onClick={() => setAwardModal({ open: true, badge })}
                   >
-                    Berikan
+                    Award
                   </Button>
                   <Button
                     size="small"
@@ -233,11 +233,11 @@ export function BadgeSection({ courseId, canManage }: BadgeSectionProps) {
                     Edit
                   </Button>
                   <Popconfirm
-                    title="Hapus badge ini?"
-                    description="Semua baris kepemilikan badge ikut terhapus."
-                    okText="Hapus"
+                    title="Delete this badge?"
+                    description="All badge ownership rows will be deleted as well."
+                    okText="Delete"
                     okButtonProps={{ danger: true }}
-                    cancelText="Batal"
+                    cancelText="Cancel"
                     onConfirm={() => void handleDelete(badge)}
                   >
                     <Button size="small" danger icon={<DeleteOutlined />} />
@@ -255,11 +255,11 @@ export function BadgeSection({ courseId, canManage }: BadgeSectionProps) {
                     Edit
                   </Button>
                   <Popconfirm
-                    title="Hapus badge ini?"
-                    description="Semua baris kepemilikan badge ikut terhapus."
-                    okText="Hapus"
+                    title="Delete this badge?"
+                    description="All badge ownership rows will be deleted as well."
+                    okText="Delete"
                     okButtonProps={{ danger: true }}
-                    cancelText="Batal"
+                    cancelText="Cancel"
                     onConfirm={() => void handleDelete(badge)}
                   >
                     <Button size="small" danger icon={<DeleteOutlined />} />

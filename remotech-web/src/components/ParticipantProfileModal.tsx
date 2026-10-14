@@ -71,7 +71,7 @@ export function ParticipantProfileModal({
   return (
     <Modal
       open={open}
-      title="Profil Peserta"
+      title="Participant Profile"
       footer={null}
       onCancel={onClose}
       destroyOnHidden
@@ -92,7 +92,7 @@ export function ParticipantProfileModal({
                   {levelLabel(row.level, row.level_title)}
                 </Tag>
                 <span className="text-sm text-gray-500">
-                  {row.total_points} poin
+                  {row.total_points} points
                 </span>
               </div>
             </div>
@@ -106,7 +106,7 @@ export function ParticipantProfileModal({
           ) : badges.length === 0 ? (
             <Empty
               image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description="Belum memiliki badge."
+              description="No badges yet."
             />
           ) : (
             <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">

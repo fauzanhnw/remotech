@@ -78,7 +78,7 @@ export function ProfilePage() {
     try {
       await updateProfile(values)
       await refreshUser()
-      notifySuccess('Profil berhasil diperbarui.')
+      notifySuccess('Profile updated successfully.')
     } catch (error) {
       applyFieldErrors(profileForm, error)
     } finally {
@@ -91,7 +91,7 @@ export function ProfilePage() {
     try {
       await changePassword(values)
       passwordForm.resetFields()
-      notifySuccess('Password berhasil diubah.')
+      notifySuccess('Password changed successfully.')
     } catch (error) {
       applyFieldErrors(passwordForm, error)
     } finally {
@@ -120,7 +120,7 @@ export function ProfilePage() {
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-[#08060d]">Profile</h1>
         <p className="mt-2 text-gray-600">
-          Perbarui informasi akun dan password
+          Update your account information and password
         </p>
       </div>
 
@@ -152,16 +152,16 @@ export function ProfilePage() {
           <h2 className="text-lg font-semibold text-[#08060d] mb-0">Badge</h2>
         </div>
         <p className="mb-4 text-sm text-gray-500">
-          Badge yang sudah kamu kumpulkan dari course yang diikuti.
+          Badges you have collected from the courses you have taken.
         </p>
         <BadgeGrid earnedOnly showCourse />
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-[#08060d]">Informasi Akun</h2>
+          <h2 className="text-lg font-semibold text-[#08060d]">Account Information</h2>
           <p className="mt-1 text-sm text-gray-500">
-            Nama tampil dan email untuk login.
+            Display name and email used to sign in.
           </p>
           <Form
             form={profileForm}
@@ -172,9 +172,9 @@ export function ProfilePage() {
           >
             <div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
               <Form.Item
-                label="Nama depan"
+                label="First name"
                 name="first_name"
-                rules={[{ required: true, message: 'Nama depan wajib diisi' }]}
+                rules={[{ required: true, message: 'First name is required' }]}
               >
                 <Input
                   prefix={<UserOutlined className="text-gray-400" />}
@@ -183,9 +183,9 @@ export function ProfilePage() {
                 />
               </Form.Item>
               <Form.Item
-                label="Nama belakang"
+                label="Last name"
                 name="last_name"
-                rules={[{ required: true, message: 'Nama belakang wajib diisi' }]}
+                rules={[{ required: true, message: 'Last name is required' }]}
               >
                 <Input placeholder="Santoso" autoComplete="family-name" />
               </Form.Item>
@@ -194,10 +194,10 @@ export function ProfilePage() {
               label="Email"
               name="email"
               rules={[
-                { required: true, message: 'Email wajib diisi' },
-                { type: 'email', message: 'Format email tidak valid' },
+                { required: true, message: 'Email is required' },
+                { type: 'email', message: 'Invalid email format' },
               ]}
-              extra="Email juga dipakai untuk login."
+              extra="Email is also used to sign in."
             >
               <Input
                 prefix={<MailOutlined className="text-gray-400" />}
@@ -206,15 +206,15 @@ export function ProfilePage() {
               />
             </Form.Item>
             <Button type="primary" htmlType="submit" loading={savingProfile}>
-              Simpan Perubahan
+              Save Changes
             </Button>
           </Form>
         </div>
 
         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-[#08060d]">Ganti Password</h2>
+          <h2 className="text-lg font-semibold text-[#08060d]">Change Password</h2>
           <p className="mt-1 text-sm text-gray-500">
-            Password baru minimal 8 karakter.
+            New password must be at least 8 characters.
           </p>
           <Form
             form={passwordForm}
@@ -224,9 +224,9 @@ export function ProfilePage() {
             className="mt-4"
           >
             <Form.Item
-              label="Password lama"
+              label="Old password"
               name="old_password"
-              rules={[{ required: true, message: 'Password lama wajib diisi' }]}
+              rules={[{ required: true, message: 'Old password is required' }]}
             >
               <Input.Password
                 prefix={<LockOutlined className="text-gray-400" />}
@@ -235,12 +235,12 @@ export function ProfilePage() {
               />
             </Form.Item>
             <Form.Item
-              label="Password baru"
+              label="New password"
               name="new_password"
               hasFeedback
               rules={[
-                { required: true, message: 'Password baru wajib diisi' },
-                { min: 8, message: 'Minimal 8 karakter' },
+                { required: true, message: 'New password is required' },
+                { min: 8, message: 'Minimum 8 characters' },
               ]}
             >
               <Input.Password
@@ -250,18 +250,18 @@ export function ProfilePage() {
               />
             </Form.Item>
             <Form.Item
-              label="Konfirmasi password baru"
+              label="Confirm new password"
               name="new_password_confirm"
               dependencies={['new_password']}
               hasFeedback
               rules={[
-                { required: true, message: 'Konfirmasi password wajib diisi' },
+                { required: true, message: 'Password confirmation is required' },
                 ({ getFieldValue }) => ({
                   validator(_, value) {
                     if (!value || getFieldValue('new_password') === value) {
                       return Promise.resolve()
                     }
-                    return Promise.reject(new Error('Password tidak sama'))
+                    return Promise.reject(new Error('Passwords do not match'))
                   },
                 }),
               ]}
@@ -273,7 +273,7 @@ export function ProfilePage() {
               />
             </Form.Item>
             <Button type="primary" htmlType="submit" loading={savingPassword}>
-              Ubah Password
+              Change Password
             </Button>
           </Form>
         </div>

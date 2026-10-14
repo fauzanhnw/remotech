@@ -24,10 +24,10 @@ interface CourseFiltersProps<T extends string = string> {
 }
 
 const DEFAULT_ORDER_OPTIONS: readonly OrderOption[] = [
-  { value: '-created_at', label: 'Terbaru' },
-  { value: 'price', label: 'Harga: Rendah ke Tinggi' },
-  { value: '-price', label: 'Harga: Tinggi ke Rendah' },
-  { value: 'title', label: 'Judul A-Z' },
+  { value: '-created_at', label: 'Newest' },
+  { value: 'price', label: 'Price: Low to High' },
+  { value: '-price', label: 'Price: High to Low' },
+  { value: 'title', label: 'Title A-Z' },
 ]
 
 const DEFAULT_ORDERING = '-created_at'
@@ -68,15 +68,15 @@ export function CourseFilters<T extends string = string>({
           <div className="w-80 rounded-xl border border-gray-200 bg-white p-4 shadow-lg">
             {showPrice && priceFilter !== undefined && (
               <>
-                <p className="mb-2 text-sm font-semibold text-[#08060d]">Harga</p>
+                <p className="mb-2 text-sm font-semibold text-[#08060d]">Price</p>
                 <Segmented
                   block
                   value={priceFilter}
                   onChange={(value) => onPriceFilterChange?.(value as PriceFilter)}
                   options={[
-                    { value: 'all', label: 'Semua' },
-                    { value: 'free', label: 'Gratis' },
-                    { value: 'paid', label: 'Berbayar' },
+                    { value: 'all', label: 'All' },
+                    { value: 'free', label: 'Free' },
+                    { value: 'paid', label: 'Paid' },
                   ]}
                 />
               </>
@@ -85,7 +85,7 @@ export function CourseFilters<T extends string = string>({
             <p
               className={`${showPrice ? 'mt-4' : ''} mb-2 text-sm font-semibold text-[#08060d]`}
             >
-              Urutkan
+              Sort by
             </p>
             <Select
               value={ordering}

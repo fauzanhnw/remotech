@@ -27,7 +27,7 @@ function buildCards(submissions: Submission[]): ModuleGradingCard[] {
     if (submission.module == null) continue
     const card = byModule.get(submission.module) ?? {
       module: submission.module,
-      moduleTitle: submission.module_title || 'Module tanpa judul',
+      moduleTitle: submission.module_title || 'Untitled module',
       courseTitle: submission.course_title || '—',
       hasQuiz: false,
       hasTask: false,
@@ -55,7 +55,7 @@ function buildCards(submissions: Submission[]): ModuleGradingCard[] {
  * daftar submission pada module tersebut.
  */
 export function MentorAssignmentsPage() {
-  usePageTitle('Penilaian')
+  usePageTitle('Grading')
 
   const [submissions, setSubmissions] = useState<Submission[]>([])
   const [loading, setLoading] = useState(true)
@@ -109,12 +109,12 @@ export function MentorAssignmentsPage() {
     <section className="mx-auto max-w px-4 pt-8 pb-16 md:mx-8 xl:px-16">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-[#08060d]">Penilaian Penugasan</h2>
+          <h2 className="text-2xl font-bold text-[#08060d]">Assignment Grading</h2>
           <p className="text-sm text-gray-500">
-            Module dengan submission tugas dan kuis
+            Modules with assignment and quiz submissions
             {pendingTotal > 0 && (
               <span className="ml-1 font-medium text-orange-600">
-                {pendingTotal} submission belum dinilai.
+                {pendingTotal} submissions not graded yet.
               </span>
             )}
           </p>
@@ -125,7 +125,7 @@ export function MentorAssignmentsPage() {
         <Input
           allowClear
           prefix={<SearchOutlined className="text-gray-400" />}
-          placeholder="Cari judul module atau course..."
+          placeholder="Search module or course title..."
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           className="w-full"
@@ -135,9 +135,9 @@ export function MentorAssignmentsPage() {
             value={typeFilter}
             onChange={setTypeFilter}
             options={[
-              { value: 'all', label: 'Semua tipe' },
-              { value: 'task', label: 'Tugas' },
-              { value: 'quiz', label: 'Kuis' },
+              { value: 'all', label: 'All types' },
+              { value: 'task', label: 'Assignment' },
+              { value: 'quiz', label: 'Quiz' },
             ]}
             style={{ width: 140 }}
           />
@@ -158,12 +158,12 @@ export function MentorAssignmentsPage() {
         <Empty
           description={
             search.trim()
-              ? 'Tidak ada module yang cocok dengan pencarian.'
+              ? 'No modules match your search.'
               : typeFilter === 'all'
-                ? 'Belum ada submission dari course-mu.'
-                : `Tidak ada module ${
-                    typeFilter === 'quiz' ? 'kuis' : 'tugas'
-                  } untuk filter ini.`
+                ? 'No submissions from your courses yet.'
+                : `No ${
+                    typeFilter === 'quiz' ? 'quiz' : 'assignment'
+                  } modules for this filter.`
           }
           className="py-16"
         />
@@ -181,8 +181,8 @@ export function MentorAssignmentsPage() {
               </h3>
 
               <div className="mt-3 flex flex-wrap items-center gap-1">
-                {card.hasQuiz && <Tag color="purple" className="mr-0">Kuis</Tag>}
-                {card.hasTask && <Tag color="blue" className="mr-0">Tugas</Tag>}
+                {card.hasQuiz && <Tag color="purple" className="mr-0">Quiz</Tag>}
+                {card.hasTask && <Tag color="blue" className="mr-0">Assignment</Tag>}
               </div>
 
               <div className="mt-auto flex items-center justify-between pt-4">
@@ -191,11 +191,11 @@ export function MentorAssignmentsPage() {
                 </span>
                 {card.pending > 0 ? (
                   <span className="rounded-full bg-orange-50 px-2.5 py-1 text-xs font-medium text-orange-600">
-                    {card.pending} belum dinilai
+                    {card.pending} not graded yet
                   </span>
                 ) : (
                   <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-600">
-                    Semua sudah dinilai
+                    All graded
                   </span>
                 )}
               </div>

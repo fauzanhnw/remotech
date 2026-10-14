@@ -127,7 +127,7 @@ const iconOption = (value: string, label: string) => ({ value, label })
 /** Opsi ikon dikelompokkan untuk Select mentor. */
 export const BADGE_ICON_GROUPS: BadgeIconGroup[] = [
   {
-    label: 'Prestasi',
+    label: 'Achievement',
     values: [
       iconOption('trophy', 'Trophy'),
       iconOption('gold', 'Gold'),
@@ -139,7 +139,7 @@ export const BADGE_ICON_GROUPS: BadgeIconGroup[] = [
     ],
   },
   {
-    label: 'Semangat',
+    label: 'Spirit',
     values: [
       iconOption('fire', 'Fire'),
       iconOption('thunderbolt', 'Thunderbolt'),
@@ -148,7 +148,7 @@ export const BADGE_ICON_GROUPS: BadgeIconGroup[] = [
     ],
   },
   {
-    label: 'Waktu',
+    label: 'Time',
     values: [
       iconOption('clock', 'Clock'),
       iconOption('calendar', 'Calendar'),
@@ -167,7 +167,7 @@ export const BADGE_ICON_GROUPS: BadgeIconGroup[] = [
     ],
   },
   {
-    label: 'Emosi',
+    label: 'Emotion',
     values: [
       iconOption('smile', 'Smile'),
       iconOption('meh', 'Meh'),
@@ -175,7 +175,7 @@ export const BADGE_ICON_GROUPS: BadgeIconGroup[] = [
     ],
   },
   {
-    label: 'Belajar',
+    label: 'Learning',
     values: [
       iconOption('read', 'Read'),
       iconOption('book', 'Book'),
@@ -187,7 +187,7 @@ export const BADGE_ICON_GROUPS: BadgeIconGroup[] = [
     ],
   },
   {
-    label: 'Tim',
+    label: 'Team',
     values: [
       iconOption('team', 'Team'),
       iconOption('usergroup', 'User group'),
@@ -195,7 +195,7 @@ export const BADGE_ICON_GROUPS: BadgeIconGroup[] = [
     ],
   },
   {
-    label: 'Teknologi',
+    label: 'Technology',
     values: [
       iconOption('python', 'Python'),
       iconOption('java', 'Java'),
@@ -207,7 +207,7 @@ export const BADGE_ICON_GROUPS: BadgeIconGroup[] = [
     ],
   },
   {
-    label: 'Gaya hidup',
+    label: 'Lifestyle',
     values: [
       iconOption('coffee', 'Coffee'),
       iconOption('camera', 'Camera'),
@@ -219,7 +219,7 @@ export const BADGE_ICON_GROUPS: BadgeIconGroup[] = [
     ],
   },
   {
-    label: 'Ekonomi',
+    label: 'Economy',
     values: [
       iconOption('money', 'Money'),
       iconOption('wallet', 'Wallet'),

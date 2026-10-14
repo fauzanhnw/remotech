@@ -52,7 +52,7 @@ export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorP
       const file = input.files?.[0]
       if (!file) return
 
-      notifyInfo('Mengunggah gambar...')
+      notifyInfo('Uploading image...')
       uploadImage(file)
         .then(({ url }) => {
           const range = editor.getSelection()

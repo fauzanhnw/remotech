@@ -18,15 +18,15 @@ type TypeFilter = 'all' | 'quiz' | 'task'
 function statusTag(submission: Submission): ReactNode {
   if (submission.is_quiz) {
     if (submission.reviewed_by === 'system') {
-      return <Tag color="blue">Dinilai otomatis</Tag>
+      return <Tag color="blue">Auto-graded</Tag>
     }
     if (submission.reviewed_by) {
-      return <Tag color="green">Dinilai mentor</Tag>
+      return <Tag color="green">Mentor-graded</Tag>
     }
-    return <Tag color="orange">Menunggu penilaian essay</Tag>
+    return <Tag color="orange">Pending essay grading</Tag>
   }
-  if (submission.is_graded) return <Tag color="green">Dinilai</Tag>
-  return <Tag color="orange">Belum dinilai</Tag>
+  if (submission.is_graded) return <Tag color="green">Graded</Tag>
+  return <Tag color="orange">Not graded yet</Tag>
 }
 
 /** Detail penilaian: daftar submission (tugas/kuis) dari satu module. */
@@ -144,13 +144,13 @@ export function MentorAssignmentDetailPage() {
       render: (name: string) => <span className="font-medium">{name}</span>,
     },
     {
-      title: 'Tipe',
+      title: 'Type',
       key: 'type',
       render: (_, submission) =>
-        submission.is_quiz ? <Tag color="purple">Kuis</Tag> : <Tag color="blue">Tugas</Tag>,
+        submission.is_quiz ? <Tag color="purple">Quiz</Tag> : <Tag color="blue">Assignment</Tag>,
     },
     {
-      title: 'Tautan',
+      title: 'Link',
       key: 'link',
       render: (_, submission) =>
         submission.is_quiz ? (
@@ -169,7 +169,7 @@ export function MentorAssignmentDetailPage() {
         ),
     },
     {
-      title: 'Skor',
+      title: 'Score',
       key: 'score',
       render: (_, submission) => (
         <span>
@@ -192,7 +192,7 @@ export function MentorAssignmentDetailPage() {
           type={submission.is_graded ? 'default' : 'primary'}
           onClick={() => setGrading(submission)}
         >
-          {submission.is_graded ? 'Ubah Nilai' : 'Nilai'}
+          {submission.is_graded ? 'Change Grade' : 'Grade'}
         </Button>
       ),
     },
@@ -207,7 +207,7 @@ export function MentorAssignmentDetailPage() {
           to="/mentor/assignments"
           className="inline-flex items-center gap-1 text-sm text-blue-600 no-underline hover:underline"
         >
-          <ArrowLeftOutlined /> Kembali ke Penilaian
+          <ArrowLeftOutlined /> Back to Grading
         </Link>
 
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
@@ -217,7 +217,7 @@ export function MentorAssignmentDetailPage() {
               {course}
               {pendingCount > 0 && (
                 <span className="ml-1 font-medium text-orange-600">
-                  — {pendingCount} submission belum dinilai.
+                  — {pendingCount} submissions not graded yet.
                 </span>
               )}
             </p>
@@ -226,7 +226,7 @@ export function MentorAssignmentDetailPage() {
             <Input
               allowClear
               prefix={<SearchOutlined className="text-gray-400" />}
-              placeholder="Cari student atau tautan..."
+              placeholder="Search student or link..."
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               style={{ width: 220 }}
@@ -236,9 +236,9 @@ export function MentorAssignmentDetailPage() {
                 value={typeFilter}
                 onChange={setTypeFilter}
                 options={[
-                  { value: 'all', label: 'Semua tipe' },
-                  { value: 'task', label: 'Tugas' },
-                  { value: 'quiz', label: 'Kuis' },
+                  { value: 'all', label: 'All types' },
+                  { value: 'task', label: 'Assignment' },
+                  { value: 'quiz', label: 'Quiz' },
                 ]}
                 style={{ width: 140 }}
               />
@@ -247,9 +247,9 @@ export function MentorAssignmentDetailPage() {
               value={statusFilter}
               onChange={setStatusFilter}
               options={[
-                { value: 'all', label: 'Semua status' },
-                { value: 'pending', label: 'Belum dinilai' },
-                { value: 'graded', label: 'Sudah dinilai' },
+                { value: 'all', label: 'All statuses' },
+                { value: 'pending', label: 'Not graded yet' },
+                { value: 'graded', label: 'Graded' },
               ]}
               style={{ width: 160 }}
             />
@@ -267,10 +267,10 @@ export function MentorAssignmentDetailPage() {
         <Empty
           description={
             submissions.length === 0
-              ? 'Belum ada submission pada module ini.'
+              ? 'No submissions in this module yet.'
               : search.trim()
-                ? 'Tidak ada submission yang cocok dengan pencarian.'
-                : 'Tidak ada submission untuk filter ini.'
+                ? 'No submissions match your search.'
+                : 'No submissions for this filter.'
           }
           className="py-16"
         />

@@ -88,12 +88,12 @@ export function BadgeCard({
             type={complete ? 'success' : 'secondary'}
             className="mt-1 block text-xs"
           >
-            {complete ? 'Siap diklaim' : `${lockedProgress} module`}
+            {complete ? 'Ready to claim' : `${lockedProgress} module`}
           </Text>
         )}
         {earned && (
           <Text type="warning" className="mt-1 block text-xs">
-            Didapat
+            Earned
           </Text>
         )}
       </div>

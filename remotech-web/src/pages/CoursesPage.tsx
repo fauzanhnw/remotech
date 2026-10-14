@@ -91,7 +91,7 @@ export function CoursesPage() {
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-[#08060d]">Courses</h1>
         <p className="mt-2 text-gray-600">
-          Jelajahi materi pembelajaran Remote Challenge dan mulai perjalanan remote-mu.
+          Explore Remote Challenge learning materials and start your remote journey.
         </p>
       </div>
 
@@ -112,7 +112,7 @@ export function CoursesPage() {
             ))}
           </div>
         ) : !courses || courses.results.length === 0 ? (
-          <Empty description="Tidak ada course yang cocok." className="py-16" />
+          <Empty description="No courses match your search." className="py-16" />
         ) : (
           <>
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">

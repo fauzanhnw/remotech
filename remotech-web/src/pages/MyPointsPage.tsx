@@ -59,9 +59,9 @@ export function MyPointsPage() {
     return (
       <section className="mx-auto max-w px-4 py-10 pb-16 md:mx-8 xl:px-16">
         <h1 className="mb-6 text-3xl font-bold text-[#08060d]">My Point</h1>
-        <Empty description="Gagal memuat data poin." className="py-16">
+        <Empty description="Failed to load points data." className="py-16">
           <Button type="primary" onClick={() => void load()}>
-            Coba lagi
+            Try again
           </Button>
         </Empty>
       </section>
@@ -78,7 +78,7 @@ export function MyPointsPage() {
         <div>
           <h1 className="text-3xl font-bold text-[#08060d]">My Point</h1>
           <p className="mt-2 text-gray-600">
-            Akumulasi poin dari course yang kamu ikuti.
+            Accumulated points from the courses you have taken.
           </p>
         </div>
         <Button
@@ -105,14 +105,14 @@ export function MyPointsPage() {
               </Tag>
             </div>
             <p className="mt-2 text-sm text-gray-500">
-              Total poin dari {courseCount} course
+              Total points from {courseCount} courses
             </p>
           </div>
         </div>
         <div className="mt-4">
           {isMaxLevel ? (
             <p className="text-sm font-medium text-amber-600">
-              Level maksimal tercapai — kamu sudah Master!
+              Max level reached — you are already Master!
             </p>
           ) : (
             <>
@@ -126,7 +126,7 @@ export function MyPointsPage() {
                 <span className="font-semibold text-[#08060d]">
                   {data.points_to_next_level}
                 </span>{' '}
-                poin lagi menjuju ke level{' '}
+                more points to reach level{' '}
                 <span className="font-semibold text-[#08060d]">
                   {data.next_level_title}
                 </span>
@@ -138,18 +138,18 @@ export function MyPointsPage() {
 
       {!hasPoints && (
         <p className="mb-4 text-sm text-gray-500">
-          Selesaikan module (baca materi, submit tugas, kerjakan kuis) untuk
-          mulai mengumpulkan poin.
+          Complete modules (read the material, submit assignments, take quizzes) to
+          start collecting points.
         </p>
       )}
 
       {courseCount === 0 ? (
         <Empty
-          description="Kamu belum enroll course mana pun. Jelajahi katalog untuk mendaftar."
+          description="You haven't enrolled in any courses yet. Browse the catalog to sign up."
           className="py-16"
         >
           <Link to="/courses" className="inline-flex">
-            <Button type="primary">Jelajahi Katalog</Button>
+            <Button type="primary">Browse Catalog</Button>
           </Link>
         </Empty>
       ) : (
@@ -168,7 +168,7 @@ export function MyPointsPage() {
                   <p className="text-2xl font-bold leading-none text-[#08060d]">
                     {row.total_points}
                   </p>
-                  <p className="mt-1 text-xs text-gray-500">poin</p>
+                  <p className="mt-1 text-xs text-gray-500">points</p>
                 </div>
                 <span
                   className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
@@ -178,8 +178,8 @@ export function MyPointsPage() {
                   }`}
                 >
                   {row.rank == null
-                    ? 'Belum ada poin'
-                    : `#${row.rank} dari ${row.participants} peserta`}
+                    ? 'No points yet'
+                    : `#${row.rank} of ${row.participants} participants`}
                 </span>
               </div>
             </Link>
@@ -190,8 +190,8 @@ export function MyPointsPage() {
       <div className="mt-10">
         <h2 className="mb-1 text-xl font-bold text-[#08060d]">Badge</h2>
         <p className="mb-4 text-sm text-gray-600">
-          Kumpulkan badge dari course yang kamu ikuti — selesaikan semua module
-          atau raih penghargaan dari mentor.
+          Collect badges from the courses you have taken — complete all modules
+          or earn awards from your mentor.
         </p>
         <BadgeGrid showCourse />
       </div>

@@ -20,18 +20,18 @@ import { formatRupiah } from '@/utils/format'
 type StatusFilter = 'all' | 'pending' | 'settlement' | 'failed'
 
 const STATUS_META: Record<OrderStatus, { label: string; className: string }> = {
-  settlement: { label: 'Berhasil', className: 'bg-emerald-50 text-emerald-600' },
-  pending: { label: 'Menunggu pembayaran', className: 'bg-amber-50 text-amber-600' },
-  deny: { label: 'Ditolak', className: 'bg-red-50 text-red-600' },
-  cancel: { label: 'Dibatalkan', className: 'bg-gray-100 text-gray-600' },
-  expire: { label: 'Kedaluwarsa', className: 'bg-gray-100 text-gray-600' },
-  failure: { label: 'Gagal', className: 'bg-red-50 text-red-600' },
+  settlement: { label: 'Successful', className: 'bg-emerald-50 text-emerald-600' },
+  pending: { label: 'Pending payment', className: 'bg-amber-50 text-amber-600' },
+  deny: { label: 'Denied', className: 'bg-red-50 text-red-600' },
+  cancel: { label: 'Cancelled', className: 'bg-gray-100 text-gray-600' },
+  expire: { label: 'Expired', className: 'bg-gray-100 text-gray-600' },
+  failure: { label: 'Failed', className: 'bg-red-50 text-red-600' },
 }
 
 const FAILED_STATUSES: OrderStatus[] = ['deny', 'cancel', 'expire', 'failure']
 
 function formatDate(value: string): string {
-  return new Date(value).toLocaleString('id-ID', {
+  return new Date(value).toLocaleString('en-US', {
     dateStyle: 'medium',
     timeStyle: 'short',
   })
@@ -96,10 +96,10 @@ export function MyOrdersPage() {
       const updated = await checkPayment(order.id)
       applyOrder(updated)
       if (updated.transaction_status === 'settlement') {
-        notifySuccess('Pembayaran berhasil! Course sudah masuk ke daftar belajarmu.')
+        notifySuccess('Payment successful! The course is now in your learning list.')
       } else {
         notifyWarning(
-          `Status pembayaran: "${STATUS_META[updated.transaction_status].label}".`,
+          `Payment status: "${STATUS_META[updated.transaction_status].label}".`,
         )
       }
     } catch (error) {
@@ -122,12 +122,12 @@ export function MyOrdersPage() {
       applyOrder(updated)
 
       if (updated.transaction_status === 'settlement') {
-        notifySuccess('Pembayaran berhasil! Course sudah masuk ke daftar belajarmu.')
+        notifySuccess('Payment successful! The course is now in your learning list.')
       } else if (snapResult.status === 'error') {
-        notifyError('Pembayaran gagal. Silakan coba lagi.')
+        notifyError('Payment failed. Please try again.')
       } else {
         notifyWarning(
-          `Pembayaran masih berstatus "${STATUS_META[updated.transaction_status].label}". Silakan periksa kembali nanti.`,
+          `Payment is still "${STATUS_META[updated.transaction_status].label}". Please check again later.`,
         )
       }
     } catch (error) {
@@ -181,14 +181,14 @@ export function MyOrdersPage() {
             loading={actingId === order.id}
             onClick={() => void handlePay(order)}
           >
-            Bayar
+            Pay
           </Button>
           <Button
             size="small"
             loading={actingId === order.id}
             onClick={() => void handleCheck(order)}
           >
-            Cek status
+            Check status
           </Button>
         </Space>
       )
@@ -200,7 +200,7 @@ export function MyOrdersPage() {
           to={`/my-courses/${order.course}`}
           className="text-sm text-blue-600 no-underline hover:underline"
         >
-          Lihat course
+          View course
         </Link>
       )
     }
@@ -210,7 +210,7 @@ export function MyOrdersPage() {
         to={`/courses/${order.course}`}
         className="text-sm text-blue-600 no-underline hover:underline"
       >
-        Beli lagi
+        Buy again
       </Link>
     )
   }
@@ -239,27 +239,27 @@ export function MyOrdersPage() {
       ),
     },
     {
-      title: 'Nominal',
+      title: 'Amount',
       dataIndex: 'gross_amount',
       key: 'gross_amount',
       align: 'right',
       render: (amount: string) => formatRupiah(Number(amount)),
     },
     {
-      title: 'Metode',
+      title: 'Method',
       dataIndex: 'payment_type',
       key: 'payment_type',
       render: (value: string) => formatPaymentType(value),
     },
     {
-      title: 'Tanggal',
+      title: 'Date',
       key: 'created_at',
       render: (_, order) => (
         <div>
           <div>{formatDate(order.created_at)}</div>
           {order.paid_at && (
             <div className="text-xs text-gray-500">
-              Dibayar {formatDate(order.paid_at)}
+              Paid {formatDate(order.paid_at)}
             </div>
           )}
         </div>
@@ -284,9 +284,9 @@ export function MyOrdersPage() {
   ]
 
   const emptyDescription = () => {
-    if (orders.length === 0) return 'Kamu belum punya order.'
-    if (search.trim()) return 'Tidak ada order yang cocok dengan pencarian.'
-    return 'Tidak ada order untuk filter ini.'
+    if (orders.length === 0) return "You don't have any orders yet."
+    if (search.trim()) return 'No orders match your search.'
+    return 'No orders for this filter.'
   }
 
   return (
@@ -295,10 +295,10 @@ export function MyOrdersPage() {
         <div>
           <h1 className="text-3xl font-bold text-[#08060d]">My Order</h1>
           <p className="mt-2 text-gray-600">
-            Riwayat pembelian course
+            Course purchase history
             {pendingCount > 0 && (
               <span className="ml-1 font-medium text-amber-600">
-                {pendingCount} menunggu pembayaran
+                {pendingCount} pending payment
               </span>
             )}
           </p>
@@ -308,10 +308,10 @@ export function MyOrdersPage() {
             value={statusFilter}
             onChange={setStatusFilter}
             options={[
-              { value: 'all', label: 'Semua status' },
-              { value: 'pending', label: 'Menunggu pembayaran' },
-              { value: 'settlement', label: 'Berhasil' },
-              { value: 'failed', label: 'Gagal/Ditolak' },
+              { value: 'all', label: 'All statuses' },
+              { value: 'pending', label: 'Pending payment' },
+              { value: 'settlement', label: 'Successful' },
+              { value: 'failed', label: 'Failed/Denied' },
             ]}
             style={{ width: 180 }}
           />
@@ -325,7 +325,7 @@ export function MyOrdersPage() {
         <Input
           allowClear
           prefix={<SearchOutlined className="text-gray-400" />}
-          placeholder="Cari no. order atau judul course..."
+          placeholder="Search order no. or course title..."
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           className="max-w-sm"
@@ -336,7 +336,7 @@ export function MyOrdersPage() {
         <Empty description={emptyDescription()} className="py-16">
           {orders.length === 0 && (
             <Link to="/courses" className="inline-flex">
-              <Button type="primary">Jelajahi Katalog</Button>
+              <Button type="primary">Browse Catalog</Button>
             </Link>
           )}
         </Empty>

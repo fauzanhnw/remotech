@@ -5,11 +5,11 @@
  */
 
 export const LEVEL_TITLES = [
-  'Pemula',
-  'Pelajar',
-  'Praktisi',
-  'Profesional',
-  'Ahli',
+  'Beginner',
+  'Learner',
+  'Practitioner',
+  'Professional',
+  'Expert',
   'Master',
 ] as const
 

@@ -83,7 +83,7 @@ export function BadgeFormModal({
         payload.append('icon_name', values.icon_name ?? '')
         if (iconFile) payload.append('icon_image', iconFile)
         await updateBadge(badge.id, payload)
-        notifySuccess('Badge berhasil diperbarui.')
+        notifySuccess('Badge updated.')
       } else if (iconFile) {
         const payload = new FormData()
         payload.append('course', String(courseId))
@@ -94,7 +94,7 @@ export function BadgeFormModal({
         payload.append('icon_name', values.icon_name ?? '')
         payload.append('icon_image', iconFile)
         await createBadge(payload)
-        notifySuccess('Badge berhasil dibuat.')
+        notifySuccess('Badge created.')
       } else {
         await createBadge({
           course: courseId,
@@ -104,7 +104,7 @@ export function BadgeFormModal({
           rule_type: values.rule_type,
           icon_name: values.icon_name ?? '',
         })
-        notifySuccess('Badge berhasil dibuat.')
+        notifySuccess('Badge created.')
       }
       onSaved()
       onClose()
@@ -128,8 +128,8 @@ export function BadgeFormModal({
   return (
     <Modal
       open={open}
-      title={editing ? 'Edit Badge' : 'Buat Badge'}
-      okText={editing ? 'Simpan' : 'Buat'}
+      title={editing ? 'Edit Badge' : 'Create Badge'}
+      okText={editing ? 'Save' : 'Create'}
       confirmLoading={submitting}
       onCancel={onClose}
       onOk={() => form.submit()}
@@ -143,46 +143,46 @@ export function BadgeFormModal({
         onFinish={(values) => void handleSubmit(values)}
       >
         <Form.Item
-          label="Nama badge"
+          label="Badge name"
           name="name"
-          rules={[{ required: true, message: 'Nama badge wajib diisi' }]}
+          rules={[{ required: true, message: 'Badge name is required' }]}
         >
-          <Input placeholder="Mis. Graduate, Best Assignment" maxLength={100} />
+          <Input placeholder="e.g. Graduate, Best Assignment" maxLength={100} />
         </Form.Item>
         <Form.Item
-          label="Deskripsi"
+          label="Description"
           name="description"
-          rules={[{ required: true, message: 'Deskripsi wajib diisi' }]}
+          rules={[{ required: true, message: 'Description is required' }]}
         >
-          <Input.TextArea rows={2} placeholder="Syarat atau makna badge ini" />
+          <Input.TextArea rows={2} placeholder="Criteria or meaning of this badge" />
         </Form.Item>
         <Form.Item
           label="Reward"
           name="reward"
-          extra="Hadiah yang didapat bersama badge ini (opsional)."
+          extra="Reward earned along with this badge (optional)."
         >
           <Input.TextArea
             autoSize={{ minRows: 1, maxRows: 4 }}
-            placeholder="Mis. Sertifikat + akses premium 1 bulan"
+            placeholder="e.g. Certificate + 1 month premium access"
           />
         </Form.Item>
         <Form.Item
-          label="Tipe"
+          label="Type"
           name="rule_type"
-          rules={[{ required: true, message: 'Tipe badge wajib dipilih' }]}
-          extra="Otomatis diberi sistem saat semua module selesai; manual diberi mentor."
+          rules={[{ required: true, message: 'Badge type is required' }]}
+          extra="Automatic: awarded by the system when all modules are complete; manual: awarded by the mentor."
         >
           <Select
             options={[
-              { value: 'course_complete', label: 'Otomatis — semua module selesai' },
-              { value: 'manual', label: 'Manual — diberi mentor' },
+              { value: 'course_complete', label: 'Automatic — all modules completed' },
+              { value: 'manual', label: 'Manual — awarded by mentor' },
             ]}
           />
         </Form.Item>
-        <Form.Item label="Ikon preset" name="icon_name">
+        <Form.Item label="Preset icon" name="icon_name">
           <Select
             allowClear
-            placeholder="Pilih ikon (opsional)"
+            placeholder="Select an icon (optional)"
             optionFilterProp="label"
             options={iconOptions}
             optionRender={(option) => (
@@ -194,8 +194,8 @@ export function BadgeFormModal({
           />
         </Form.Item>
         <Form.Item
-          label="Unggah ikon (opsional)"
-          extra="Jika diunggah, gambar ini menang atas ikon preset."
+          label="Upload icon (optional)"
+          extra="If uploaded, this image takes precedence over the preset icon."
         >
           <Upload
             accept="image/*"
@@ -211,7 +211,7 @@ export function BadgeFormModal({
                 : []
             }
           >
-            <Button icon={<PictureOutlined />}>Pilih gambar</Button>
+            <Button icon={<PictureOutlined />}>Choose image</Button>
           </Upload>
         </Form.Item>
       </Form>

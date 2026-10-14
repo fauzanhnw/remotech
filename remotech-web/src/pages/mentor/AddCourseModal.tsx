@@ -51,7 +51,7 @@ export function AddCourseModal({ open, onClose, onCreated }: AddCourseModalProps
         is_open: values.is_open ?? false,
         thumbnail,
       })
-      notifySuccess('Course berhasil dibuat.')
+      notifySuccess('Course created.')
       onCreated()
       onClose()
     } catch (error) {
@@ -93,11 +93,11 @@ export function AddCourseModal({ open, onClose, onCreated }: AddCourseModalProps
           name="title"
           rules={[{ required: true, message: 'Title is required' }]}
         >
-          <Input placeholder="Judul course" maxLength={200} />
+          <Input placeholder="Course title" maxLength={200} />
         </Form.Item>
 
         <Form.Item label="Description" name="description">
-          <Input.TextArea rows={4} placeholder="Deskripsi singkat course" />
+          <Input.TextArea rows={4} placeholder="Short course description" />
         </Form.Item>
 
         <Form.Item
@@ -105,7 +105,7 @@ export function AddCourseModal({ open, onClose, onCreated }: AddCourseModalProps
           name="price"
           rules={[{ required: true, message: 'Price is required' }]}
         >
-          <InputNumber min={0} step={10000} placeholder="0 = gratis" className="w-full" />
+          <InputNumber min={0} step={10000} placeholder="0 = free" className="w-full" />
         </Form.Item>
 
         <Form.Item
@@ -124,7 +124,7 @@ export function AddCourseModal({ open, onClose, onCreated }: AddCourseModalProps
             label="Publish"
             name="is_publish"
             valuePropName="checked"
-            extra="Tampil di katalog publik."
+            extra="Shown in the public catalog."
           >
             <Switch />
           </Form.Item>
@@ -133,7 +133,7 @@ export function AddCourseModal({ open, onClose, onCreated }: AddCourseModalProps
             label="Open for enrollment"
             name="is_open"
             valuePropName="checked"
-            extra="Penerimaan pembelian baru."
+            extra="Accepting new purchases."
           >
             <Switch />
           </Form.Item>

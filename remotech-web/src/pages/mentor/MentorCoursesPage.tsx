@@ -99,7 +99,7 @@ export function MentorCoursesPage() {
         <div>
           <h1 className="text-3xl font-bold text-[#08060d]">My Courses</h1>
           <p className="mt-2 text-gray-600">
-            Kelola Course
+            Manage Courses
           </p>
         </div>
 
@@ -136,8 +136,8 @@ export function MentorCoursesPage() {
           <Empty
             description={
               search
-                ? 'Tidak ada course yang cocok.'
-                : 'Belum ada course. Klik Add Course untuk membuat course pertama.'
+                ? 'No courses match.'
+                : 'No courses yet. Click Add Course to create your first course.'
             }
             className="py-16"
           />

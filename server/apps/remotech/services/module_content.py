@@ -16,8 +16,8 @@ def validate_module_content(attrs, instance=None):
         raise ValidationError(
             {
                 "module": [
-                    "Module quiz tidak memakai content — kelola soalnya "
-                    "lewat resource question."
+                    "Quiz modules do not use content — manage their "
+                    "questions via the question resource."
                 ]
             }
         )

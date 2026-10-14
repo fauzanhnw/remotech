@@ -12,8 +12,8 @@ interface BadgeDetailModalProps {
 
 /** Label pemberi badge (sama makna dengan tooltip daftar mentor). */
 function awardedByLabel(awardedBy: string): string {
-  if (awardedBy === 'system') return 'Diberi sistem (otomatis)'
-  return `Diberi mentor: ${awardedBy}`
+  if (awardedBy === 'system') return 'Awarded by system (automatic)'
+  return `Awarded by mentor: ${awardedBy}`
 }
 
 /**
@@ -66,7 +66,7 @@ export function BadgeDetailModal({ entry, onClose }: BadgeDetailModalProps) {
       <div className="mt-4 space-y-3 text-sm">
         <div>
           <Text strong className="block text-[#08060d]">
-            Deskripsi
+            Description
           </Text>
           <Paragraph className="mb-0 mt-0.5 whitespace-pre-wrap text-gray-700">
             {badge.description}
@@ -76,7 +76,7 @@ export function BadgeDetailModal({ entry, onClose }: BadgeDetailModalProps) {
         {badge.reward && (
           <div>
             <Text strong className="block text-[#08060d]">
-              Hadiah
+              Reward
             </Text>
             <Paragraph className="mb-0 mt-0.5 whitespace-pre-wrap text-green-700">
               {badge.reward}
@@ -86,10 +86,10 @@ export function BadgeDetailModal({ entry, onClose }: BadgeDetailModalProps) {
 
         <div className="flex flex-wrap items-center gap-2">
           <Text strong className="text-[#08060d]">
-            Tipe
+            Type
           </Text>
           <Tag color={badge.rule_type === 'course_complete' ? 'blue' : 'default'}>
-            {badge.rule_type === 'course_complete' ? 'Otomatis' : 'Manual'}
+            {badge.rule_type === 'course_complete' ? 'Automatic' : 'Manual'}
           </Tag>
         </div>
 
@@ -99,10 +99,10 @@ export function BadgeDetailModal({ entry, onClose }: BadgeDetailModalProps) {
           </Text>
           {earned ? (
             <div className="mt-0.5 space-y-0.5">
-              <Text type="success">Didapat</Text>
+              <Text type="success">Earned</Text>
               {earnedAt && (
                 <Text type="secondary" className="block">
-                  {new Date(earnedAt).toLocaleDateString('id-ID', {
+                  {new Date(earnedAt).toLocaleDateString('en-US', {
                     day: 'numeric',
                     month: 'long',
                     year: 'numeric',
@@ -117,9 +117,9 @@ export function BadgeDetailModal({ entry, onClose }: BadgeDetailModalProps) {
             <Text type="secondary" className="mt-0.5 block">
               {lockedProgress != null
                 ? complete
-                  ? 'Siap diklaim'
-                  : `${lockedProgress} module selesai`
-                : 'Belum didapat'}
+                  ? 'Ready to claim'
+                  : `${lockedProgress} modules completed`
+                : 'Not earned yet'}
             </Text>
           )}
         </div>

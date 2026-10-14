@@ -61,7 +61,7 @@ export function notifyEarnedBadges(badges: Badge[] | undefined): void {
   if (!badges?.length) return
   for (const badge of badges) {
     toast().success({
-      message: 'Badge baru didapat!',
+      message: 'New badge earned!',
       description: `${badge.name} — ${badge.description}`,
       icon: badge.icon_image ? (
         <img

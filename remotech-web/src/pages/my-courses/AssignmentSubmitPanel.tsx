@@ -25,14 +25,14 @@ interface AssignmentSubmitPanelProps {
 
 const validateUrl = (value: string): string | null => {
   const trimmed = value.trim()
-  if (!trimmed) return 'Wajib isi tautan tugas.'
+  if (!trimmed) return 'Assignment link is required.'
   try {
     const parsed = new URL(trimmed)
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-      return 'URL harus diawali http:// atau https://'
+      return 'URL must start with http:// or https://'
     }
   } catch {
-    return 'Masukkan URL yang valid.'
+    return 'Enter a valid URL.'
   }
   return null
 }
@@ -59,7 +59,7 @@ export function AssignmentSubmitPanel({ module, onSubmitted }: AssignmentSubmitP
   const isPastDue = dueAt != null && now > new Date(dueAt).getTime()
   const formattedDueAt = useMemo(() => {
     if (dueAt == null) return null
-    return new Date(dueAt).toLocaleString('id-ID', {
+    return new Date(dueAt).toLocaleString('en-US', {
       day: 'numeric',
       month: 'long',
       year: 'numeric',
@@ -130,7 +130,7 @@ export function AssignmentSubmitPanel({ module, onSubmitted }: AssignmentSubmitP
       }
       setUrl(trimmed)
 
-      notifySuccess('Tugas berhasil dikumpulkan.')
+      notifySuccess('Assignment submitted successfully.')
       onSubmitted()
     } catch (error) {
       notifyError(error)
@@ -141,7 +141,7 @@ export function AssignmentSubmitPanel({ module, onSubmitted }: AssignmentSubmitP
 
   return (
     <div>
-      <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Penugasan</p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Assignment</p>
       <h3 className="mt-0.5 text-lg font-semibold text-[#08060d]">
         {assignment?.name ?? module.title}
       </h3>
@@ -155,11 +155,11 @@ export function AssignmentSubmitPanel({ module, onSubmitted }: AssignmentSubmitP
         <p className="mt-2 flex items-center gap-1.5 text-sm text-gray-600">
           <ClockCircleOutlined />
           <span>
-            Tenggat: <span className="font-medium">{formattedDueAt}</span>
+            Deadline: <span className="font-medium">{formattedDueAt}</span>
           </span>
           {isPastDue && (
             <Tag color="red" className="mr-0">
-              Lewat tenggat
+              Past deadline
             </Tag>
           )}
         </p>
@@ -169,8 +169,8 @@ export function AssignmentSubmitPanel({ module, onSubmitted }: AssignmentSubmitP
           className="mt-3"
           type="warning"
           showIcon
-          message={`Lewat tenggat — poin berkurang ${module.late_penalty_percent}%`}
-          description="Tugas tetap bisa dikumpulkan, tetapi poin yang masuk leaderboard akan dipotong."
+          message={`Past deadline — points reduced by ${module.late_penalty_percent}%`}
+          description="The assignment can still be submitted, but points going to the leaderboard will be reduced."
         />
       )}
 
@@ -180,12 +180,12 @@ export function AssignmentSubmitPanel({ module, onSubmitted }: AssignmentSubmitP
         <Empty
           className="mt-4"
           image={Empty.PRESENTED_IMAGE_SIMPLE}
-          description="Belum ada tugas dari mentor untuk module ini."
+          description="There is no assignment from the mentor for this module yet."
         />
       ) : (
         <div className="mt-4 space-y-3">
           <label htmlFor="submission-url" className="block text-sm font-medium text-[#08060d]">
-            Tautan tugas <span className="text-red-500">*</span>
+            Assignment link <span className="text-red-500">*</span>
           </label>
           <Input
             id="submission-url"
@@ -210,7 +210,7 @@ export function AssignmentSubmitPanel({ module, onSubmitted }: AssignmentSubmitP
               icon={<UploadOutlined />}
               onClick={() => void handleSubmit()}
             >
-              {submission ? 'Perbarui Tautan' : 'Kumpulkan Tugas'}
+              {submission ? 'Update Link' : 'Submit Assignment'}
             </Button>
             {submission && (
               <a
@@ -219,7 +219,7 @@ export function AssignmentSubmitPanel({ module, onSubmitted }: AssignmentSubmitP
                 rel="noreferrer"
                 className="text-sm text-blue-600 no-underline hover:underline"
               >
-                Lihat tautan yang dikirim <LinkOutlined />
+                View submitted link <LinkOutlined />
               </a>
             )}
           </div>
@@ -227,8 +227,8 @@ export function AssignmentSubmitPanel({ module, onSubmitted }: AssignmentSubmitP
           {submission && submission.submitted_on && (
             <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
               <span>
-                Terkumpul{' '}
-                {new Date(submission.submitted_on).toLocaleString('id-ID', {
+                Submitted{' '}
+                {new Date(submission.submitted_on).toLocaleString('en-US', {
                   day: 'numeric',
                   month: 'long',
                   year: 'numeric',
@@ -238,20 +238,20 @@ export function AssignmentSubmitPanel({ module, onSubmitted }: AssignmentSubmitP
               </span>
               {submission.is_late && (
                 <Tag color="red" className="mr-0">
-                  Telat
+                  Late
                 </Tag>
               )}
               {submission.is_graded ? (
                 <Tag color="green" className="mr-0">
-                  Skor: {submission.score}
+                  Score: {submission.score}
                   {submission.max_score != null && `/${submission.max_score}`}
                   {submission.is_late &&
                     submission.effective_score !== submission.score &&
-                    ` · Efektif: ${submission.effective_score}`}
+                    ` · Effective: ${submission.effective_score}`}
                 </Tag>
               ) : (
                 <Tag color="orange" className="mr-0">
-                  Menunggu penilaian mentor
+                  Pending mentor grading
                 </Tag>
               )}
             </div>

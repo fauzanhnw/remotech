@@ -101,7 +101,7 @@ export function LeaderboardPanel({
     if (state.status === 'error') {
       return (
         <p className="text-sm text-red-500">
-          Gagal memuat rincian poin. Buka lagi untuk mencoba kembali.
+          Failed to load points details. Reopen to try again.
         </p>
       )
     }
@@ -109,7 +109,7 @@ export function LeaderboardPanel({
       return (
         <Empty
           image={Empty.PRESENTED_IMAGE_SIMPLE}
-          description="Belum ada rincian poin untuk peserta ini."
+          description="No points details for this participant yet."
         />
       )
     }
@@ -146,14 +146,14 @@ export function LeaderboardPanel({
 
   if (rows.length === 0) {
     return (
-      <Empty description="Belum ada peserta yang mengumpulkan poin di course ini." />
+      <Empty description="No participants have earned points in this course yet." />
     )
   }
 
   return (
     <div>
       <p className="mb-3 text-sm text-gray-500">
-        {rows.length} peserta berpoin, buka salah satu untuk rincian per module.
+        {rows.length} participants with points — open one for per-module details.
       </p>
       <Collapse
         ghost
@@ -194,13 +194,13 @@ export function LeaderboardPanel({
                 </Tag>
                 {row.user === user?.id && (
                   <Tag color="blue" className="mr-0">
-                    Kamu
+                    You
                   </Tag>
                 )}
               </span>
               <span className="flex shrink-0 items-center gap-2">
                 <span className="text-sm font-semibold text-[#08060d]">
-                  {row.total_points} poin
+                  {row.total_points} points
                 </span>
                 {onGrantBonus && (
                   <Button
@@ -211,7 +211,7 @@ export function LeaderboardPanel({
                       onGrantBonus(row)
                     }}
                   >
-                    Beri Poin
+                    Award Points
                   </Button>
                 )}
               </span>

@@ -142,7 +142,7 @@ export function CourseDetailPage() {
 
       if (result.enrolled) {
         void refreshEnrollment()
-        notifySuccess('Berhasil enroll. Selamat belajar!')
+        notifySuccess('Enrolled successfully. Happy learning!')
         return
       }
 
@@ -152,12 +152,12 @@ export function CourseDetailPage() {
 
         if (order.transaction_status === 'settlement') {
           void refreshEnrollment()
-          notifySuccess('Pembayaran berhasil! Course sudah masuk ke daftar belajarmu.')
+          notifySuccess('Payment successful! The course is now in your learning list.')
         } else if (snapResult.status === 'error') {
-          notifyError('Pembayaran gagal. Silakan coba lagi.')
+          notifyError('Payment failed. Please try again.')
         } else {
           notifyWarning(
-            `Pembayaran masih berstatus "${order.transaction_status}". Silakan periksa kembali nanti.`,
+            `Payment is still "${order.transaction_status}". Please check again later.`,
           )
         }
       }
@@ -193,17 +193,17 @@ export function CourseDetailPage() {
   if (loadFailed || !course) {
     return (
       <section className="mx-auto max-w-6xl px-4 py-16">
-        <Empty description="Gagal memuat course. Silakan coba lagi." />
+        <Empty description="Failed to load the course. Please try again." />
       </section>
     )
   }
 
   const isClosed = !course.is_open && !enrolled
   const buttonLabel = enrolled
-    ? 'Lanjutkan Belajar'
+    ? 'Continue Learning'
     : course.price <= 0
-      ? 'Enroll Gratis'
-      : 'Beli Sekarang'
+      ? 'Enroll Free'
+      : 'Buy Now'
 
   return (
     <>
@@ -226,7 +226,7 @@ export function CourseDetailPage() {
 
           <div>
             <Tag color={course.is_open ? 'green' : 'red'}>
-              {course.is_open ? 'Pendaftaran Dibuka' : 'Pendaftaran Ditutup'}
+              {course.is_open ? 'Enrollment Open' : 'Enrollment Closed'}
             </Tag>
             <h1 className="mt-3 text-3xl font-bold text-[#08060d] md:text-3xl lg:text-4xl">
               {course.title}
@@ -249,7 +249,7 @@ export function CourseDetailPage() {
 
             {isClosed && (
               <p className="mt-3 text-sm text-red-500">
-                Pendaftaran course ini sedang ditutup.
+                Enrollment for this course is currently closed.
               </p>
             )}
           </div>
@@ -258,9 +258,9 @@ export function CourseDetailPage() {
 
       {/* Section 2: deskripsi */}
       <section className="mx-auto max-w-6xl px-4 py-10">
-        <h2 className="text-2xl font-bold text-[#08060d]">Deskripsi</h2>
+        <h2 className="text-2xl font-bold text-[#08060d]">Description</h2>
         <p className="mt-4 whitespace-pre-line leading-relaxed text-gray-600">
-          {course.description || 'Belum ada deskripsi untuk course ini.'}
+          {course.description || 'There is no description for this course yet.'}
         </p>
       </section>
 
@@ -269,7 +269,7 @@ export function CourseDetailPage() {
         <section className="mx-auto max-w-6xl px-4 pb-10">
           <h2 className="text-2xl font-bold text-[#08060d]">Badge Course</h2>
           <p className="mt-1 text-sm text-gray-600">
-            Badge yang bisa kamu dapatkan pada course ini.
+            Badges you can earn in this course.
           </p>
           <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {badges.map((badge) => (
@@ -297,7 +297,7 @@ export function CourseDetailPage() {
           {modules.length > 0 ? (
             <ModuleAccordion modules={modules} />
           ) : (
-            <Empty description="Belum ada module untuk course ini." />
+            <Empty description="There are no modules in this course yet." />
           )}
         </div>
       </section>

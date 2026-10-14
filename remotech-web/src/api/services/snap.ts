@@ -26,7 +26,7 @@ export interface SnapResult {
 function requireClientKey(): string {
   const key = import.meta.env.VITE_MIDTRANS_CLIENT_KEY
   if (!key) {
-    throw new Error('VITE_MIDTRANS_CLIENT_KEY belum di-set di .env')
+    throw new Error('VITE_MIDTRANS_CLIENT_KEY is not set in .env')
   }
   return key
 }
@@ -50,7 +50,7 @@ export function loadSnapScript(): Promise<void> {
   scriptPromise = new Promise<void>((resolve, reject) => {
     const fail = () => {
       scriptPromise = null
-      reject(new Error('Gagal memuat script Snap Midtrans.'))
+      reject(new Error('Failed to load the Midtrans Snap script.'))
     }
 
     const existing = document.getElementById(SCRIPT_ID)

@@ -125,8 +125,8 @@ export function toApiError(error: unknown): ApiError {
       return httpError(
         response.status,
         response.status >= 500
-          ? 'Terjadi kesalahan pada server. Coba lagi nanti.'
-          : `Permintaan gagal (HTTP ${response.status}).`,
+          ? 'Something went wrong on the server. Please try again later.'
+          : `Request failed (HTTP ${response.status}).`,
       )
     }
 

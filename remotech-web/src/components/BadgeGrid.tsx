@@ -63,8 +63,8 @@ export function BadgeGrid({
       <Empty
         description={
           earnedOnly
-            ? 'Belum ada badge yang didapat.'
-            : 'Belum ada badge di course yang kamu ikuti.'
+            ? 'No badges earned yet.'
+            : 'No badges in the courses you have enrolled in yet.'
         }
         className="py-8"
       />

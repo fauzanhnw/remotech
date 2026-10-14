@@ -45,7 +45,7 @@ export function BadgePreviewModal({ badge, onClose }: BadgePreviewModalProps) {
       <div className="mt-4 space-y-3 text-sm">
         <div>
           <Text strong className="block text-[#08060d]">
-            Deskripsi
+            Description
           </Text>
           <Paragraph className="mb-0 mt-0.5 whitespace-pre-wrap text-gray-700">
             {badge.description}
@@ -55,7 +55,7 @@ export function BadgePreviewModal({ badge, onClose }: BadgePreviewModalProps) {
         {badge.reward && (
           <div>
             <Text strong className="block text-[#08060d]">
-              Hadiah
+              Reward
             </Text>
             <Paragraph className="mb-0 mt-0.5 whitespace-pre-wrap text-green-700">
               {badge.reward}

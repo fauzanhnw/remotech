@@ -44,24 +44,24 @@ interface AssignmentItem {
 }
 
 const STATUS_META: Record<Status, { label: string; className: string }> = {
-  todo: { label: 'Belum dikerjakan', className: 'bg-gray-100 text-gray-600' },
-  doing: { label: 'Sedang dikerjakan', className: 'bg-blue-50 text-blue-600' },
-  pending: { label: 'Menunggu penilaian', className: 'bg-orange-50 text-orange-600' },
-  graded: { label: 'Sudah dinilai', className: 'bg-emerald-50 text-emerald-600' },
+  todo: { label: 'Not started', className: 'bg-gray-100 text-gray-600' },
+  doing: { label: 'In progress', className: 'bg-blue-50 text-blue-600' },
+  pending: { label: 'Pending grading', className: 'bg-orange-50 text-orange-600' },
+  graded: { label: 'Graded', className: 'bg-emerald-50 text-emerald-600' },
 }
 
 const ACTION_LABEL: Record<Status, string> = {
-  todo: 'Kerjakan',
-  doing: 'Lanjutkan',
-  pending: 'Lihat detail',
-  graded: 'Lihat hasil',
+  todo: 'Start',
+  doing: 'Continue',
+  pending: 'View details',
+  graded: 'View results',
 }
 
 const STATUS_RANK: Record<Status, number> = { todo: 0, doing: 1, pending: 2, graded: 3 }
 
 function formatDueAt(value: string | null): string | null {
   if (value == null) return null
-  return new Date(value).toLocaleString('id-ID', {
+  return new Date(value).toLocaleString('en-US', {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
@@ -236,18 +236,18 @@ export function MyAssignmentsPage() {
     const counts: Record<Status, number> = { todo: 0, doing: 0, pending: 0, graded: 0 }
     for (const item of visible) counts[item.status] += 1
     const parts: string[] = []
-    if (counts.todo > 0) parts.push(`${counts.todo} belum dikerjakan`)
-    if (counts.doing > 0) parts.push(`${counts.doing} sedang dikerjakan`)
-    if (counts.pending > 0) parts.push(`${counts.pending} menunggu penilaian`)
+    if (counts.todo > 0) parts.push(`${counts.todo} not started`)
+    if (counts.doing > 0) parts.push(`${counts.doing} in progress`)
+    if (counts.pending > 0) parts.push(`${counts.pending} pending grading`)
     return parts.join(' · ')
   }, [visible])
 
   const emptyDescription = () => {
-    if (enrollmentCount === 0) return 'Kamu belum enroll course mana pun.'
+    if (enrollmentCount === 0) return "You haven't enrolled in any courses yet."
     if (items.length === 0)
-      return 'Belum ada tugas atau kuis pada course yang kamu ikuti.'
-    if (search.trim()) return 'Tidak ada assignment yang cocok dengan pencarian.'
-    return 'Tidak ada assignment untuk filter ini.'
+      return "There are no assignments or quizzes in the courses you've taken yet."
+    if (search.trim()) return 'No assignments match your search.'
+    return 'No assignments for this filter.'
   }
 
   return (
@@ -256,7 +256,7 @@ export function MyAssignmentsPage() {
         <div>
           <h1 className="text-3xl font-bold text-[#08060d]">My Assignment</h1>
           <p className="mt-2 text-gray-600">
-            Tugas dan kuis dari course yang kamu ambil
+            Assignments and quizzes from your courses
             {summary && (
               <span className="ml-1 font-medium text-orange-600">{summary}</span>
             )}
@@ -268,7 +268,7 @@ export function MyAssignmentsPage() {
         <Input
           allowClear
           prefix={<SearchOutlined className="text-gray-400" />}
-          placeholder="Cari judul module atau course..."
+          placeholder="Search module or course title..."
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           className="w-full"
@@ -278,9 +278,9 @@ export function MyAssignmentsPage() {
             value={typeFilter}
             onChange={setTypeFilter}
             options={[
-              { value: 'all', label: 'Semua tipe' },
-              { value: 'task', label: 'Tugas' },
-              { value: 'quiz', label: 'Kuis' },
+              { value: 'all', label: 'All types' },
+              { value: 'task', label: 'Assignment' },
+              { value: 'quiz', label: 'Quiz' },
             ]}
             style={{ width: 120 }}
           />
@@ -288,11 +288,11 @@ export function MyAssignmentsPage() {
             value={statusFilter}
             onChange={setStatusFilter}
             options={[
-              { value: 'all', label: 'Semua status' },
-              { value: 'todo', label: 'Belum dikerjakan' },
-              { value: 'doing', label: 'Sedang dikerjakan' },
-              { value: 'pending', label: 'Menunggu penilaian' },
-              { value: 'graded', label: 'Sudah dinilai' },
+              { value: 'all', label: 'All statuses' },
+              { value: 'todo', label: 'Not started' },
+              { value: 'doing', label: 'In progress' },
+              { value: 'pending', label: 'Pending grading' },
+              { value: 'graded', label: 'Graded' },
             ]}
             style={{ width: 170 }}
           />
@@ -313,7 +313,7 @@ export function MyAssignmentsPage() {
         <Empty description={emptyDescription()} className="py-16">
           {enrollmentCount === 0 && (
             <Link to="/courses" className="inline-flex">
-              <Button type="primary">Jelajahi Katalog</Button>
+              <Button type="primary">Browse Catalog</Button>
             </Link>
           )}
         </Empty>
@@ -332,7 +332,7 @@ export function MyAssignmentsPage() {
 
               <div className="mt-3 flex flex-wrap items-center gap-1">
                 <Tag color={item.kind === 'quiz' ? 'purple' : 'blue'} className="mr-0">
-                  {item.kind === 'quiz' ? 'Kuis' : 'Tugas'}
+                  {item.kind === 'quiz' ? 'Quiz' : 'Assignment'}
                 </Tag>
                 <span
                   className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_META[item.status].className}`}
@@ -341,7 +341,7 @@ export function MyAssignmentsPage() {
                 </span>
                 {item.isLate && (
                   <Tag color="red" className="mr-0">
-                    Terlambat
+                    Late
                   </Tag>
                 )}
               </div>
@@ -349,7 +349,7 @@ export function MyAssignmentsPage() {
               {item.dueAt && (
                 <p className="mt-2 flex items-center gap-1 text-xs text-gray-500">
                   <ClockCircleOutlined />
-                  <span>Tenggat: {formatDueAt(item.dueAt)}</span>
+                  <span>Deadline: {formatDueAt(item.dueAt)}</span>
                 </p>
               )}
 
@@ -359,13 +359,13 @@ export function MyAssignmentsPage() {
                 </span>
                 {item.status === 'graded' && (
                   <span className="text-xs font-semibold text-emerald-600">
-                    Skor: {item.score}
+                    Score: {item.score}
                     {item.maxScore != null && `/${item.maxScore}`}
                     {item.isLate &&
                       item.effectiveScore != null &&
                       item.effectiveScore !== item.score && (
                         <span className="ml-1 font-medium text-red-500">
-                          · Efektif: {item.effectiveScore}
+                          · Effective: {item.effectiveScore}
                         </span>
                       )}
                   </span>

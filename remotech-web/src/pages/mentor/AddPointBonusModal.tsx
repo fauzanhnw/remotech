@@ -84,7 +84,7 @@ export function AddPointBonusModal({
     setSubmitting(true)
     try {
       await createPointBonus({ course: courseId, ...values })
-      notifySuccess('Bonus poin berhasil diberikan.')
+      notifySuccess('Point bonus awarded.')
       onGranted()
       onClose()
     } catch (error) {
@@ -107,8 +107,8 @@ export function AddPointBonusModal({
   return (
     <Modal
       open={open}
-      title="Tambah Poin Manual"
-      okText="Berikan"
+      title="Add Manual Points"
+      okText="Award"
       confirmLoading={submitting}
       onCancel={onClose}
       onOk={() => form.submit()}
@@ -124,12 +124,12 @@ export function AddPointBonusModal({
         <Form.Item
           label="Student"
           name="user"
-          rules={[{ required: true, message: 'Pilih student terlebih dahulu' }]}
+          rules={[{ required: true, message: 'Select a student first' }]}
         >
           <Select
             showSearch
             loading={loading}
-            placeholder="Cari student enrolled..."
+            placeholder="Search enrolled students..."
             optionFilterProp="label"
             options={enrollments.map((row) => ({
               value: row.user,
@@ -138,18 +138,18 @@ export function AddPointBonusModal({
           />
         </Form.Item>
         <Form.Item
-          label="Poin"
+          label="Points"
           name="point"
-          rules={[{ required: true, message: 'Isi jumlah poin' }]}
+          rules={[{ required: true, message: 'Enter the number of points' }]}
         >
           <InputNumber min={1} placeholder="50" style={{ width: '100%' }} />
         </Form.Item>
         <Form.Item
-          label="Alasan"
+          label="Reason"
           name="description"
-          rules={[{ required: true, message: 'Isi alasan pemberian poin' }]}
+          rules={[{ required: true, message: 'Enter the reason for awarding points' }]}
         >
-          <Input placeholder="Mis. Kontribusi luar biasa di diskusi" maxLength={255} />
+          <Input placeholder="e.g. Outstanding contribution in the discussion" maxLength={255} />
         </Form.Item>
       </Form>
     </Modal>

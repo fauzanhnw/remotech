@@ -7,11 +7,11 @@ Level dihitung setiap kali dibutuhkan dari total poin lintas course
 # (ambang poin minimal, nama level) — urut menaik; tanpa ambang atas.
 # Asumsi ~100 poin per modul bernilai (quiz/tugas), ~1.000 per course penuh.
 LEVEL_TIERS: tuple[tuple[int, str], ...] = (
-    (0, "Pemula"),
-    (500, "Pelajar"),
-    (1500, "Praktisi"),
-    (4000, "Profesional"),
-    (10000, "Ahli"),
+    (0, "Beginner"),
+    (500, "Learner"),
+    (1500, "Practitioner"),
+    (4000, "Professional"),
+    (10000, "Expert"),
     (25000, "Master"),
 )
 

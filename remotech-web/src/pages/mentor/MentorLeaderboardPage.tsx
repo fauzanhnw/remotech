@@ -102,7 +102,7 @@ export function MentorLeaderboardPage() {
   const handleDelete = async (id: number) => {
     try {
       await deletePointBonus(id)
-      notifySuccess('Bonus poin dicabut.')
+      notifySuccess('Point bonus revoked.')
       handleMutated()
     } catch (error) {
       notifyError(error)
@@ -125,7 +125,7 @@ export function MentorLeaderboardPage() {
   if (courses.length === 0) {
     return (
       <section className="mx-auto max-w px-4 pt-8 pb-16 md:mx-8 xl:px-16">
-        <Empty description="Belum ada course milikmu. Buat course dulu di menu Courses." />
+        <Empty description="You have no courses yet. Create a course first in the Courses menu." />
       </section>
     )
   }
@@ -136,7 +136,7 @@ export function MentorLeaderboardPage() {
         <div>
           <h2 className="text-2xl font-bold text-[#08060d]">Leaderboard</h2>
           <p className="mt-1 text-sm text-gray-600">
-            Peringkat poin peserta, filter berdasarkan course.
+            Participant point rankings, filtered by course.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -146,14 +146,14 @@ export function MentorLeaderboardPage() {
               icon={<PlusCircleOutlined />}
               onClick={() => setBonusTarget({})}
             >
-              Tambah Poin Manual
+              Add Manual Points
             </Button>
           )}
           <Select
             value={selected}
             onChange={setSelected}
             options={options}
-            placeholder="Pilih course"
+            placeholder="Select course"
             style={{ width: 260 }}
             showSearch
             optionFilterProp="label"
@@ -176,7 +176,7 @@ export function MentorLeaderboardPage() {
         <div className="mt-8">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-lg font-semibold text-[#08060d]">
-              Riwayat Poin Manual
+              Manual Point History
             </h3>
             <Button
               icon={<ReloadOutlined />}
@@ -191,7 +191,7 @@ export function MentorLeaderboardPage() {
           ) : bonuses.length === 0 ? (
             <Empty
               image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description="Belum ada bonus poin manual di course ini."
+              description="No manual point bonuses in this course yet."
             />
           ) : (
             <ul className="divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white">
@@ -204,21 +204,21 @@ export function MentorLeaderboardPage() {
                     <p className="truncate text-sm font-medium text-[#08060d]">
                       {bonus.user_name}
                       <Tag color="green" className="ml-2 mr-0">
-                        +{bonus.point} poin
+                        +{bonus.point} points
                       </Tag>
                     </p>
                     <p className="mt-0.5 truncate text-sm text-gray-500">
-                      {bonus.description} · oleh {bonus.awarded_by}
+                      {bonus.description} · by {bonus.awarded_by}
                     </p>
                   </div>
                   <Popconfirm
-                    title="Cabut bonus poin ini?"
-                    okText="Cabut"
-                    cancelText="Batal"
+                    title="Revoke this point bonus?"
+                    okText="Revoke"
+                    cancelText="Cancel"
                     onConfirm={() => void handleDelete(bonus.id)}
                   >
                     <Button danger size="small">
-                      Cabut
+                      Revoke
                     </Button>
                   </Popconfirm>
                 </li>

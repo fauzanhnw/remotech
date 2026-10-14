@@ -64,10 +64,10 @@ export function AssignmentFormModal({
 
       if (assignment) {
         await updateAssignment(assignment.id, payload)
-        notifySuccess('Tugas berhasil diperbarui.')
+        notifySuccess('Assignment updated.')
       } else {
         await createAssignment(payload)
-        notifySuccess('Tugas berhasil dibuat.')
+        notifySuccess('Assignment created.')
       }
       onSaved()
       onClose()
@@ -91,8 +91,8 @@ export function AssignmentFormModal({
   return (
     <Modal
       open={open}
-      title={editing ? 'Edit Tugas' : 'Buat Tugas'}
-      okText={editing ? 'Simpan' : 'Buat'}
+      title={editing ? 'Edit Assignment' : 'Create Assignment'}
+      okText={editing ? 'Save' : 'Create'}
       confirmLoading={submitting}
       onCancel={onClose}
       onOk={() => form.submit()}
@@ -101,7 +101,7 @@ export function AssignmentFormModal({
     >
       <p className="mb-4 text-sm text-gray-500">
         Module: <span className="font-medium text-gray-700">{module?.title}</span>
-        {' — student mengumpulkan tautan hasil kerja untuk tugas ini.'}
+        {' — students submit their work links for this assignment.'}
       </p>
 
       <Form<AssignmentFormValues>
@@ -111,21 +111,21 @@ export function AssignmentFormModal({
         onFinish={handleSubmit}
       >
         <Form.Item
-          label="Nama Tugas"
+          label="Assignment Name"
           name="name"
-          rules={[{ required: true, message: 'Nama tugas wajib diisi' }]}
+          rules={[{ required: true, message: 'Assignment name is required' }]}
         >
-          <Input placeholder="mis. Tugas 1 — Analisis Studi Kasus" allowClear />
+          <Input placeholder="e.g. Assignment 1 — Case Study Analysis" allowClear />
         </Form.Item>
 
         <Form.Item
-          label="Deskripsi / Instruksi"
+          label="Description / Instructions"
           name="description"
-          rules={[{ required: true, message: 'Deskripsi tugas wajib diisi' }]}
+          rules={[{ required: true, message: 'Assignment description is required' }]}
         >
           <Input.TextArea
             rows={5}
-            placeholder="Jelaskan apa yang harus dikerjakan student dan format pengumpulannya..."
+            placeholder="Explain what students need to do and the submission format..."
           />
         </Form.Item>
       </Form>

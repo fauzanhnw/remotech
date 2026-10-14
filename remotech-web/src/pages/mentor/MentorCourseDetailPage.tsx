@@ -70,7 +70,7 @@ export function MentorCourseDetailPage() {
     setDeleting(true)
     try {
       await deleteCourse(course.id)
-      notifySuccess('Course berhasil dihapus.')
+      notifySuccess('Course deleted.')
       navigate('/mentor/courses')
     } catch (error) {
       notifyError(error)
@@ -92,7 +92,7 @@ export function MentorCourseDetailPage() {
   if (loadFailed || !course) {
     return (
       <section className="mx-auto max-w-7xl px-4 py-16 md:mx-8 xl:px-16">
-        <Empty description="Gagal memuat course. Silakan coba lagi." />
+        <Empty description="Failed to load the course. Please try again." />
       </section>
     )
   }
@@ -124,7 +124,7 @@ export function MentorCourseDetailPage() {
                 {course.is_publish ? 'Published' : 'Draft'}
               </Tag>
               <Tag color={course.is_open ? 'green' : 'red'}>
-                {course.is_open ? 'Pendaftaran Dibuka' : 'Pendaftaran Ditutup'}
+                {course.is_open ? 'Enrollment Open' : 'Enrollment Closed'}
               </Tag>
             </div>
 
@@ -152,18 +152,18 @@ export function MentorCourseDetailPage() {
               <Link
                 to={`/courses/${course.id}`}
                 className="inline-flex"
-                aria-label="Preview halaman publik"
+                aria-label="Preview public page"
               >
                 <Button size="large">Preview</Button>
               </Link>
 
               {isOwner && (
                 <Popconfirm
-                  title="Hapus course ini?"
-                  description="Semua module, konten, enrollment, dan order terkait ikut terhapus permanen."
-                  okText="Hapus"
+                  title="Delete this course?"
+                  description="All related modules, content, enrollments, and orders will be permanently deleted as well."
+                  okText="Delete"
                   okButtonProps={{ danger: true }}
-                  cancelText="Batal"
+                  cancelText="Cancel"
                   onConfirm={() => void handleDelete()}
                 >
                   <Button
@@ -183,9 +183,9 @@ export function MentorCourseDetailPage() {
 
       {/* Section 2: deskripsi */}
       <section className="mx-auto max-w-7xl px-4 py-10 md:mx-8 xl:px-16">
-        <h2 className="text-2xl font-bold text-[#08060d]">Deskripsi</h2>
+        <h2 className="text-2xl font-bold text-[#08060d]">Description</h2>
         <p className="mt-4 whitespace-pre-line leading-relaxed text-gray-600">
-          {course.description || 'Belum ada deskripsi untuk course ini.'}
+          {course.description || 'No description for this course yet.'}
         </p>
       </section>
 

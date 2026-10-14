@@ -2589,16 +2589,16 @@ class LevelTests(SimpleTestCase):
 
     def test_boundaries(self):
         cases = [
-            (0, 1, "Pemula"),
-            (499, 1, "Pemula"),
-            (500, 2, "Pelajar"),
-            (1499, 2, "Pelajar"),
-            (1500, 3, "Praktisi"),
-            (3999, 3, "Praktisi"),
-            (4000, 4, "Profesional"),
-            (9999, 4, "Profesional"),
-            (10000, 5, "Ahli"),
-            (24999, 5, "Ahli"),
+            (0, 1, "Beginner"),
+            (499, 1, "Beginner"),
+            (500, 2, "Learner"),
+            (1499, 2, "Learner"),
+            (1500, 3, "Practitioner"),
+            (3999, 3, "Practitioner"),
+            (4000, 4, "Professional"),
+            (9999, 4, "Professional"),
+            (10000, 5, "Expert"),
+            (24999, 5, "Expert"),
             (25000, 6, "Master"),
             (99999, 6, "Master"),
         ]
@@ -2610,16 +2610,16 @@ class LevelTests(SimpleTestCase):
         # 750 poin: Pelajar (500) dengan 250 dari 1000 rentang ke Praktisi.
         level, title, next_title, points_to_next, percent = level_progress(750)
 
-        self.assertEqual((level, title), (2, "Pelajar"))
-        self.assertEqual(next_title, "Praktisi")
+        self.assertEqual((level, title), (2, "Learner"))
+        self.assertEqual(next_title, "Practitioner")
         self.assertEqual(points_to_next, 750)
         self.assertEqual(percent, 25)
 
     def test_progress_at_exact_threshold_is_zero_percent(self):
         level, title, next_title, points_to_next, percent = level_progress(1500)
 
-        self.assertEqual((level, title), (3, "Praktisi"))
-        self.assertEqual(next_title, "Profesional")
+        self.assertEqual((level, title), (3, "Practitioner"))
+        self.assertEqual(next_title, "Professional")
         self.assertEqual(points_to_next, 2500)
         self.assertEqual(percent, 0)
 
@@ -2655,20 +2655,20 @@ class LeaderboardLevelAPITests(APITestCase):
         # 1820 poin lintas course → level 3 "Praktisi".
         self.assertEqual(data["total_points"], 1820)
         self.assertEqual(data["level"], 3)
-        self.assertEqual(data["level_title"], "Praktisi")
+        self.assertEqual(data["level_title"], "Practitioner")
 
     def test_me_level_zero_points_is_pemula(self):
         data = self.client.get("/leaderboard/me/").json()
 
         self.assertEqual(data["level"], 1)
-        self.assertEqual(data["level_title"], "Pemula")
+        self.assertEqual(data["level_title"], "Beginner")
 
     def test_me_reports_level_progress_fields(self):
         Leaderboard.objects.create(user=self.student, course=self.course, total_points=750)
 
         data = self.client.get("/leaderboard/me/").json()
 
-        self.assertEqual(data["next_level_title"], "Praktisi")
+        self.assertEqual(data["next_level_title"], "Practitioner")
         self.assertEqual(data["points_to_next_level"], 750)
         self.assertEqual(data["level_progress"], 25)
 
@@ -2694,7 +2694,7 @@ class LeaderboardLevelAPITests(APITestCase):
         )
         self.assertEqual(row["total_points"], 1600)
         self.assertEqual(row["level"], 3)
-        self.assertEqual(row["level_title"], "Praktisi")
+        self.assertEqual(row["level_title"], "Practitioner")
 
 
 class PointBonusTests(APITestCase):
@@ -3850,7 +3850,7 @@ class QuizFlowTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         errors = response.json()["errors"]
-        self.assertIn("Lengkapi semua jawaban", str(errors))
+        self.assertIn("Complete all answers", str(errors))
         submission = Submission.objects.get(pk=submission_id)
         self.assertEqual(submission.reviewed_by, "")
 
@@ -4250,7 +4250,7 @@ class EssayQuizGradingTests(APITestCase):
         )
 
         self.assertEqual(partial.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("Semua jawaban essay", str(partial.json()))
+        self.assertIn("All essay answers must be graded", str(partial.json()))
         self.assertEqual(full.status_code, status.HTTP_200_OK)
         self.assertEqual(full.json()["score"], 42)
         submission = Submission.objects.get(pk=submission_id)
@@ -5070,7 +5070,7 @@ class QuizFinalityTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("tidak bisa diubah", str(response.json()))
+        self.assertIn("cannot be changed", str(response.json()))
 
     def test_answer_upsert_blocked_after_grading(self):
         submission_id = self.start_quiz().json()["submission"]["id"]

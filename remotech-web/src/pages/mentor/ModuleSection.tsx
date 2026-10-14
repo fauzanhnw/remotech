@@ -49,8 +49,8 @@ const CATEGORY_ICONS: Record<ModuleCategory, ReactNode> = {
 }
 
 const QUESTION_TYPE_LABELS: Record<string, string> = {
-  choices: 'Pilihan Ganda',
-  boolean: 'Benar/Salah',
+  choices: 'Multiple Choice',
+  boolean: 'True/False',
   essai: 'Essay',
 }
 
@@ -226,7 +226,7 @@ export function ModuleSection({ courseId, canManage }: ModuleSectionProps) {
   const handleDeleteModule = async (module: CourseModule) => {
     try {
       await deleteModule(module.id)
-      notifySuccess('Module berhasil dihapus.')
+      notifySuccess('Module deleted.')
       setContents((prev) => {
         const next = { ...prev }
         delete next[module.id]
@@ -286,7 +286,7 @@ export function ModuleSection({ courseId, canManage }: ModuleSectionProps) {
   const handleDeleteContent = async (moduleId: number, content: ModuleContent) => {
     try {
       await deleteModuleContent(content.id)
-      notifySuccess('Konten berhasil dihapus.')
+      notifySuccess('Content deleted.')
       await refreshContents(moduleId)
     } catch (error) {
       notifyError(error)
@@ -298,7 +298,7 @@ export function ModuleSection({ courseId, canManage }: ModuleSectionProps) {
     if (!assignment) return
     try {
       await deleteAssignment(assignment.id)
-      notifySuccess('Tugas berhasil dihapus.')
+      notifySuccess('Assignment deleted.')
       await refreshAssignment(module.id)
     } catch (error) {
       notifyError(error)
@@ -308,7 +308,7 @@ export function ModuleSection({ courseId, canManage }: ModuleSectionProps) {
   const handleDeleteQuestion = async (moduleId: number, question: Question) => {
     try {
       await deleteQuestion(question.id)
-      notifySuccess('Soal berhasil dihapus.')
+      notifySuccess('Question deleted.')
       await refreshQuestions(moduleId)
     } catch (error) {
       // Termasuk penolakan bila soal sudah pernah dijawab (toast interceptor).
@@ -335,7 +335,7 @@ export function ModuleSection({ courseId, canManage }: ModuleSectionProps) {
     if (status === 'loading') return <Skeleton active paragraph={{ rows: 3 }} />
 
     if (!status || list.length === 0) {
-      return <p className="text-sm text-gray-500">Belum ada konten untuk module ini.</p>
+      return <p className="text-sm text-gray-500">No content in this module yet.</p>
     }
 
     return (
@@ -366,7 +366,7 @@ export function ModuleSection({ courseId, canManage }: ModuleSectionProps) {
                     dangerouslySetInnerHTML={{ __html: content.content_text }}
                   />
                 ) : (
-                  <p className="text-sm italic text-gray-400">Tidak ada isi</p>
+                  <p className="text-sm italic text-gray-400">No content</p>
                 )}
                 <p className="mt-1 text-xs text-gray-400">Sequence {index + 1}</p>
               </div>
@@ -376,7 +376,7 @@ export function ModuleSection({ courseId, canManage }: ModuleSectionProps) {
                   <Button
                     size="small"
                     type="text"
-                    aria-label="Naikkan urutan"
+                    aria-label="Move up"
                     disabled={index === 0}
                     loading={busy[`content-${content.id}`]}
                     icon={<ArrowUpOutlined />}
@@ -385,7 +385,7 @@ export function ModuleSection({ courseId, canManage }: ModuleSectionProps) {
                   <Button
                     size="small"
                     type="text"
-                    aria-label="Turunkan urutan"
+                    aria-label="Move down"
                     disabled={index === list.length - 1}
                     loading={busy[`content-${content.id}`]}
                     icon={<ArrowDownOutlined />}
@@ -394,25 +394,25 @@ export function ModuleSection({ courseId, canManage }: ModuleSectionProps) {
                   <Button
                     size="small"
                     type="text"
-                    aria-label="Edit konten"
+                    aria-label="Edit content"
                     icon={<EditOutlined />}
                     onClick={() =>
                       setContentModal({ open: true, module, content })
                     }
                   />
                   <Popconfirm
-                    title="Hapus konten ini?"
-                    description="Konten dan media yang hanya dirujuknya ikut dihapus."
-                    okText="Hapus"
+                    title="Delete this content?"
+                    description="The content and any media it only references will be deleted as well."
+                    okText="Delete"
                     okButtonProps={{ danger: true }}
-                    cancelText="Batal"
+                    cancelText="Cancel"
                     onConfirm={() => void handleDeleteContent(module.id, content)}
                   >
                     <Button
                       size="small"
                       type="text"
                       danger
-                      aria-label="Hapus konten"
+                      aria-label="Delete content"
                       icon={<DeleteOutlined />}
                     />
                   </Popconfirm>
@@ -435,7 +435,8 @@ export function ModuleSection({ courseId, canManage }: ModuleSectionProps) {
       return (
         <div className="rounded-lg border border-dashed border-gray-300 p-3">
           <p className="text-sm text-gray-500">
-            Belum ada tugas. Student mengumpulkan tautan hasil kerja melalui tugas ini.
+            No assignment yet. Students submit their work links through this
+            assignment.
           </p>
           {canManage && (
             <Button
@@ -444,7 +445,7 @@ export function ModuleSection({ courseId, canManage }: ModuleSectionProps) {
               icon={<PlusOutlined />}
               onClick={() => setAssignmentModal({ open: true, module, assignment: null })}
             >
-              Buat Tugas
+              Create Assignment
             </Button>
           )}
         </div>
@@ -456,10 +457,10 @@ export function ModuleSection({ courseId, canManage }: ModuleSectionProps) {
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-[#08060d]">{assignment.name}</p>
           <p className="mt-1 whitespace-pre-line text-sm text-gray-600">
-            {assignment.description || 'Tanpa deskripsi.'}
+            {assignment.description || 'No description.'}
           </p>
           <p className="mt-1 text-xs text-gray-400">
-            Tempat student mengumpulkan tautan hasil kerja.
+            Where students submit their work links.
           </p>
         </div>
         {canManage && (
@@ -467,25 +468,25 @@ export function ModuleSection({ courseId, canManage }: ModuleSectionProps) {
             <Button
               size="small"
               type="text"
-              aria-label="Edit tugas"
+              aria-label="Edit assignment"
               icon={<EditOutlined />}
               onClick={() =>
                 setAssignmentModal({ open: true, module, assignment })
               }
             />
             <Popconfirm
-              title="Hapus tugas ini?"
-              description="Submission student pada tugas ini ikut terhapus permanen."
-              okText="Hapus"
+              title="Delete this assignment?"
+              description="Student submissions on this assignment will be permanently deleted as well."
+              okText="Delete"
               okButtonProps={{ danger: true }}
-              cancelText="Batal"
+              cancelText="Cancel"
               onConfirm={() => void handleDeleteAssignment(module)}
             >
               <Button
                 size="small"
                 type="text"
                 danger
-                aria-label="Hapus tugas"
+                aria-label="Delete assignment"
                 icon={<DeleteOutlined />}
               />
             </Popconfirm>
@@ -504,7 +505,7 @@ export function ModuleSection({ courseId, canManage }: ModuleSectionProps) {
         {status === 'loading' ? (
           <Skeleton active paragraph={{ rows: 3 }} />
         ) : list.length === 0 ? (
-          <p className="text-sm text-gray-500">Belum ada soal untuk quiz ini.</p>
+          <p className="text-sm text-gray-500">No questions in this quiz yet.</p>
         ) : (
           <ul className="list-none space-y-2 p-0">
             {list.map((question, index) => (
@@ -532,7 +533,7 @@ export function ModuleSection({ courseId, canManage }: ModuleSectionProps) {
                           {String.fromCharCode(65 + optionIndex)}. {option.option_text}
                           {option.is_correct && (
                             <span className="ml-1 font-semibold text-emerald-600">
-                              (benar)
+                              (correct)
                             </span>
                           )}
                         </li>
@@ -545,23 +546,23 @@ export function ModuleSection({ courseId, canManage }: ModuleSectionProps) {
                     <Button
                       size="small"
                       type="text"
-                      aria-label="Edit soal"
+                      aria-label="Edit question"
                       icon={<EditOutlined />}
                       onClick={() => setQuestionModal({ open: true, module, question })}
                     />
                     <Popconfirm
-                      title="Hapus soal ini?"
-                      description="Tidak bisa dihapus bila sudah ada pengerjaan student."
-                      okText="Hapus"
+                      title="Delete this question?"
+                      description="It cannot be deleted once students have attempted it."
+                      okText="Delete"
                       okButtonProps={{ danger: true }}
-                      cancelText="Batal"
+                      cancelText="Cancel"
                       onConfirm={() => void handleDeleteQuestion(module.id, question)}
                     >
                       <Button
                         size="small"
                         type="text"
                         danger
-                        aria-label="Hapus soal"
+                        aria-label="Delete question"
                         icon={<DeleteOutlined />}
                       />
                     </Popconfirm>
@@ -579,7 +580,7 @@ export function ModuleSection({ courseId, canManage }: ModuleSectionProps) {
             icon={<PlusOutlined />}
             onClick={() => setQuestionModal({ open: true, module, question: null })}
           >
-            Tambah Soal
+            Add Question
           </Button>
         )}
       </div>
@@ -607,8 +608,8 @@ export function ModuleSection({ courseId, canManage }: ModuleSectionProps) {
         <Empty
           description={
             canManage
-              ? 'Belum ada module. Klik Add Module untuk menambahkan.'
-              : 'Belum ada module untuk course ini.'
+              ? 'No modules yet. Click Add Module to add one.'
+              : 'No modules in this course yet.'
           }
         />
       ) : (
@@ -622,7 +623,7 @@ export function ModuleSection({ courseId, canManage }: ModuleSectionProps) {
                 <span className="flex min-w-0 items-center gap-2 font-medium">
                   {CATEGORY_ICONS[module.module_category]}
                   <span className="truncate">{module.title}</span>
-                  <Tag className="mr-0">{module.point} poin</Tag>
+                  <Tag className="mr-0">{module.point} points</Tag>
                 </span>
 
                 {canManage && (
@@ -633,7 +634,7 @@ export function ModuleSection({ courseId, canManage }: ModuleSectionProps) {
                     <Button
                       size="small"
                       type="text"
-                      aria-label="Naikkan urutan"
+                      aria-label="Move up"
                       disabled={index === 0}
                       loading={busy[`module-${module.id}`]}
                       icon={<ArrowUpOutlined />}
@@ -642,7 +643,7 @@ export function ModuleSection({ courseId, canManage }: ModuleSectionProps) {
                     <Button
                       size="small"
                       type="text"
-                      aria-label="Turunkan urutan"
+                      aria-label="Move down"
                       disabled={index === modules.length - 1}
                       loading={busy[`module-${module.id}`]}
                       icon={<ArrowDownOutlined />}
@@ -656,18 +657,18 @@ export function ModuleSection({ courseId, canManage }: ModuleSectionProps) {
                       onClick={() => setModuleModal({ open: true, module })}
                     />
                     <Popconfirm
-                      title="Hapus module ini?"
-                      description="Semua konten dalam module ikut terhapus permanen."
-                      okText="Hapus"
+                      title="Delete this module?"
+                      description="All content in this module will be permanently deleted as well."
+                      okText="Delete"
                       okButtonProps={{ danger: true }}
-                      cancelText="Batal"
+                      cancelText="Cancel"
                       onConfirm={() => void handleDeleteModule(module)}
                     >
                       <Button
                         size="small"
                         type="text"
                         danger
-                        aria-label="Hapus module"
+                        aria-label="Delete module"
                         icon={<DeleteOutlined />}
                       />
                     </Popconfirm>

@@ -64,13 +64,13 @@ export function ContentFormModal({
         await updateModuleContent(content.id, payload, {
           meta: { suppressErrorToast: true },
         })
-        notifySuccess('Konten berhasil diperbarui.')
+        notifySuccess('Content updated.')
       } else {
         await createModuleContent(
           { ...payload, module: module.id },
           { meta: { suppressErrorToast: true } },
         )
-        notifySuccess('Konten berhasil ditambahkan.')
+        notifySuccess('Content added.')
       }
       onSaved()
       onClose()
@@ -95,7 +95,7 @@ export function ContentFormModal({
     <Modal
       open={open}
       title={editing ? 'Edit Content' : 'Add Content'}
-      okText={editing ? 'Simpan' : 'Tambah'}
+      okText={editing ? 'Save' : 'Add'}
       confirmLoading={submitting}
       onCancel={onClose}
       onOk={() => form.submit()}
@@ -105,7 +105,7 @@ export function ContentFormModal({
       <p className="mb-4 text-sm text-gray-500">
         Module: <span className="font-medium text-gray-700">{module?.title}</span>
         {' — '}
-        kategori <span className="font-medium text-gray-700">{category}</span>
+        category <span className="font-medium text-gray-700">{category}</span>
       </p>
 
       <Form<ContentFormValues>
@@ -120,11 +120,11 @@ export function ContentFormModal({
             name="content_url"
             rules={[
               { required: true, message: 'Content URL is required' },
-              { type: 'url', message: 'Masukkan URL yang valid' },
+              { type: 'url', message: 'Enter a valid URL' },
             ]}
           >
             <Input
-              placeholder="https://www.youtube.com/watch?v=... atau https://.../media/..."
+              placeholder="https://www.youtube.com/watch?v=... or https://.../media/..."
               allowClear
             />
           </Form.Item>
@@ -143,7 +143,7 @@ export function ContentFormModal({
               },
             ]}
           >
-            <RichTextEditor placeholder="Tulis materi module di sini (HTML diizinkan)..." />
+            <RichTextEditor placeholder="Write the module material here (HTML allowed)..." />
           </Form.Item>
         )}
       </Form>

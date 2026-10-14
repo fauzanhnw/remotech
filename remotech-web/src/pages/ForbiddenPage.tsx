@@ -11,12 +11,12 @@ export function ForbiddenPage() {
     <section className="mx-auto max-w-5xl px-4 py-16 text-center">
       <h1 className="text-5xl font-semibold text-gray-900">403</h1>
       <ErrorIllustration code="403" />
-      <p className="mt-4 text-gray-600">Anda tidak memiliki akses ke halaman ini.</p>
+      <p className="mt-4 text-gray-600">You don't have access to this page.</p>
       <Link
         to="/"
         className="mt-6 inline-block font-medium text-[#1677ff] hover:text-[#0958d9]"
       >
-        Kembali ke halaman utama
+        Back to home page
       </Link>
     </section>
   )

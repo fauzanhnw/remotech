@@ -77,7 +77,7 @@ export function AwardBadgeModal({
     setSubmitting(true)
     try {
       await awardBadge({ badge: badge.id, user: values.user })
-      notifySuccess(`Badge "${badge.name}" berhasil diberikan.`)
+      notifySuccess(`Badge "${badge.name}" awarded.`)
       onAwarded()
       onClose()
     } catch (error) {
@@ -100,8 +100,8 @@ export function AwardBadgeModal({
   return (
     <Modal
       open={open}
-      title={badge ? `Berikan Badge: ${badge.name}` : 'Berikan Badge'}
-      okText="Berikan"
+      title={badge ? `Award Badge: ${badge.name}` : 'Award Badge'}
+      okText="Award"
       confirmLoading={submitting}
       onCancel={onClose}
       onOk={() => form.submit()}
@@ -117,12 +117,12 @@ export function AwardBadgeModal({
         <Form.Item
           label="Student"
           name="user"
-          rules={[{ required: true, message: 'Pilih student terlebih dahulu' }]}
+          rules={[{ required: true, message: 'Select a student first' }]}
         >
           <Select
             showSearch
             loading={loading}
-            placeholder="Cari student enrolled..."
+            placeholder="Search enrolled students..."
             optionFilterProp="label"
             options={enrollments.map((row) => ({
               value: row.user,

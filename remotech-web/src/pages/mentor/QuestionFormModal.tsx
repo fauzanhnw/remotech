@@ -33,14 +33,14 @@ interface QuestionFormModalProps {
 }
 
 const TYPE_OPTIONS: { value: QuestionType; label: string }[] = [
-  { value: 'choices', label: 'Pilihan Ganda' },
-  { value: 'boolean', label: 'Benar / Salah' },
+  { value: 'choices', label: 'Multiple Choice' },
+  { value: 'boolean', label: 'True / False' },
   { value: 'essai', label: 'Essay' },
 ]
 
 const BOOLEAN_OPTIONS: OptionFormValue[] = [
-  { option_text: 'Benar', is_correct: true },
-  { option_text: 'Salah', is_correct: false },
+  { option_text: 'True', is_correct: true },
+  { option_text: 'False', is_correct: false },
 ]
 
 const emptyOptions = (): OptionFormValue[] => [
@@ -113,7 +113,7 @@ export function QuestionFormModal({
     )
 
     if (!isEssay && options.length < 2) {
-      notifyWarning('Minimal 2 opsi jawaban wajib diisi.')
+      notifyWarning('At least 2 answer options are required.')
       return
     }
 
@@ -134,10 +134,10 @@ export function QuestionFormModal({
 
       if (question) {
         await updateQuestion(question.id, payload)
-        notifySuccess('Soal berhasil diperbarui.')
+        notifySuccess('Question updated successfully.')
       } else {
         await createQuestion(payload)
-        notifySuccess('Soal berhasil ditambahkan.')
+        notifySuccess('Question added successfully.')
       }
       onSaved()
       onClose()
@@ -151,8 +151,8 @@ export function QuestionFormModal({
   return (
     <Modal
       open={open}
-      title={editing ? 'Edit Soal' : 'Tambah Soal'}
-      okText={editing ? 'Simpan' : 'Tambah'}
+      title={editing ? 'Edit Question' : 'Add Question'}
+      okText={editing ? 'Save' : 'Add'}
       confirmLoading={submitting}
       onCancel={onClose}
       onOk={() => form.submit()}
@@ -167,29 +167,29 @@ export function QuestionFormModal({
         initialValues={{ question_type: 'choices', options: emptyOptions() }}
       >
         <Form.Item
-          label="Tipe Soal"
+          label="Question Type"
           name="question_type"
-          rules={[{ required: true, message: 'Tipe soal wajib dipilih' }]}
+          rules={[{ required: true, message: 'Question type is required' }]}
         >
           <Select options={TYPE_OPTIONS} onChange={handleTypeChange} />
         </Form.Item>
 
         <Form.Item
-          label="Pertanyaan"
+          label="Question"
           name="question_text"
-          rules={[{ required: true, message: 'Pertanyaan wajib diisi' }]}
+          rules={[{ required: true, message: 'Question is required' }]}
         >
-          <Input.TextArea rows={3} placeholder="Tulis pertanyaan di sini..." />
+          <Input.TextArea rows={3} placeholder="Write your question here..." />
         </Form.Item>
 
         {!isEssay && (
           <Form.Item
-            label="Opsi Jawaban"
+            label="Answer Options"
             required
             validateStatus={optionsWithoutCorrect(watchedOptions) ? 'error' : undefined}
             help={
               optionsWithoutCorrect(watchedOptions)
-                ? 'Tandai tepat satu opsi sebagai jawaban benar.'
+                ? 'Mark exactly one option as the correct answer.'
                 : undefined
             }
           >
@@ -204,17 +204,17 @@ export function QuestionFormModal({
                         onChange={() => handlePickCorrect(index)}
                         className="mt-2 shrink-0"
                       >
-                        <span className="sr-only">Jawaban benar</span>
+                        <span className="sr-only">Correct answer</span>
                       </Radio>
                       <Form.Item
                         name={[field.name, 'option_text']}
                         rules={[
-                          { required: true, message: 'Opsi jawaban wajib diisi' },
+                          { required: true, message: 'Answer option is required' },
                         ]}
                         className="mb-0 flex-1"
                       >
                         <Input
-                          placeholder={`Opsi ${index + 1}`}
+                          placeholder={`Option ${index + 1}`}
                           disabled={isBoolean}
                           allowClear
                         />
@@ -223,7 +223,7 @@ export function QuestionFormModal({
                         <Button
                           type="text"
                           danger
-                          aria-label="Hapus opsi"
+                          aria-label="Delete option"
                           icon={<DeleteOutlined />}
                           onClick={() => remove(field.name)}
                         />
@@ -237,11 +237,12 @@ export function QuestionFormModal({
                       icon={<PlusOutlined />}
                       onClick={() => add({ option_text: '', is_correct: false })}
                     >
-                      Tambah Opsi
+                      Add Option
                     </Button>
                   )}
                   <p className="text-xs text-gray-500">
-                    Pilih radio pada opsi yang merupakan jawaban benar.
+                    Select the radio button on the option that is the correct
+                    answer.
                   </p>
                 </div>
               )}
@@ -250,11 +251,11 @@ export function QuestionFormModal({
         )}
 
         <Form.Item
-          label="Pembahasan (opsional)"
+          label="Explanation (optional)"
           name="explanation"
-          extra="Ditampilkan ke student setelah hasil quiz final."
+          extra="Shown to students after the final quiz results."
         >
-          <Input.TextArea rows={2} placeholder="mis. Karena 2 + 2 = 4." />
+          <Input.TextArea rows={2} placeholder="e.g. Because 2 + 2 = 4." />
         </Form.Item>
       </Form>
     </Modal>

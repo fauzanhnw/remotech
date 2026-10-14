@@ -99,7 +99,7 @@ export function CurriculumList({
       // Module upload: panel tugas (Kumpulkan tugas) sudah jelas tanpa daftar
       // konten — kosong berarti tidak ada lampiran, jangan tampilkan teks apa pun.
       if (module.module_category === 'upload') return null
-      return <p className="text-sm text-gray-500">Belum ada konten untuk module ini.</p>
+      return <p className="text-sm text-gray-500">There is no content for this module yet.</p>
     }
 
     return (
@@ -128,7 +128,7 @@ export function CurriculumList({
                 </span>
                 {viewedContentIds?.has(content.id) && (
                   <CheckCircleFilled
-                    aria-label="Sudah dibuka"
+                    aria-label="Already opened"
                     className="mt-0.5 text-emerald-500"
                   />
                 )}
@@ -157,7 +157,7 @@ export function CurriculumList({
         {modules.length === 0 ? (
           <Empty
             image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description="Belum ada module untuk course ini."
+            description="There are no modules for this course yet."
             className="py-8"
           />
         ) : (
@@ -184,7 +184,7 @@ export function CurriculumList({
                         <Button
                           size="small"
                           type="text"
-                          aria-label={isDone ? 'Batalkan tanda selesai' : 'Tandai selesai'}
+                          aria-label={isDone ? 'Unmark complete' : 'Mark as complete'}
                           loading={busyModuleId === module.id}
                           icon={
                             isDone ? (
@@ -210,7 +210,7 @@ export function CurriculumList({
                       </span>
                       <span className="truncate font-medium">{module.title}</span>
                     </span>
-                    <Tag className="mr-0 shrink-0">{module.point} poin</Tag>
+                    <Tag className="mr-0 shrink-0">{module.point} Points</Tag>
                   </span>
                 ),
                 children: (
@@ -228,7 +228,7 @@ export function CurriculumList({
                         icon={<UploadOutlined />}
                         onClick={() => onSelectModule(module)}
                       >
-                        Kumpulkan tugas
+                        Submit Assignment
                       </Button>
                     )}
                     {module.module_category === 'quiz' && onSelectModule && (
@@ -239,7 +239,7 @@ export function CurriculumList({
                         icon={<QuestionCircleOutlined />}
                         onClick={() => onSelectModule(module)}
                       >
-                        {isDone ? 'Lihat Hasil Kuis' : 'Mulai Kuis'}
+                        {isDone ? 'View Quiz Results' : 'Start Quiz'}
                       </Button>
                     )}
                     {module.module_category !== 'quiz' && renderContentItems(module)}

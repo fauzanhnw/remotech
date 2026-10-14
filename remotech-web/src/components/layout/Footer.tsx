@@ -51,7 +51,7 @@ export function Footer() {
 
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">
-              Navigasi
+              Navigation
             </p>
             <ul className="mt-3 list-none space-y-2 p-0">
               {footerNav.map((item) => (
@@ -69,7 +69,7 @@ export function Footer() {
 
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">
-              Kontak
+              Contact
             </p>
             <ul className="mt-3 list-none space-y-2 p-0">
               {FOOTER_CONTACTS.map((contact) => (

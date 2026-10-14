@@ -148,21 +148,21 @@ class UserAnswerSerializer(serializers.ModelSerializer):
 
         if request is not None and submission.user_id != request.user.pk:
             raise serializers.ValidationError(
-                {"submission": ["Hanya pemilik submission yang boleh menjawab."]}
+                {"submission": ["Only the submission owner may answer."]}
             )
         if submission.assignment_id is not None:
             raise serializers.ValidationError(
-                {"submission": ["Submission ini bukan submission quiz."]}
+                {"submission": ["This submission is not a quiz submission."]}
             )
         if submission.reviewed_by:
             raise serializers.ValidationError(
-                {"submission": ["Quiz sudah disubmit dan tidak bisa dijawab lagi."]}
+                {"submission": ["Quiz has already been submitted and cannot be answered again."]}
             )
 
         module_id = derive_submission_module_id(submission)
         if module_id is not None and module_id != question.module_id:
             raise serializers.ValidationError(
-                {"question": ["Soal ini bukan milik module quiz tersebut."]}
+                {"question": ["This question does not belong to that quiz module."]}
             )
 
         option = attrs.get("question_option")
@@ -174,20 +174,20 @@ class UserAnswerSerializer(serializers.ModelSerializer):
         if question.is_essay:
             if option is not None:
                 raise serializers.ValidationError(
-                    {"question_option": ["Soal essay tidak memiliki opsi pilihan."]}
+                    {"question_option": ["Essay questions do not have choice options."]}
                 )
             if not (answer_text or "").strip():
                 raise serializers.ValidationError(
-                    {"answer_text": ["Jawaban essay wajib diisi."]}
+                    {"answer_text": ["Essay answer is required."]}
                 )
         else:
             if option is None:
                 raise serializers.ValidationError(
-                    {"question_option": ["Pilih salah satu opsi jawaban."]}
+                    {"question_option": ["Select one of the answer options."]}
                 )
             if option.question_id != question.pk:
                 raise serializers.ValidationError(
-                    {"question_option": ["Opsi tidak termasuk soal tersebut."]}
+                    {"question_option": ["The option does not belong to that question."]}
                 )
 
         return attrs
@@ -244,7 +244,7 @@ class QuestionSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"module": ["This field is required."]})
         if module.module_category != CourseModule.Category.QUIZ:
             raise serializers.ValidationError(
-                {"module": ["Soal hanya bisa ditambahkan ke module quiz."]}
+                {"module": ["Questions can only be added to quiz modules."]}
             )
 
         question_type = self._current(attrs, "question_type")
@@ -259,23 +259,23 @@ class QuestionSerializer(serializers.ModelSerializer):
         if question_type == Question.QuestionType.ESSAI:
             if options:
                 raise serializers.ValidationError(
-                    {"options": ["Soal essay tidak memiliki opsi jawaban."]}
+                    {"options": ["Essay questions do not have answer options."]}
                 )
         else:
             if len(options) < 2:
                 raise serializers.ValidationError(
-                    {"options": ["Minimal 2 opsi jawaban wajib diisi."]}
+                    {"options": ["At least 2 answer options are required."]}
                 )
             correct_count = sum(
                 1 for option in options if option.get("is_correct")
             )
             if correct_count != 1:
                 raise serializers.ValidationError(
-                    {"options": ["Tepat satu opsi harus ditandai benar."]}
+                    {"options": ["Exactly one option must be marked correct."]}
                 )
             if question_type == Question.QuestionType.BOOLEAN and len(options) != 2:
                 raise serializers.ValidationError(
-                    {"options": ["Soal boolean harus memiliki tepat 2 opsi."]}
+                    {"options": ["Boolean questions must have exactly 2 options."]}
                 )
 
         # Kunci jawaban dikunci begitu ada pengerjaan — menyusul poin/soal
@@ -284,7 +284,7 @@ class QuestionSerializer(serializers.ModelSerializer):
             question__module=module
         ).exists():
             raise serializers.ValidationError(
-                {"module": ["Quiz sudah ada pengerjaan — soal tidak bisa diubah."]}
+                {"module": ["Quiz already has submissions — questions cannot be changed."]}
             )
 
         return attrs
@@ -699,12 +699,12 @@ class SubmissionSerializer(serializers.ModelSerializer):
 
     def validate_score(self, value):
         if value < 0:
-            raise serializers.ValidationError("Nilai tidak boleh negatif.")
+            raise serializers.ValidationError("Score cannot be negative.")
         if self.instance is not None:
             module = submission_module(self.instance)
             if module is not None and value > module.point:
                 raise serializers.ValidationError(
-                    f"Nilai tidak boleh melebihi poin maksimal module ({module.point})."
+                    f"Score cannot exceed the module's maximum points ({module.point})."
                 )
         return value
 
@@ -719,7 +719,7 @@ class SubmissionSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     {
                         "assignment": [
-                            "Pengumpulan tugas hanya untuk module berkategori upload."
+                            "Assignment submission is only for upload-category modules."
                         ]
                     }
                 )
