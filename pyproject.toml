@@ -19,6 +19,7 @@ pillow = "^12.3.0"
 nh3 = "^0.3.7"
 django-cors-headers = "^4.9.0"
 requests = "^2.34.2"
+gunicorn = "^23.0.0"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

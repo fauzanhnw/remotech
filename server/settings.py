@@ -25,13 +25,21 @@ config = Config(RepositoryEnv(BASE_DIR / "config" / ".env"))
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-+-0c2#r4i!p$h@1=eq$pnzyc)oh+ji78xn9-o@4+dct$0x@q4&"
+# Set SECRET_KEY in config/.env for production; the default is for local dev only.
+SECRET_KEY = config(
+    "SECRET_KEY",
+    default="django-insecure-+-0c2#r4i!p$h@1=eq$pnzyc)oh+ji78xn9-o@4+dct$0x@q4&",
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# Set DEBUG=False in config/.env for production.
+DEBUG = config("DEBUG", default=True, cast=bool)
 
-ALLOWED_HOSTS = ["*"]  # ONLY FOR DEVELOPMENT
-# ALLOWED_HOSTS = ["api.remotech.web.id"] # FOR PRODUCTION
+# Comma-separated hosts in config/.env, e.g. "api.remotech.web.id".
+# Default keeps the permissive dev behavior.
+ALLOWED_HOSTS = [
+    host.strip() for host in config("ALLOWED_HOSTS", default="*").split(",") if host.strip()
+]
 
 
 # Application definition
@@ -158,6 +166,8 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = "static/"
+# Used by `manage.py collectstatic` (needed for Django admin assets in production).
+STATIC_ROOT = BASE_DIR / "staticfiles"
 
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
