@@ -1,4 +1,4 @@
-import { stats, statsSource } from './data'
+import { stats, statsSources } from './data'
 
 /** Strip statistik tren kerja remote sebagai argumen "kenapa sekarang". */
 export function StatsSection() {
@@ -13,7 +13,22 @@ export function StatsSection() {
             </div>
           ))}
         </div>
-        <p className="mt-8 text-center text-xs text-gray-400">Sumber: {statsSource}</p>
+        <p className="mt-8 text-center text-xs text-gray-400">
+          Sumber:{' '}
+          {statsSources.map((source, i) => (
+            <span key={source.url}>
+              {i > 0 && ' · '}
+              <a
+                href={source.url}
+                target="_blank"
+                rel="noreferrer"
+                className="underline hover:text-gray-600"
+              >
+                {source.label}
+              </a>
+            </span>
+          ))}
+        </p>
       </div>
     </section>
   )

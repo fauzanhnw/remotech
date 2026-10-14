@@ -5,6 +5,11 @@ export interface Stat {
   label: string
 }
 
+export interface StatSource {
+  label: string
+  url: string
+}
+
 export interface FeatureCard {
   icon: 'modules' | 'assignments' | 'gamification'
   title: string
@@ -26,12 +31,21 @@ export const hero = {
 }
 
 export const stats: Stat[] = [
-  { value: '7%', label: 'Porsi hari kerja penuh yang dilakukan remote pada 2019' },
-  { value: '28%', label: 'Porsi hari kerja penuh yang remote pada pertengahan 2023' },
-  { value: '2028', label: 'Tren diproyeksikan terus meningkat hingga' },
+  { value: '26%', label: 'Hari kerja berbayar di AS yang kini dilakukan dari rumah' },
+  { value: '38%', label: 'Karyawan full-time yang bekerja hybrid atau sepenuhnya remote' },
+  { value: '64%', label: 'Pekerja bidang komputer & matematika yang bekerja dari rumah' },
 ]
 
-export const statsSource = ''
+export const statsSources: StatSource[] = [
+  {
+    label: 'WFH Research/SWAA (Barrero, Bloom & Davis), Sep 2026',
+    url: 'https://wfhresearch.com/wp-content/uploads/2026/10/WFHResearch_updates_October2026.pdf',
+  },
+  {
+    label: 'U.S. Bureau of Labor Statistics, Tabel A-42 (CPS), Sep 2026',
+    url: 'https://www.bls.gov/web/empsit/cpseea42.htm',
+  },
+]
 
 export const features = {
   eyebrow: 'SATU PLATFORM',
