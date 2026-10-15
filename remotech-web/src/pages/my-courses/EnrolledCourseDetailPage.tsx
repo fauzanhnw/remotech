@@ -586,7 +586,7 @@ export function EnrolledCourseDetailPage() {
         { key: 'leaderboard', label: 'Leaderboard', children: leaderboardContent },
       ]
     : [
-        { key: 'kurikulum', label: 'Curriculum', children: curriculumList },
+        { key: 'kurikulum', label: 'Course Content', children: curriculumList },
         { key: 'overview', label: 'Overview', children: overviewContent },
         { key: 'leaderboard', label: 'Leaderboard', children: leaderboardContent },
       ]

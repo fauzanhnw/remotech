@@ -144,7 +144,7 @@ export function CurriculumList({
     <div>
       <div className="border-b border-gray-200 px-4 py-3">
         <div className="flex items-center justify-between">
-          <p className="font-semibold text-[#08060d]">Module Content</p>
+          <p className="font-semibold text-[#08060d]">Course Content</p>
           <p className="text-xs text-gray-500">{modules.length} module</p>
         </div>
         <Progress percent={percent} size="small" strokeWidth={6} className="mt-2 mb-0" />
@@ -163,6 +163,9 @@ export function CurriculumList({
         ) : (
           <Collapse
             size="small"
+            // header-text adalah flex item antd dengan min-width:auto; tanpa
+            // min-w-0 judul nowrap menolak menyusut sehingga Tag Points meluber.
+            className="[&_.ant-collapse-header-text]:min-w-0"
             activeKey={activeKeys}
             onChange={(keys) => handlePanelChange(keys as string[])}
             items={modules.map((module) => {
