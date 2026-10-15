@@ -362,7 +362,7 @@ export function ModuleSection({ courseId, canManage }: ModuleSectionProps) {
                   // content_text sudah di-sanitize backend (whitelist nh3:
                   // tanpa script/iframe, URL http/https/mailto) sehingga aman dirender.
                   <div
-                    className="max-h-64 overflow-y-auto text-sm leading-relaxed text-gray-800 [&_img]:my-2 [&_img]:max-h-80 [&_img]:w-auto [&_img]:rounded-md [&_img]:border [&_img]:border-gray-200 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-1 [&_ul]:list-disc [&_ul]:pl-5"
+                    className="max-h-64 overflow-y-auto text-sm leading-relaxed text-gray-800 [&_iframe]:my-2 [&_iframe]:aspect-video [&_iframe]:h-auto [&_iframe]:w-full [&_iframe]:max-w-full [&_iframe]:rounded-md [&_iframe]:border [&_iframe]:border-gray-200 [&_img]:my-2 [&_img]:max-h-80 [&_img]:w-auto [&_img]:rounded-md [&_img]:border [&_img]:border-gray-200 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-1 [&_ul]:list-disc [&_ul]:pl-5"
                     dangerouslySetInnerHTML={{ __html: content.content_text }}
                   />
                 ) : (

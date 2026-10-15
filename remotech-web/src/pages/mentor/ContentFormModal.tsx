@@ -124,7 +124,7 @@ export function ContentFormModal({
             ]}
           >
             <Input
-              placeholder="https://www.youtube.com/watch?v=... or https://.../media/..."
+              placeholder="https://www.youtube.com/watch?v=... or https://drive.google.com/file/d/.../view"
               allowClear
             />
           </Form.Item>

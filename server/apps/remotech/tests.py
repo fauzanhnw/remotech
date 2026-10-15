@@ -169,6 +169,51 @@ class RichTextSanitizerUnitTests(SimpleTestCase):
         self.assertNotIn("object", result)
         self.assertNotIn("<style", result)
 
+    def test_keeps_allowed_embed_iframes(self):
+        html = (
+            '<iframe src="https://www.youtube-nocookie.com/embed/abc123def45" '
+            'width="560" height="315" allowfullscreen></iframe>'
+            '<iframe src="https://drive.google.com/file/d/FILE_ID/preview"></iframe>'
+            '<iframe src="https://player.vimeo.com/video/12345"></iframe>'
+        )
+
+        result = sanitize_richtext(html)
+
+        self.assertIn("youtube-nocookie.com/embed/abc123def45", result)
+        self.assertIn("drive.google.com/file/d/FILE_ID/preview", result)
+        self.assertIn("player.vimeo.com/video/12345", result)
+        self.assertIn("allowfullscreen", result)
+
+    def test_strips_iframes_from_unknown_hosts(self):
+        html = (
+            '<iframe src="https://evil.com/phish">click</iframe>'
+            '<iframe src="https://evil-youtube.com/embed/x"></iframe>'
+            '<iframe src="https://www.youtube.com.evil.com/embed/x"></iframe>'
+            '<iframe src="https://www.youtube.com/embed/ok"></iframe>'
+        )
+
+        result = sanitize_richtext(html)
+
+        self.assertNotIn("evil.com", result)
+        self.assertNotIn("evil-youtube.com", result)
+        self.assertNotIn("click", result)
+        self.assertIn("www.youtube.com/embed/ok", result)
+
+    def test_strips_dangerous_iframe_sources_and_handlers(self):
+        html = (
+            '<iframe src="javascript:alert(1)"></iframe>'
+            "<iframe></iframe>"
+            '<iframe src="https://www.youtube.com/embed/x" onload="evil()"></iframe>'
+        )
+
+        result = sanitize_richtext(html)
+
+        self.assertNotIn("javascript:", result)
+        self.assertNotIn("onload", result)
+        self.assertIn('<iframe src="https://www.youtube.com/embed/x"></iframe>', result)
+        # iframe tanpa src tidak dikeluarkan sama sekali (bukan sekadar kosong).
+        self.assertEqual(result.count("<iframe"), 1)
+
     def test_keeps_media_images_and_document_links(self):
         html = (
             '<img src="/media/course-content/images/a.webp" alt="gambar">'

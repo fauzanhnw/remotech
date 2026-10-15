@@ -42,6 +42,7 @@ ALLOWED_TAGS = {
     "sup",
     "mark",
     "span",
+    "iframe",
 }
 
 ALIGNABLE_TAGS = {"p", "div", "h1", "h2", "h3", "h4", "h5", "h6", "span"}
@@ -51,6 +52,16 @@ ALLOWED_ATTRIBUTES = {
     "img": {"src", "alt", "title", "width", "height"},
     "td": {"colspan", "rowspan"},
     "th": {"colspan", "rowspan"},
+    "iframe": {
+        "src",
+        "width",
+        "height",
+        "frameborder",
+        "allowfullscreen",
+        "allow",
+        "title",
+        "referrerpolicy",
+    },
     "*": {"class"},
 }
 for _tag in ALIGNABLE_TAGS:
@@ -61,11 +72,24 @@ ALLOWED_URL_SCHEMES = {"http", "https", "mailto"}
 STRIP_CONTENT_TAGS = {
     "script",
     "style",
-    "iframe",
     "object",
     "embed",
     "noscript",
     "template",
+}
+
+# Domain host embed video yang diizinkan di dalam <iframe> module teks.
+# Pencocokan memakai dot-boundary: "youtube.com" juga menyetujui "www.youtube.com",
+# tetapi tidak "evil-youtube.com".
+EMBED_HOSTS = {
+    "youtube.com",
+    "youtube-nocookie.com",
+    "drive.google.com",
+    "docs.google.com",
+    "player.vimeo.com",
+    "www.loom.com",
+    "player.twitch.tv",
+    "clips.twitch.tv",
 }
 
 MEDIA_URL_PATTERN = re.compile(
@@ -74,6 +98,35 @@ MEDIA_URL_PATTERN = re.compile(
 MEDIA_ATTR_PATTERN = re.compile(
     r"""((?:src|href)\s*=\s*["'])(/?media/[^"']+)(["'])""", re.IGNORECASE
 )
+IFRAME_TAG_PATTERN = re.compile(
+    r"<iframe\b([^>]*)>(?:.*?</iframe\s*>)?", re.IGNORECASE | re.DOTALL
+)
+IFRAME_SRC_PATTERN = re.compile(r"""src\s*=\s*["']([^"']+)["']""", re.IGNORECASE)
+
+
+def is_embed_host(value: str) -> bool:
+    """True bila URL http(s) menuju host di EMBED_HOSTS (dot-boundary match)."""
+    if not isinstance(value, str) or not value:
+        return False
+    parts = urlsplit(value.strip())
+    if parts.scheme not in ("http", "https"):
+        return False
+    host = (parts.hostname or "").lower()
+    if not host:
+        return False
+    return any(host == entry or host.endswith(f".{entry}") for entry in EMBED_HOSTS)
+
+
+def _strip_disallowed_iframes(html: str) -> str:
+    """Buang <iframe> (beserta isinya) yang src-nya bukan host embed yang diizinkan."""
+
+    def _keep(match: re.Match) -> str:
+        src = IFRAME_SRC_PATTERN.search(match.group(1))
+        if src and is_embed_host(src.group(1)):
+            return match.group(0)
+        return ""
+
+    return IFRAME_TAG_PATTERN.sub(_keep, html)
 
 
 def normalize_media_url(value):
@@ -119,6 +172,9 @@ def absolutize_media_urls(html):
 
 
 def _attribute_filter(tag, attr, value):
+    if tag == "iframe" and attr == "src":
+        # Lapis kedua setelah _strip_disallowed_iframes: src iframe harus host embed.
+        return value if is_embed_host(value) else None
     if attr in ("src", "href"):
         return normalize_media_url(value)
     return value
@@ -138,7 +194,7 @@ _cleaner = nh3.Cleaner(
 def sanitize_richtext(html: str) -> str:
     if not html:
         return ""
-    return _cleaner.clean(html)
+    return _cleaner.clean(_strip_disallowed_iframes(html))
 
 
 def extract_media_urls(html: str) -> set[str]:

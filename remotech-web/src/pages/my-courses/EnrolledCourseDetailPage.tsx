@@ -42,7 +42,7 @@ const IMAGE_URL = /\.(png|jpe?g|gif|webp|avif|svg)(\?.*)?$/i
 
 /** Styling HTML teks — `content_text` sudah disanitasi backend (whitelist nh3). */
 const TEXT_HTML_CLASS =
-  '[&_img]:my-3 [&_img]:max-h-full [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-md [&_img]:border [&_img]:border-gray-200 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:my-2 [&_ul]:list-disc [&_ul]:pl-6'
+  '[&_img]:my-3 [&_img]:max-h-full [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-md [&_img]:border [&_img]:border-gray-200 [&_iframe]:my-3 [&_iframe]:aspect-video [&_iframe]:h-auto [&_iframe]:w-full [&_iframe]:max-w-full [&_iframe]:rounded-md [&_iframe]:border [&_iframe]:border-gray-200 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:my-2 [&_ul]:list-disc [&_ul]:pl-6'
 
 interface SelectedPreview {
   module: CourseModule
