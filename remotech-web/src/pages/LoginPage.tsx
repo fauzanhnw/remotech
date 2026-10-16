@@ -2,7 +2,7 @@ import { Button, Checkbox, Form, Input } from 'antd'
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 
-import { getFieldErrors, notifyError } from '@/api'
+import { getFieldErrors, isApiError, notifyError } from '@/api'
 import { useAuth } from '@/auth/AuthContext'
 import { AuthCard } from '@/components/auth/AuthCard'
 import { usePageTitle } from '@/hooks/usePageTitle'
@@ -11,6 +11,14 @@ interface LoginValues {
   /** Backend menerima email lewat field `username`. */
   username: string
   password: string
+}
+
+/** Login ditolak (401): kredensial salah, email tidak terdaftar, atau akun nonaktif. */
+function isAuthFailure(error: unknown): boolean {
+  if (!isApiError(error) || error.status !== 401) return false
+  return error.errors.some(
+    (item) => item.code === 'no_active_account' || item.attr === null,
+  )
 }
 
 export function LoginPage() {
@@ -39,6 +47,8 @@ export function LoginPage() {
             errors: [help],
           })),
         )
+      } else if (isAuthFailure(error)) {
+        notifyError('Email or password is incorrect')
       } else {
         notifyError(error)
       }
