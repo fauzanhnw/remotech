@@ -1,4 +1,9 @@
-import { EditOutlined, PictureOutlined, DeleteOutlined } from '@ant-design/icons'
+import {
+  EditOutlined,
+  PictureOutlined,
+  DeleteOutlined,
+  TeamOutlined,
+} from '@ant-design/icons'
 import { Button, Empty, Popconfirm, Skeleton, Tag } from 'antd'
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
@@ -12,6 +17,7 @@ import { formatRupiah } from '@/utils/format'
 import { BadgeSection } from './BadgeSection'
 import { EditCourseModal } from './EditCourseModal'
 import { ModuleSection } from './ModuleSection'
+import { ParticipantsModal } from './ParticipantsModal'
 
 /** Detail course untuk mentor: edit/hapus course + kelola module & konten. */
 export function MentorCourseDetailPage() {
@@ -25,6 +31,7 @@ export function MentorCourseDetailPage() {
   const [loadFailed, setLoadFailed] = useState(false)
   const [notFound, setNotFound] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
+  const [participantsOpen, setParticipantsOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
   const invalidId = !Number.isInteger(courseId) || courseId <= 0
@@ -149,6 +156,16 @@ export function MentorCourseDetailPage() {
                 </Button>
               )}
 
+              {isOwner && (
+                <Button
+                  size="large"
+                  icon={<TeamOutlined />}
+                  onClick={() => setParticipantsOpen(true)}
+                >
+                  View Participants
+                </Button>
+              )}
+
               <Link
                 to={`/courses/${course.id}`}
                 className="inline-flex"
@@ -200,6 +217,13 @@ export function MentorCourseDetailPage() {
         course={course}
         onClose={() => setEditOpen(false)}
         onSaved={loadCourse}
+      />
+
+      <ParticipantsModal
+        open={participantsOpen}
+        onClose={() => setParticipantsOpen(false)}
+        courseId={isOwner ? course.id : null}
+        courseTitle={course.title}
       />
     </>
   )

@@ -45,8 +45,9 @@ fi
 
 echo "==> [3/8] Clone repo (branch main) ke ${APP_DIR}"
 if [[ -d "${APP_DIR}/.git" ]]; then
-  echo "    repo sudah ada — git pull"
-  sudo -u deploy git -C "${APP_DIR}" pull --ff-only
+  echo "    repo sudah ada — sinkron dengan origin/main (fetch + reset, tahan force-push)"
+  sudo -u deploy git -C "${APP_DIR}" fetch origin
+  sudo -u deploy git -C "${APP_DIR}" reset --hard origin/main
 else
   sudo -u deploy git clone --branch main "${REPO_URL}" "${APP_DIR}"
 fi
@@ -57,6 +58,9 @@ if [[ ! -d "${APP_DIR}/venv" ]]; then
 fi
 sudo -u deploy "${APP_DIR}/venv/bin/pip" install --quiet --upgrade pip
 sudo -u deploy "${APP_DIR}/venv/bin/pip" install --quiet -r "${APP_DIR}/requirements.txt"
+# Pasang proyek sebagai editable LOKAL. JANGAN pakai -e git+ di requirements.txt:
+# itu membekukan kode di commit lama sehingga server tidak ikut git pull/reset.
+sudo -u deploy "${APP_DIR}/venv/bin/pip" install --quiet -e "${APP_DIR}"
 # Gunicorn wajib ada sebagai binary di venv (server.wsgi dijalankan lewat ini).
 # Pip kadang gagal diam-diam (jaringan dsb.) — pasang ulang bila belum ada.
 if [[ ! -x "${APP_DIR}/venv/bin/gunicorn" ]]; then
@@ -162,6 +166,15 @@ else
   journalctl -u remotech -n 20 --no-pager >&2 || true
   exit 1
 fi
+# Pastikan runtime benar-benar memakai kode repo (bukan instalasi editable basi).
+# cd /tmp agar check jujur — tidak memakai cwd yang kebetulan mengandung server/.
+SERVED_CODE=$(cd /tmp && sudo -u deploy "${APP_DIR}/venv/bin/python" -c "import server; print(server.__file__)")
+if [[ "${SERVED_CODE}" != "${APP_DIR}/server/"* ]]; then
+  echo "    ERROR: 'server' di-resolve ke ${SERVED_CODE}, bukan ${APP_DIR}/server/." >&2
+  echo "    Runtime tidak memakai kode repo — jalankan: pip install -e ${APP_DIR}" >&2
+  exit 1
+fi
+echo "    import server → ${SERVED_CODE} (kode repo lokal)"
 
 echo "==> [8/8] Selesai"
 echo

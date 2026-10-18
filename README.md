@@ -175,11 +175,31 @@ sudo chmod -R o+rX /var/www/remotech
 
 ### Update deploy
 
+**Backend** — di VPS:
+
 ```bash
-# di VPS
-cd /home/deploy/remotech && sudo -u deploy git pull
+cd /home/deploy/remotech
+sudo -u deploy git fetch origin
+sudo -u deploy git reset --hard origin/main   # sinkron persis dgn origin/main (tahan force-push)
 sudo -u deploy venv/bin/pip install -r requirements.txt
 sudo -u deploy venv/bin/python manage.py migrate --noinput
-sudo systemctl restart remotech
-# frontend: build & upload ulang (langkah 2)
+sudo systemctl restart remotech               # kode baru hanya aktif setelah restart
+```
+
+> `reset --hard` aman di server deploy: `config/.env`, `venv/`, `media/`, `staticfiles/`
+> tidak di-track jadi tidak tersentuh; perintah ini menggantikan `git pull` yang gagal
+> setelah force-push.
+
+**Verifikasi kode benar-benar terbaru:**
+
+```bash
+cd /tmp && sudo -u deploy /home/deploy/remotech/venv/bin/python -c "import server; print(server.__file__)"
+# harus: /home/deploy/remotech/server/__init__.py (path lain = runtime menjalankan kode lama)
+systemctl show remotech -p ExecMainStartTimestamp   # waktu start harus lebih baru dari reset terakhir
+```
+
+**Frontend** — kalau ada perubahan di `remotech-web/`: build & upload ulang (langkah 2), lalu cocokkan hash:
+
+```bash
+curl -s https://remotech.web.id | grep -o 'index-[^"]*\.js'   # harus sama dgn nama di remotech-web/dist/index.html
 ```
