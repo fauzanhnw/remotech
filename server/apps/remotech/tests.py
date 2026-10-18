@@ -1592,6 +1592,55 @@ class OrderEnrollmentAccessTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.json()["count"], 0)
 
+    def test_course_owner_sees_only_own_enrollments_not_students(self):
+        CourseEnrollment.objects.create(user=self.owner, course=self.course)
+        for index in range(3):
+            student = User.objects.create_user(
+                username=f"student-{index}", password="secret123"
+            )
+            CourseEnrollment.objects.create(user=student, course=self.course)
+
+        self.client.force_authenticate(user=self.owner)
+        response = self.client.get("/enroll/").json()
+
+        self.assertEqual(response["count"], 1)
+        self.assertEqual(response["results"][0]["user"], self.owner.id)
+        self.assertEqual(response["results"][0]["course"]["id"], self.course.id)
+
+    def test_course_owner_can_list_students_of_own_course(self):
+        # setUp sudah membuat enrollment milik self.other di course ini.
+        for index in range(2):
+            student = User.objects.create_user(
+                username=f"student-{index}", password="secret123"
+            )
+            CourseEnrollment.objects.create(user=student, course=self.course)
+
+        self.client.force_authenticate(user=self.owner)
+        response = self.client.get(f"/enroll/?course={self.course.id}").json()
+
+        self.assertEqual(response["count"], 3)
+        student_ids = {row["user"] for row in response["results"]}
+        self.assertNotIn(self.owner.id, student_ids)
+
+    def test_non_owner_course_filter_still_scoped_to_self(self):
+        CourseEnrollment.objects.create(user=self.buyer, course=self.course)
+
+        self.client.force_authenticate(user=self.buyer)
+        response = self.client.get(f"/enroll/?course={self.course.id}").json()
+
+        self.assertEqual(response["count"], 1)
+        self.assertEqual(response["results"][0]["user"], self.buyer.id)
+
+    def test_superuser_enrollment_list_defaults_to_own(self):
+        admin = User.objects.create_superuser(
+            username="root", password="secret123"
+        )
+
+        self.client.force_authenticate(user=admin)
+        response = self.client.get("/enroll/").json()
+
+        self.assertEqual(response["count"], 0)
+
     def test_order_list_requires_authentication(self):
         self.client.force_authenticate(user=None)
 

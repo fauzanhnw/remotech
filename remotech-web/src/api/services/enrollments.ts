@@ -6,8 +6,9 @@ import type { EnrollmentListParams } from '@/types/params'
 export type { EnrollmentListParams } from '@/types/params'
 
 /**
- * GET /enroll/ — wajib login, hanya enrollment milik sendiri.
- * Filter `?course=`, `?user=`.
+ * GET /enroll/ — wajib login, default hanya enrollment milik sendiri.
+ * Filter `?course=`, `?user=`. `?course=` hanya melebarkan scope untuk
+ * pemilik course / superuser (pemilihan student saat beri badge/poin).
  */
 export function listEnrollments(
   params?: EnrollmentListParams,

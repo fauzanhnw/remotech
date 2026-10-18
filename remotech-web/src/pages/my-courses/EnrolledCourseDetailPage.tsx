@@ -23,6 +23,7 @@ import {
   notifyError,
   unmarkProgress,
 } from '@/api'
+import { useAuth } from '@/auth/AuthContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { BadgeGrid } from '@/components/BadgeGrid'
@@ -54,6 +55,7 @@ interface SelectedPreview {
 export function EnrolledCourseDetailPage() {
   const { id } = useParams<{ id: string }>()
   const courseId = Number(id)
+  const { user } = useAuth()
   // Deep-link: `/my-courses/{id}?module={moduleId}` membuka module tertentu
   // (dipakai halaman My Assignment). Dibaca saat pratinjau awal di bawah.
   const [searchParams, setSearchParams] = useSearchParams()
@@ -132,7 +134,7 @@ export function EnrolledCourseDetailPage() {
     Promise.all([
       getCourse(courseId),
       listModules({ course: courseId, page_size: 100 }),
-      listEnrollments({ course: courseId, page_size: 1 }),
+      listEnrollments({ course: courseId, user: user?.id, page_size: 1 }),
     ])
       .then(([courseData, modulePage, enrollmentPage]) => {
         if (cancelled) return
@@ -156,7 +158,7 @@ export function EnrolledCourseDetailPage() {
     return () => {
       cancelled = true
     }
-  }, [courseId, invalidId])
+  }, [courseId, invalidId, user?.id])
 
   // Progres per module milik sendiri (gagal → diam, semua 0%).
   useEffect(() => {

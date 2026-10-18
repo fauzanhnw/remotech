@@ -684,14 +684,17 @@ class CourseEnrollmentViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         user = self.request.user
-        if user.is_superuser:
-            return queryset
-        # Pemilik course boleh melihat peserta course miliknya (untuk
-        # pemilihan student saat memberi badge manual).
-        owned_course_ids = Course.objects.filter(user=user).values_list(
-            "id", flat=True
-        )
-        return queryset.filter(Q(user=user) | Q(course_id__in=owned_course_ids))
+        course_id = self.request.query_params.get("course")
+        if course_id:
+            # Pemilik course / superuser boleh melihat peserta course
+            # tersebut (untuk pemilihan student saat memberi badge atau
+            # bonus poin manual).
+            if user.is_superuser or Course.objects.filter(
+                id=course_id, user=user
+            ).exists():
+                return queryset.filter(course_id=course_id)
+        # Default: hanya enrollment milik sendiri (scope dari token).
+        return queryset.filter(user=user)
 
     def create(self, request, *args, **kwargs):
         self.http_method_not_allowed(request, *args, **kwargs)
