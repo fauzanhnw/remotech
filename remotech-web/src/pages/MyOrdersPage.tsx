@@ -303,7 +303,18 @@ export function MyOrdersPage() {
             )}
           </p>
         </div>
-        <Space>
+      </div>
+
+      <div className="mb-4 flex flex-wrap sm:flex-nowrap gap-3">
+        <Input
+          allowClear
+          prefix={<SearchOutlined className="text-gray-400" />}
+          placeholder="Search order no. or course title..."
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          className="max-w"
+        />
+        <Space className="flex flex-wrap sm:flex-nowrap">
           <Select
             value={statusFilter}
             onChange={setStatusFilter}
@@ -319,17 +330,6 @@ export function MyOrdersPage() {
             <Button icon={<ReloadOutlined />} onClick={() => void load()} />
           </Tooltip>
         </Space>
-      </div>
-
-      <div className="mb-4">
-        <Input
-          allowClear
-          prefix={<SearchOutlined className="text-gray-400" />}
-          placeholder="Search order no. or course title..."
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          className="max-w-sm"
-        />
       </div>
 
       {!loading && visible.length === 0 ? (

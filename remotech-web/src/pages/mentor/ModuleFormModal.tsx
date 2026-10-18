@@ -167,7 +167,11 @@ export function ModuleFormModal({
         </Form.Item>
 
         <div className="flex flex-wrap gap-4">
-          <Form.Item label="Category" name="module_category">
+          <Form.Item
+            label="Category"
+            name="module_category"
+            tooltip="Type of learning material: Text (reading material), Video (embedded player), Upload (assignment; students submit work links; supports deadline & late penalty), Quiz (graded questions; supports retake & deadline)."
+          >
             <Select className="w-44" options={CATEGORY_OPTIONS} />
           </Form.Item>
 
